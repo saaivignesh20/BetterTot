@@ -23,6 +23,11 @@ enum FlushResult: Equatable {
     case failed
 }
 
+private struct PersistenceRevision: Hashable {
+    let padID: PadID
+    let revision: UInt64
+}
+
 final class ScratchpadPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
@@ -30,6 +35,7 @@ final class ScratchpadPanel: NSPanel {
     var onTogglePin: (() -> Void)?
     var onPadCommand: ((PadCommand) -> Void)?
     var onOpenSettings: (() -> Void)?
+    var onClose: (() -> Void)?
 
     // ponytail: accessory app has no menu bar, so standard edit key equivalents
     // are routed by hand here; replace with a real main menu when settings land.
@@ -64,6 +70,9 @@ final class ScratchpadPanel: NSPanel {
             return NSApp.sendAction(action, to: nil, from: self)
         case "p": onTogglePin?(); return true
         case ",": onOpenSettings?(); return true
+        case "w" where !shift && !option && !control:
+            onClose?()
+            return true
         case "q": NSApp.terminate(nil); return true
         default: return false
         }
@@ -78,14 +87,17 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate {
     private let panel: ScratchpadPanel
     let textView: NSTextView
     private let scrollView: NSScrollView
-    private let segmented: NSSegmentedControl
-    private let settingsButton: NSButton
+    private let content: PanelContentView
 
     private var pads: [PadMetadata]
     private var selectedIndex: Int
     private var texts: [PadID: String]
     private var revisions: [PadID: UInt64] = [:]
     private var undoManagers: [PadID: UndoManager] = [:]
+    private var saveStates: [PadID: PanelSaveState] = [:]
+    private var journalTasks: [PersistenceRevision: Task<Bool, Never>] = [:]
+    private var commitTasks: [PersistenceRevision: Task<Void, Never>] = [:]
+    private var padStateTasks: [Task<Void, Never>] = []
 
     private var isPinned = false
     private var attachedOrigin: NSPoint?
@@ -117,72 +129,14 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate {
         textView.drawsBackground = false
         scrollView.drawsBackground = false
 
-        segmented = NSSegmentedControl(
-            labels: Array(repeating: "", count: WorkspaceMetadata.padCount),
-            trackingMode: .selectOne,
-            target: nil,
-            action: nil
+        content = PanelContentView(
+            scrollView: scrollView,
+            pads: pads,
+            selectedIndex: selectedIndex
         )
-        segmented.segmentStyle = .capsule
-        segmented.selectedSegment = selectedIndex
-        segmented.refusesFirstResponder = true // keyboard path is ⌘1–7
-        segmented.setAccessibilityLabel("Scratchpads")
-        for index in 0..<WorkspaceMetadata.padCount {
-            let description = "Scratchpad \(index + 1)"
-            segmented.setImage(
-                Self.padDotImage(
-                    color: Self.padColor(for: pads[index]),
-                    accessibilityDescription: description),
-                forSegment: index)
-            segmented.setWidth(30, forSegment: index)
-            segmented.setToolTip("Scratchpad \(index + 1)", forSegment: index)
-        }
-
-        settingsButton = NSButton(
-            image: NSImage(
-                systemSymbolName: "gearshape",
-                accessibilityDescription: "Settings"
-            ) ?? NSImage(),
-            target: nil,
-            action: nil
-        )
-        settingsButton.identifier = NSUserInterfaceItemIdentifier("panel-settings")
-        settingsButton.imagePosition = .imageOnly
-        settingsButton.isBordered = false
-        settingsButton.refusesFirstResponder = true
-        settingsButton.toolTip = "Settings"
-        settingsButton.setAccessibilityLabel("Settings")
-        settingsButton.setContentHuggingPriority(.required, for: .horizontal)
-
-        let background = NSVisualEffectView()
-        background.material = .popover
-        background.state = .active
-        background.wantsLayer = true
-        background.layer?.cornerRadius = 12
-        background.layer?.masksToBounds = true
-
-        let headerSpacer = NSView()
-        headerSpacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        headerSpacer.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        let header = NSStackView(views: [segmented, headerSpacer, settingsButton])
-        header.orientation = .horizontal
-        header.alignment = .centerY
-        header.spacing = 6
-
-        let stack = NSStackView(views: [header, scrollView])
-        stack.orientation = .vertical
-        stack.spacing = 6
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        background.addSubview(stack)
-        NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: background.topAnchor, constant: 8),
-            stack.leadingAnchor.constraint(equalTo: background.leadingAnchor, constant: 8),
-            stack.trailingAnchor.constraint(equalTo: background.trailingAnchor, constant: -8),
-            stack.bottomAnchor.constraint(equalTo: background.bottomAnchor, constant: -8),
-        ])
 
         panel = ScratchpadPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 420, height: 340),
+            contentRect: NSRect(x: 0, y: 0, width: 440, height: 380),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -195,20 +149,25 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate {
         panel.backgroundColor = .clear
         panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        panel.contentView = background
+        panel.contentView = content
         panel.isMovableByWindowBackground = true
 
         super.init()
 
         panel.delegate = self
-        segmented.target = self
-        segmented.action = #selector(segmentChanged)
-        settingsButton.target = self
-        settingsButton.action = #selector(openSettings)
+        content.onClose = { [weak self] in self?.dismiss(reason: .explicitClose) }
+        content.onSelectPad = { [weak self] index in
+            guard let self else { return }
+            self.switchToPad(at: index)
+            self.panel.makeFirstResponder(self.textView)
+        }
+        content.onTogglePin = { [weak self] in self?.togglePin() }
+        content.onOpenSettings = { [weak self] in self?.openSettings() }
         textView.delegate = self
         panel.onTogglePin = { [weak self] in self?.togglePin() }
         panel.onPadCommand = { [weak self] command in self?.handle(command) }
-        panel.onOpenSettings = { [weak self] in self?.onOpenSettings?() }
+        panel.onOpenSettings = { [weak self] in self?.openSettings() }
+        panel.onClose = { [weak self] in self?.dismiss(reason: .explicitClose) }
         applySettings()
         NotificationCenter.default.addObserver(
             self,
@@ -217,6 +176,15 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate {
             object: defaults
         )
         loadSelectedPadIntoEditor()
+    }
+
+    deinit {
+        pendingSave?.cancel()
+        journalTasks.values.forEach { $0.cancel() }
+        commitTasks.values.forEach { $0.cancel() }
+        padStateTasks.forEach { $0.cancel() }
+        mouseMonitors.forEach(NSEvent.removeMonitor)
+        NotificationCenter.default.removeObserver(self)
     }
 
     // MARK: - Settings
@@ -233,6 +201,9 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate {
     }
 
     @objc private func openSettings() {
+        if !isPinned {
+            dismiss(reason: .explicitClose)
+        }
         onOpenSettings?()
     }
 
@@ -255,24 +226,23 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate {
         }
     }
 
-    @objc private func segmentChanged() {
-        switchToPad(at: segmented.selectedSegment)
-        panel.makeFirstResponder(textView)
-    }
-
     private func switchToPad(at index: Int) {
         guard pads.indices.contains(index), index != selectedIndex else {
-            segmented.selectedSegment = selectedIndex
+            content.updateSelection(index: selectedIndex)
             return
         }
         persistCurrentPadUIState()
         commitCurrentPadNow()
         selectedIndex = index
-        segmented.selectedSegment = index
+        content.updateSelection(index: index)
         loadSelectedPadIntoEditor()
         announceSelectedPad()
         let id = pads[index].id
-        Task { await store.select(id) }
+        let task = Task { [store] in
+            guard !Task.isCancelled else { return }
+            await store.select(id)
+        }
+        padStateTasks.append(task)
     }
 
     // VoiceOver hears pad changes (plan §12: proper announcements, and state
@@ -294,6 +264,8 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate {
         let pad = pads[selectedIndex]
         textView.setAccessibilityLabel("Scratchpad \(pad.position + 1)")
         textView.string = texts[pad.id] ?? ""
+        content.updateTextStatistics(textView.string)
+        content.updateSaveState(saveStates[pad.id] ?? .saved)
         let length = (textView.string as NSString).length
         textView.setSelectedRange(pad.selection.clamped(toTextLength: length))
         textView.layoutManager?.ensureLayout(for: textView.textContainer!)
@@ -310,7 +282,11 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate {
         pads[selectedIndex].selection = selection
         pads[selectedIndex].scrollOffset = offset
         let id = pads[selectedIndex].id
-        Task { await store.updatePadState(id, selection: selection, scrollOffset: offset) }
+        let task = Task { [store] in
+            guard !Task.isCancelled else { return }
+            await store.updatePadState(id, selection: selection, scrollOffset: offset)
+        }
+        padStateTasks.append(task)
     }
 
     // Undoable clear (plan §4.3: clearing needs confirmation or immediate undo).
@@ -357,7 +333,10 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate {
     func dismiss(reason: PanelDismissalReason) {
         if isPinned {
             switch reason {
-            case .explicitClose, .termination:
+            case .explicitClose:
+                isPinned = false
+                content.updatePinned(false)
+            case .termination:
                 break
             case .escape, .outsideClick, .statusItemToggle, .globalShortcutToggle:
                 return
@@ -376,6 +355,7 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate {
     private func setPinned(_ pinned: Bool) {
         guard isPinned != pinned else { return }
         isPinned = pinned
+        content.updatePinned(pinned)
         if pinned {
             removeMouseMonitors()
         } else if panel.isVisible {
@@ -460,45 +440,6 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate {
         mouseMonitors = []
     }
 
-    private static func padColor(for pad: PadMetadata) -> NSColor {
-        let named: [String: NSColor] = [
-            "red": .systemRed,
-            "orange": .systemOrange,
-            "yellow": .systemYellow,
-            "green": .systemGreen,
-            "teal": .systemTeal,
-            "blue": .systemBlue,
-            "purple": .systemPurple,
-        ]
-        if let identifier = pad.colorIdentifier?.lowercased(),
-           let color = named[identifier] {
-            return color
-        }
-        let palette: [NSColor] = [
-            .systemRed,
-            .systemOrange,
-            .systemYellow,
-            .systemGreen,
-            .systemTeal,
-            .systemBlue,
-            .systemPurple,
-        ]
-        return palette[pad.position % palette.count]
-    }
-
-    private static func padDotImage(
-        color: NSColor,
-        accessibilityDescription: String
-    ) -> NSImage {
-        let image = NSImage(size: NSSize(width: 14, height: 14), flipped: false) { rect in
-            color.setFill()
-            NSBezierPath(ovalIn: rect.insetBy(dx: 2, dy: 2)).fill()
-            return true
-        }
-        image.accessibilityDescription = accessibilityDescription
-        return image
-    }
-
     // MARK: - Persistence (journal per change, 200 ms debounced commit)
 
     func textDidChange(_ notification: Notification) {
@@ -507,7 +448,15 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate {
         texts[id] = text
         let revision = (revisions[id] ?? 0) + 1
         revisions[id] = revision
-        Task { _ = await store.journal(id, text: text, revision: revision) }
+        saveStates[id] = .saving
+        content.updateTextStatistics(text)
+        content.updateSaveState(.saving)
+        let key = PersistenceRevision(padID: id, revision: revision)
+        let journalTask = Task { [store] in
+            guard !Task.isCancelled else { return false }
+            return await store.journal(id, text: text, revision: revision)
+        }
+        journalTasks[key] = journalTask
 
         pendingSave?.cancel()
         let work = DispatchWorkItem { [weak self] in self?.commit(id) }
@@ -517,7 +466,70 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate {
 
     private func commit(_ id: PadID) {
         guard let text = texts[id], let revision = revisions[id] else { return }
-        Task { await store.commit(id, text: text, revision: revision) }
+        let key = PersistenceRevision(padID: id, revision: revision)
+        guard commitTasks[key] == nil else { return }
+        let pendingJournal = journalTasks[key]
+        let task = Task { [weak self, store] in
+            let journaled: Bool
+            if let pendingJournal {
+                journaled = await pendingJournal.value
+            } else {
+                journaled = false
+            }
+            guard !Task.isCancelled else { return }
+            let committed = await store.commit(id, text: text, revision: revision)
+            guard !Task.isCancelled else { return }
+            guard let self else { return }
+            finishCommit(
+                key: key,
+                state: .resolve(committed: committed, journaled: journaled)
+            )
+        }
+        commitTasks[key] = task
+    }
+
+    private func finishCommit(key: PersistenceRevision, state: PanelSaveState) {
+        commitTasks[key] = nil
+        journalTasks[key] = nil
+        guard revisions[key.padID] == key.revision else { return }
+        saveStates[key.padID] = state
+        if pads[selectedIndex].id == key.padID {
+            content.updateSaveState(state)
+            if state == .failed {
+                NSAccessibility.post(
+                    element: panel,
+                    notification: .announcementRequested,
+                    userInfo: [
+                        .announcement: "Scratchpad could not be saved",
+                        .priority: NSAccessibilityPriorityLevel.high.rawValue,
+                    ]
+                )
+            }
+        }
+    }
+
+    private func drainPersistenceTasks() async {
+        let stateTasks = padStateTasks
+        padStateTasks = []
+        for task in stateTasks {
+            await task.value
+        }
+
+        let journals = journalTasks
+        for task in journals.values {
+            _ = await task.value
+        }
+
+        let commits = commitTasks
+        for task in commits.values {
+            await task.value
+        }
+        for key in journals.keys {
+            journalTasks[key] = nil
+        }
+        for key in commits.keys {
+            commitTasks[key] = nil
+        }
     }
 
     func commitCurrentPadNow() {
@@ -533,6 +545,7 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate {
     private func persistAllPads() async -> FlushResult {
         pendingSave?.cancel()
         pendingSave = nil
+        await drainPersistenceTasks()
         var allCommitted = true
         var allDurable = true
         for pad in pads {

@@ -45,6 +45,7 @@ automatic backup) or Append; imports are undoable.
 | Esc | Dismiss (unpinned only) |
 | Drag panel background | Pin at the dragged position |
 | ⌘P | Keyboard pin / unpin fallback |
+| ⌘W | Close attached or pinned panel |
 | ⌘Q | Quit |
 | ⌘Z / ⇧⌘Z / ⌘X / ⌘C / ⌘V / ⌘A | Standard editing (per-pad undo stacks) |
 
@@ -90,10 +91,16 @@ official releases.
 - [ ] Outside click dismisses only an unpinned panel
 - [ ] Clicking the menu-bar icon while open closes once and does not reopen
 - [ ] Dragging the panel background pins it at the dragged position
+- [ ] The pin button beside Settings reflects both click-to-pin and
+      drag-to-pin state
 - [ ] Pinning does not recreate the editor (undo history survives pin/unpin)
-- [ ] Seven pad selectors appear as distinct colored dots; selection remains
-      visible without relying on color alone
-- [ ] The Settings gear in the panel opens Settings
+- [ ] Seven pad selectors appear as distinct colored rings; the active pad is
+      filled and selection remains visible without relying on color alone
+- [ ] The close button dismisses both modes; reopening after closing a pinned
+      panel returns it beneath the menu-bar icon
+- [ ] The Settings gear closes the attached popover and opens Settings
+- [ ] The footer reports live line, word, and character counts plus local-save
+      status
 - [ ] Type, then `kill -9` immediately → text recovered on relaunch
 - [ ] Rapid ⌘1…⌘7 cycling while typing never loses or crosses text
 - [ ] Undo after switching pads never edits the wrong pad

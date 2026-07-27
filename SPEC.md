@@ -81,7 +81,8 @@ scripts/verify-release.sh             Artifact integrity and signature checks
 Sources/BetterTot/App.swift           App entry point
 Sources/BetterTot/AppDelegate.swift   Launch, status item, menu, termination
 Sources/BetterTot/PanelController.swift
-                                      Floating panel, editor, pad switching
+                                      Panel behavior, editor, pad switching
+Sources/BetterTot/PanelView.swift     Panel controls, layout, and status footer
 Sources/BetterTot/Model.swift         Codable data model
 Sources/BetterTot/WorkspaceStore.swift
                                       Actor-isolated persistence and recovery
@@ -131,9 +132,10 @@ Status menu actions:
 
 The editor is a borderless, floating, nonactivating `NSPanel` containing:
 
-- An `NSSegmentedControl` with seven colored dot segments.
-- An image-only Settings button in the panel header.
+- A compact header with Close, seven independent colored pad buttons, Pin, and
+  Settings. Pin is immediately beside Settings.
 - A scrollable plain-text `NSTextView`.
+- A status footer with text statistics and local-save state.
 - A `NSVisualEffectView` popover-style background.
 
 Panel behavior:
@@ -143,9 +145,19 @@ Panel behavior:
 - The editor receives focus whenever the panel opens.
 - The unpinned panel dismisses on Escape or outside click.
 - Dragging the attached panel background away from its menu-bar position pins
-  it automatically.
+  it automatically and updates the Pin control.
+- The Pin control also toggles the attached/pinned state directly.
 - The pinned panel does not dismiss on outside click.
 - Toggling while pinned brings the panel/key focus forward instead of hiding it.
+- Explicitly closing a pinned panel clears its pinned state, so the next open
+  returns beneath the menu-bar item.
+- Opening Settings from an attached panel dismisses the popover first.
+- A compact header contains Close, seven colored scratchpad selectors, Pin,
+  and Settings. Inactive selectors are rings and the active selector is filled.
+- A footer shows live line, word, and character counts together with the
+  current local-save state (`Saving`, `Saved`, recovery pending, or failure).
+- The panel uses system materials and semantic colors so its appearance follows
+  the active macOS light or dark appearance.
 - Clicking the status item is excluded from outside-click handling so one click
   closes an open, unpinned panel without dismissing and reopening it.
 - Escape is ignored by BetterTot while the text view has marked text, allowing
@@ -186,6 +198,7 @@ Panel/editor shortcuts:
 | `Shift-Command-C` | Copy entire current pad |
 | `Shift-Command-Delete` | Clear current pad through undoable text editing |
 | `Command-P` | Pin or unpin panel |
+| `Command-W` | Close an attached or pinned panel |
 | `Escape` | Dismiss unpinned panel unless IME composition is active |
 | `Command-Q` | Quit BetterTot |
 | `Command-,` | Open Settings |

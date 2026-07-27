@@ -22,7 +22,7 @@ final class PanelControllerTests: XCTestCase {
 
     override func tearDown() async throws {
         controller?.dismiss(reason: .explicitClose)
-        await Task.yield()
+        _ = await controller?.flushAll()
         if let store {
             _ = await store.currentMetadata()
         }
@@ -221,6 +221,12 @@ final class PanelControllerTests: XCTestCase {
             keyCode: 43, characters: ",", modifiers: [.command])))
         XCTAssertTrue(didOpenSettings)
 
+        controller.show()
+        panel.onTogglePin?()
+        XCTAssertTrue(panel.performKeyEquivalent(with: keyEvent(
+            keyCode: 13, characters: "w", modifiers: [.command])))
+        XCTAssertFalse(panel.isVisible)
+
         XCTAssertFalse(panel.performKeyEquivalent(with: keyEvent(
             keyCode: 124, modifiers: [.command, .shift])))
         XCTAssertFalse(panel.performKeyEquivalent(with: keyEvent(
@@ -228,50 +234,119 @@ final class PanelControllerTests: XCTestCase {
     }
 
     func testPadDotsUseColorsAndAccessibleNumericIdentities() throws {
-        let segmented = try XCTUnwrap(descendant(of: panel.contentView, as: NSSegmentedControl.self))
+        let buttons = padButtons
 
-        XCTAssertEqual(segmented.segmentCount, WorkspaceMetadata.padCount)
-        XCTAssertEqual(segmented.selectedSegment, 0)
-        let images = try (0..<WorkspaceMetadata.padCount).map { index in
-            XCTAssertEqual(segmented.label(forSegment: index), "")
-            XCTAssertEqual(segmented.toolTip(forSegment: index), "Scratchpad \(index + 1)")
-            let image = try XCTUnwrap(segmented.image(forSegment: index))
+        XCTAssertEqual(buttons.count, WorkspaceMetadata.padCount)
+        let images = try buttons.enumerated().map { index, button in
+            XCTAssertEqual(button.title, "")
+            XCTAssertEqual(button.toolTip, "Scratchpad \(index + 1)")
+            XCTAssertEqual(button.accessibilityLabel(), "Scratchpad \(index + 1)")
+            XCTAssertEqual(
+                button.accessibilityValue() as? String,
+                index == 0 ? "Selected" : "Not selected")
+            let image = try XCTUnwrap(button.image)
             XCTAssertEqual(image.accessibilityDescription, "Scratchpad \(index + 1)")
             return image
         }
         let renderedDots = Set(images.compactMap(\.tiffRepresentation))
-        XCTAssertEqual(renderedDots.count, WorkspaceMetadata.padCount)
+        XCTAssertEqual(renderedDots.count, 2, "selected and unselected dots use fill and ring symbols")
+        let colors = Set(buttons.compactMap { button in
+            button.contentTintColor?
+                .usingColorSpace(.deviceRGB)?
+                .description
+        })
+        XCTAssertEqual(colors.count, WorkspaceMetadata.padCount)
     }
 
     func testPadDotSelectionRestoresEditorFocusAndRejectsInvalidPads() {
         controller.show()
-        let segmented = descendant(of: panel.contentView, as: NSSegmentedControl.self)!
-        segmented.selectedSegment = 1
+        let buttons = padButtons
 
-        XCTAssertTrue(segmented.sendAction(segmented.action, to: segmented.target))
+        XCTAssertTrue(buttons[1].sendAction(buttons[1].action, to: buttons[1].target))
         XCTAssertEqual(controller.currentPadPosition, 1)
         XCTAssertTrue(panel.firstResponder === controller.textView)
+        XCTAssertEqual(buttons[0].accessibilityValue() as? String, "Not selected")
+        XCTAssertEqual(buttons[1].accessibilityValue() as? String, "Selected")
 
         controller.selectPad(at: 1)
         controller.selectPad(at: -1)
         controller.selectPad(at: WorkspaceMetadata.padCount)
         XCTAssertEqual(controller.currentPadPosition, 1)
-        XCTAssertEqual(segmented.selectedSegment, 1)
+        XCTAssertEqual(buttons[1].accessibilityValue() as? String, "Selected")
+    }
+
+    func testCloseButtonDismissesAttachedAndPinnedPanels() throws {
+        let button = try panelButton(identifier: "panel-close")
+
+        controller.show()
+        XCTAssertTrue(button.sendAction(button.action, to: button.target))
+        XCTAssertFalse(panel.isVisible)
+
+        controller.show()
+        panel.onTogglePin?()
+        XCTAssertTrue(button.sendAction(button.action, to: button.target))
+        XCTAssertFalse(panel.isVisible)
+
+        controller.show()
+        controller.dismiss(reason: .outsideClick)
+        XCTAssertFalse(panel.isVisible, "closing a pinned panel must reset it to menu-attached mode")
+    }
+
+    func testPinButtonReflectsClickAndAutomaticDragPinning() throws {
+        let button = try panelButton(identifier: "panel-pin")
+        controller.show()
+
+        XCTAssertEqual(button.toolTip, "Pin")
+        XCTAssertEqual(button.accessibilityValue() as? String, "Not pinned")
+        XCTAssertTrue(button.sendAction(button.action, to: button.target))
+        XCTAssertEqual(button.toolTip, "Unpin")
+        XCTAssertEqual(button.accessibilityValue() as? String, "Pinned")
+
+        XCTAssertTrue(button.sendAction(button.action, to: button.target))
+        XCTAssertEqual(button.toolTip, "Pin")
+        XCTAssertEqual(button.accessibilityValue() as? String, "Not pinned")
+
+        let attachedOrigin = panel.frame.origin
+        panel.setFrameOrigin(NSPoint(x: attachedOrigin.x + 24, y: attachedOrigin.y))
+        controller.windowDidMove(Notification(name: NSWindow.didMoveNotification, object: panel))
+        XCTAssertEqual(button.toolTip, "Unpin")
+        XCTAssertEqual(button.accessibilityValue() as? String, "Pinned")
     }
 
     func testSettingsButtonInsidePanelInvokesCallback() throws {
         var openCount = 0
         controller.onOpenSettings = { openCount += 1 }
-        let button = try XCTUnwrap(
-            descendants(of: panel.contentView, as: NSButton.self).first {
-                $0.identifier?.rawValue == "panel-settings"
-            })
+        controller.show()
+        let button = try panelButton(identifier: "panel-settings")
 
         XCTAssertNotNil(button.image)
         XCTAssertEqual(button.toolTip, "Settings")
         XCTAssertEqual(button.accessibilityLabel(), "Settings")
         XCTAssertTrue(button.sendAction(button.action, to: button.target))
         XCTAssertEqual(openCount, 1)
+        XCTAssertFalse(panel.isVisible)
+    }
+
+    func testFooterReportsPlainTextCountsAndSaveState() async throws {
+        let counts = try panelLabel(identifier: "panel-counts")
+        let saveStatus = try panelLabel(identifier: "panel-save-status")
+
+        XCTAssertEqual(counts.stringValue, "0 lines · 0 words · 0 characters")
+        XCTAssertEqual(saveStatus.stringValue, "Saved")
+
+        controller.applyToCurrentPad("one two\nthree", replacing: true)
+
+        XCTAssertEqual(counts.stringValue, "2 lines · 3 words · 13 characters")
+        XCTAssertEqual(saveStatus.stringValue, "Saving…")
+
+        try await Task.sleep(for: .milliseconds(350))
+        XCTAssertEqual(saveStatus.stringValue, "Saved")
+    }
+
+    func testSaveStateDistinguishesCommittedRecoveryAndFailedWrites() {
+        XCTAssertEqual(PanelSaveState.resolve(committed: true, journaled: false), .saved)
+        XCTAssertEqual(PanelSaveState.resolve(committed: false, journaled: true), .recoveryPending)
+        XCTAssertEqual(PanelSaveState.resolve(committed: false, journaled: false), .failed)
     }
 
     func testStatusItemClickIsNotHandledAsOutsideClickBeforeToggle() throws {
@@ -452,6 +527,26 @@ final class PanelControllerTests: XCTestCase {
 
     private var orderedPads: [PadMetadata] {
         snapshot.metadata.pads.sorted { $0.position < $1.position }
+    }
+
+    private var padButtons: [NSButton] {
+        descendants(of: panel.contentView, as: NSButton.self)
+            .filter { $0.identifier?.rawValue.hasPrefix("pad-dot-") == true }
+            .sorted { $0.tag < $1.tag }
+    }
+
+    private func panelButton(identifier: String) throws -> NSButton {
+        try XCTUnwrap(
+            descendants(of: panel.contentView, as: NSButton.self).first {
+                $0.identifier?.rawValue == identifier
+            })
+    }
+
+    private func panelLabel(identifier: String) throws -> NSTextField {
+        try XCTUnwrap(
+            descendants(of: panel.contentView, as: NSTextField.self).first {
+                $0.identifier?.rawValue == identifier
+            })
     }
 
     private func keyEvent(

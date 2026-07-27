@@ -5,6 +5,16 @@ a Developer ID Application certificate, notarized by Apple, stapled, and
 prepared with a SHA-256 checksum. Automation creates a draft release; a
 maintainer publishes it only after clean-Mac acceptance.
 
+## Current Release Status
+
+- Repository-controlled Phase 4 work is complete.
+- Apple Developer Program authorization is pending as of 2026-07-27.
+- Developer ID signing, notarization, and clean-Mac acceptance remain blocked
+  until Apple authorizes the account.
+- CI may produce explicitly labeled ad-hoc development previews for testing.
+- Do not create the `v0.1.0` tag or publish a preview as an official release.
+  Resume with the credential setup below after authorization.
+
 ## Prerequisites
 
 - A standalone Git repository whose root is the BetterTot directory.
@@ -38,6 +48,27 @@ dist/release/BetterTot-<version>.sha256
 ```
 
 Ad-hoc signing is for local testing only. It is not a public release.
+
+## CI Development Preview
+
+Until Apple Developer Program authorization is available, the `CI` workflow can
+upload the same verified ad-hoc ZIP as a development preview. Run the workflow
+manually against `main`, then download `BetterTot-preview-<commit>`. Ordinary
+push and pull-request runs do not upload preview artifacts.
+
+The artifact contains:
+
+```text
+BetterTot-<version>-preview.<run>.zip
+BetterTot-<version>-preview.<run>.sha256
+PREVIEW-NOTICE.txt
+```
+
+Preview artifacts are retained for 14 days. They are for trusted development
+testing only, may require an explicit local Gatekeeper override, and must not be
+published as GitHub Releases or used by the Homebrew Cask. Never disable
+Gatekeeper globally to test a preview. The preview run number is also embedded
+as the bundle build number for traceability.
 
 ## Local Signed Release
 

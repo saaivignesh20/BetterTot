@@ -1,6 +1,7 @@
 name: CI
 
 on:
+  workflow_dispatch:
   pull_request:
   push:
     branches:
@@ -29,5 +30,40 @@ jobs:
 
       - name: Build and verify local release artifact
         run: |
-          scripts/release.sh --skip-tests --repository example/BetterTot
+          scripts/release.sh \
+            --skip-tests \
+            --build-number "$GITHUB_RUN_NUMBER" \
+            --repository example/BetterTot
           ruby -c dist/release/bettertot.rb
+
+      - name: Mark development preview
+        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+        run: |
+          version="$(tr -d '[:space:]' < VERSION)"
+          preview="BetterTot-$version-preview.$GITHUB_RUN_NUMBER.zip"
+          mv "dist/release/BetterTot-$version.zip" "dist/release/$preview"
+          (
+            cd dist/release
+            shasum -a 256 "$preview" > "${preview%.zip}.sha256"
+            rm -f "BetterTot-$version.sha256"
+          )
+          printf '%s\n' \
+            'UNNOTARIZED DEVELOPMENT PREVIEW' \
+            '' \
+            'This BetterTot build is ad-hoc signed and has not been notarized by Apple.' \
+            'It is intended only for development testing and is not an official release.' \
+            "Source commit: $GITHUB_SHA" \
+            "Workflow run: $GITHUB_RUN_NUMBER" \
+            > dist/release/PREVIEW-NOTICE.txt
+
+      - name: Upload development preview
+        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: BetterTot-preview-${{ github.sha }}
+          path: |
+            dist/release/BetterTot-*-preview.*.zip
+            dist/release/BetterTot-*-preview.*.sha256
+            dist/release/PREVIEW-NOTICE.txt
+          if-no-files-found: error
+          retention-days: 14

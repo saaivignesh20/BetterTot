@@ -158,6 +158,7 @@ assert_fails "Cask renderer must reject malformed repositories" \
     --repository invalid
 
 release_workflow="$(cat "$ROOT/.github/workflows/release.yml")"
+ci_workflow="$(cat "$ROOT/.github/workflows/ci.yml")"
 release_script="$(cat "$ROOT/scripts/release.sh")"
 assert_contains "$release_script" '--norsrc --noextattr' \
     "local release archives must omit resource forks and extended attributes"
@@ -202,5 +203,23 @@ assert_not_contains "$publish_section" 'APPLE_CERTIFICATE' \
     "publishing job must not receive the signing certificate"
 assert_not_contains "$publish_section" 'APPLE_API_KEY' \
     "publishing job must not receive notarization credentials"
+assert_contains "$ci_workflow" 'workflow_dispatch:' \
+    "CI must support manually requested preview builds"
+assert_contains "$ci_workflow" 'BetterTot-preview-${{ github.sha }}' \
+    "CI preview artifacts must be clearly labeled by source commit"
+assert_contains "$ci_workflow" 'PREVIEW-NOTICE.txt' \
+    "CI preview artifacts must include an unnotarized-build warning"
+assert_contains "$ci_workflow" "github.event_name == 'workflow_dispatch'" \
+    "CI previews must only be uploaded after a manual request"
+assert_contains "$ci_workflow" '--build-number "$GITHUB_RUN_NUMBER"' \
+    "CI previews must identify their workflow run in bundle metadata"
+assert_contains "$ci_workflow" 'BetterTot-$version-preview.$GITHUB_RUN_NUMBER.zip' \
+    "CI preview ZIPs must be distinguishable from production release assets"
+assert_contains "$ci_workflow" 'BetterTot-*-preview.*.sha256' \
+    "CI preview artifacts must include a distinctly named checksum"
+assert_contains "$ci_workflow" 'ad-hoc signed and has not been notarized by Apple' \
+    "CI preview warnings must state the signing and notarization limitations"
+assert_not_contains "$ci_workflow" 'contents: write' \
+    "CI preview builds must not receive repository write permission"
 
 printf 'Release tooling tests passed\n'

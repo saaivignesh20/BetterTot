@@ -16,8 +16,8 @@ roadmap.
 - Keep all user note data local, plain-text, and readable outside the app.
 - Preserve acknowledged edits through crashes, process kills, and metadata
   corruption whenever the filesystem permits it.
-- Avoid accounts, network services, analytics, telemetry, and proprietary data
-  formats.
+- Avoid accounts, background network services, analytics, telemetry, and
+  proprietary data formats.
 - Support predictable keyboard-first use across seven fixed pad slots.
 
 ## Non-Goals
@@ -68,10 +68,13 @@ only as dormant infrastructure for a future public-distribution decision.
 
 ```text
 Package.swift                         SwiftPM package manifest
-README.md                             Developer-facing overview and manual QA
+README.md                             Project overview and quick start
+CONTRIBUTING.md                       Development and contribution workflow
+SECURITY.md                           Private vulnerability-reporting policy
 SPEC.md                               This implementation specification
 PLAN.md                               Original product and engineering plan
 VERSION                               Release marketing version
+docs/MANUAL_TESTING.md                Manual app acceptance checklist
 docs/PRIVACY.md                       Privacy and local-storage notes
 docs/RELEASE.md                       Local and optional public release runbook
 scripts/bundle.sh                     Universal app bundle builder
@@ -91,6 +94,9 @@ Sources/BetterTot/ImportExport.swift  Menu-driven import/export/restore
 Sources/BetterTot/Shortcuts.swift     Shortcut model and Carbon hotkeys
 Sources/BetterTot/SettingsWindow.swift
                                       Settings UI and UserDefaults bindings
+Sources/BetterTot/SettingsContentView.swift
+                                      Top navigation and settings page layout
+Sources/BetterTot/UpdateChecker.swift Version parsing and manual release check
 Tests/BetterTotTests/*.swift          XCTest coverage
 ```
 
@@ -212,6 +218,10 @@ shadows the normal line-start and line-end caret navigation in the editor.
 
 Settings are stored in standard app `UserDefaults`.
 
+The settings window uses a fixed-size top navigation with four pages:
+`General`, `Editor`, `Storage`, and `Updates`. Switching pages does not resize
+the window or interrupt the scratchpad panel.
+
 Supported settings:
 
 - Launch at login, via `SMAppService.mainApp`, enabled only in a bundled app.
@@ -223,6 +233,12 @@ Supported settings:
 
 The settings window also displays backup counts for hourly, daily, and manual
 backup tiers and provides a button to open the backup folder.
+
+The Updates page displays the installed version/build and performs a check only
+after the user presses `Check for Updates`. It requests the latest public
+GitHub release through an ephemeral `URLSession`, validates semantic versions,
+response size, and the HTTPS GitHub release URL, and never downloads or
+installs software. Overlapping checks are rejected.
 
 Shortcut recording behavior:
 
@@ -464,7 +480,9 @@ Restore backup:
 
 Privacy posture:
 
-- No network requests.
+- No background or automatic network requests.
+- A user-initiated update check requests public release metadata from
+  `api.github.com`; no note or workspace data is included.
 - No analytics, telemetry, advertising SDKs, or accounts.
 - No collection of note content, clipboard content, or file content.
 - Data is stored locally in plain files.
@@ -547,15 +565,15 @@ Verification performed while writing this spec:
 
 ```text
 swift test
-Executed 99 tests, with 0 failures.
-Line coverage: 86.42% (1916/2217), minimum 80.00%.
+Executed 108 tests, with 0 failures.
+Line coverage: 86.62% (2479/2862), minimum 80.00%.
 ```
 
 ## Current Gaps and Risks
 
 - `scripts/test.sh` enforces at least 80% aggregate source line coverage and a
   30% floor for every non-entry source file. The current instrumented result is
-  86.42% across 99 passing tests.
+  86.62% across 108 passing tests.
 - VoiceOver, IME, multi-display positioning, and launch-at-login remain manual
   acceptance checks. The local checklist passed on 2026-07-27 and must be
   repeated for a future public-distribution candidate if scope changes.

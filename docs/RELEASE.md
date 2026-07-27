@@ -19,7 +19,8 @@ not required.
 - A standalone Git repository whose root is the BetterTot directory.
 - A compatible Xcode toolchain.
 - The Apache 2.0 `LICENSE` and project `NOTICE` committed.
-- The 80% coverage target met and the README manual checklist signed off.
+- The 80% coverage target met and the
+  [manual test checklist](MANUAL_TESTING.md) signed off.
 
 ## Local Artifact
 
@@ -185,11 +186,12 @@ Before announcing a release:
 4. Confirm Gatekeeper opens it without an override.
 5. Confirm the menu-bar item, global shortcut, editor, and launch-at-login work.
 6. Upgrade over a copy with populated pads and confirm all text remains intact.
-7. Run the manual checklist in `README.md`, including VoiceOver and IME checks.
+7. Run [the manual checklist](MANUAL_TESTING.md), including VoiceOver and IME
+   checks.
 
 ### 0.1.0 Acceptance Record
 
-- 2026-07-27: Local ad-hoc candidate passed the README manual functional
+- 2026-07-27: Local ad-hoc candidate passed the documented manual functional
   checklist, as reported by the tester.
 - Not required for the current private/local scope. Repeat the checklist with a
   notarized draft on a clean supported Mac only if public distribution resumes.

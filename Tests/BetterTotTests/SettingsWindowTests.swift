@@ -90,22 +90,181 @@ final class SettingsWindowTests: XCTestCase {
         controller.present()
         defer { controller.close() }
 
-        let buttons = allSubviews(of: try XCTUnwrap(controller.window?.contentView))
-            .compactMap { $0 as? NSButton }
-        let spell = try XCTUnwrap(buttons.first { $0.title == "Check spelling while typing" })
-        let quotes = try XCTUnwrap(buttons.first { $0.title == "Smart quotes" })
-        let dashes = try XCTUnwrap(buttons.first { $0.title == "Smart dashes" })
+        let views = allSubviews(of: try XCTUnwrap(controller.window?.contentView))
+        let buttons = views.compactMap { $0 as? NSButton }
+        let switches = views.compactMap { $0 as? NSSwitch }
+        let spell = try XCTUnwrap(switches.first {
+            $0.identifier?.rawValue == SettingsKeys.spellChecking
+        })
+        let quotes = try XCTUnwrap(switches.first {
+            $0.identifier?.rawValue == SettingsKeys.smartQuotes
+        })
+        let dashes = try XCTUnwrap(switches.first {
+            $0.identifier?.rawValue == SettingsKeys.smartDashes
+        })
         XCTAssertEqual(spell.state, .off)
         XCTAssertEqual(quotes.state, .on)
         XCTAssertEqual(dashes.state, .on)
         XCTAssertEqual(buttons.first { $0.accessibilityLabel() == "Global shortcut" }?.title, "⌥⌘F13")
 
-        quotes.performClick(nil)
+        quotes.state = .off
+        XCTAssertTrue(quotes.sendAction(quotes.action, to: quotes.target))
         XCTAssertFalse(defaults.bool(forKey: SettingsKeys.smartQuotes))
 
         let labels = allSubviews(of: try XCTUnwrap(controller.window?.contentView))
             .compactMap { $0 as? NSTextField }
         XCTAssertTrue(labels.contains { $0.stringValue.contains("17") && $0.stringValue.contains("Menlo") })
+    }
+
+    func testTopNavigationSwitchesBetweenFourSettingsPages() async throws {
+        defaults.register(defaults: SettingsKeys.defaults)
+        let controller = try await makeController(
+            shortcutService: ShortcutServiceStub(currentShortcut: .defaultShortcut)
+        )
+        controller.present()
+        defer { controller.close() }
+
+        let views = allSubviews(of: try XCTUnwrap(controller.window?.contentView))
+        let navigation = try XCTUnwrap(views.compactMap { $0 as? NSSegmentedControl }
+            .first { $0.identifier?.rawValue == "settings-navigation" })
+        XCTAssertEqual(navigation.segmentCount, 4)
+        XCTAssertEqual(navigation.selectedSegment, 0)
+        XCTAssertEqual(
+            (0..<navigation.segmentCount).compactMap { navigation.label(forSegment: $0) },
+            ["General", "Editor", "Storage", "Updates"]
+        )
+
+        for index in 0..<navigation.segmentCount {
+            navigation.selectedSegment = index
+            XCTAssertTrue(navigation.sendAction(navigation.action, to: navigation.target))
+            let visiblePages = allSubviews(of: try XCTUnwrap(controller.window?.contentView))
+                .filter {
+                    $0.identifier?.rawValue.hasPrefix("settings-page-") == true && !$0.isHidden
+                }
+            XCTAssertEqual(visiblePages.count, 1)
+            XCTAssertEqual(
+                visiblePages.first?.identifier?.rawValue,
+                "settings-page-\(["general", "editor", "storage", "updates"][index])"
+            )
+        }
+    }
+
+    func testUpdatesPageChecksOnDemandAndOpensValidatedReleasePage() async throws {
+        defaults.register(defaults: SettingsKeys.defaults)
+        let checked = expectation(description: "update checked")
+        let releaseURL = try XCTUnwrap(
+            URL(string: "https://github.com/saaivignesh20/BetterTot/releases/tag/v0.2.0")
+        )
+        var openedURLs: [URL] = []
+        let store = WorkspaceStore(root: root)
+        _ = try await store.load()
+        let controller = SettingsWindowController(
+            store: store,
+            shortcutService: ShortcutServiceStub(currentShortcut: nil),
+            defaults: defaults,
+            openURL: { openedURLs.append($0) },
+            currentVersion: "0.1.0",
+            currentBuild: "7",
+            checkForUpdates: {
+                checked.fulfill()
+                return .updateAvailable(AvailableRelease(
+                    version: AppVersion("0.2.0")!,
+                    pageURL: releaseURL
+                ))
+            }
+        )
+        controller.present()
+        defer { controller.close() }
+
+        let navigation = try settingsNavigation(in: controller)
+        navigation.selectedSegment = 3
+        XCTAssertTrue(navigation.sendAction(navigation.action, to: navigation.target))
+        let checkButton = try settingsButton(identifier: "check-for-updates", in: controller)
+        let status = try settingsLabel(identifier: "update-status", in: controller)
+        let version = try settingsLabel(identifier: "current-version", in: controller)
+        XCTAssertEqual(version.stringValue, "Version 0.1.0 (7)")
+
+        checkButton.performClick(nil)
+        await fulfillment(of: [checked], timeout: 1)
+        await Task.yield()
+
+        XCTAssertEqual(status.stringValue, "Version 0.2.0 is available.")
+        let releaseButton = try settingsButton(identifier: "view-update", in: controller)
+        XCTAssertFalse(releaseButton.isHidden)
+        releaseButton.performClick(nil)
+        XCTAssertEqual(openedURLs, [releaseURL])
+    }
+
+    func testUpdatesPagePreventsOverlappingChecksAndReportsNoPublishedRelease() async throws {
+        defaults.register(defaults: SettingsKeys.defaults)
+        var checkCount = 0
+        var continuation: CheckedContinuation<UpdateCheckOutcome, Never>?
+        let store = WorkspaceStore(root: root)
+        _ = try await store.load()
+        let controller = SettingsWindowController(
+            store: store,
+            shortcutService: ShortcutServiceStub(currentShortcut: nil),
+            defaults: defaults,
+            currentVersion: "0.1.0",
+            currentBuild: "8",
+            checkForUpdates: {
+                checkCount += 1
+                return await withCheckedContinuation { continuation = $0 }
+            }
+        )
+        controller.present()
+        defer { controller.close() }
+
+        let checkButton = try settingsButton(identifier: "check-for-updates", in: controller)
+        let status = try settingsLabel(identifier: "update-status", in: controller)
+        checkButton.performClick(nil)
+        await Task.yield()
+        XCTAssertFalse(checkButton.isEnabled)
+        _ = checkButton.sendAction(checkButton.action, to: checkButton.target)
+        XCTAssertEqual(checkCount, 1)
+
+        continuation?.resume(returning: .noPublishedReleases)
+        await Task.yield()
+        await Task.yield()
+        XCTAssertEqual(status.stringValue, "No published updates are available.")
+        XCTAssertTrue(checkButton.isEnabled)
+    }
+
+    func testClosingDuringUpdateCheckRestoresIdleState() async throws {
+        defaults.register(defaults: SettingsKeys.defaults)
+        let started = expectation(description: "update check started")
+        let store = WorkspaceStore(root: root)
+        _ = try await store.load()
+        let controller = SettingsWindowController(
+            store: store,
+            shortcutService: ShortcutServiceStub(currentShortcut: nil),
+            defaults: defaults,
+            currentVersion: "0.1.0",
+            currentBuild: "9",
+            checkForUpdates: {
+                started.fulfill()
+                do {
+                    try await Task.sleep(for: .seconds(60))
+                    return .noPublishedReleases
+                } catch {
+                    throw URLError(.cancelled)
+                }
+            }
+        )
+        controller.present()
+
+        let checkButton = try settingsButton(identifier: "check-for-updates", in: controller)
+        let status = try settingsLabel(identifier: "update-status", in: controller)
+        checkButton.performClick(nil)
+        await fulfillment(of: [started], timeout: 1)
+
+        controller.close()
+        await Task.yield()
+        controller.present()
+        defer { controller.close() }
+
+        XCTAssertEqual(status.stringValue, "Updates are checked only when requested.")
+        XCTAssertTrue(checkButton.isEnabled)
     }
 
     func testControllerRefreshesUnavailableShortcutAndBackupSummary() async throws {
@@ -127,7 +286,8 @@ final class SettingsWindowTests: XCTestCase {
             buttons.first { $0.accessibilityLabel() == "Global shortcut" }?.title,
             "None — click to set"
         )
-        let launch = try XCTUnwrap(buttons.first { $0.title == "Launch at login" })
+        let launch = try XCTUnwrap(views.compactMap { $0 as? NSSwitch }
+            .first { $0.identifier?.rawValue == "launch-at-login" })
         XCTAssertFalse(launch.isEnabled)
         XCTAssertNotNil(launch.toolTip)
 
@@ -160,16 +320,18 @@ final class SettingsWindowTests: XCTestCase {
         controller.present()
         defer { controller.close() }
         let launch = try XCTUnwrap(allSubviews(of: try XCTUnwrap(controller.window?.contentView))
-            .compactMap { $0 as? NSButton }
-            .first { $0.title == "Launch at login" })
+            .compactMap { $0 as? NSSwitch }
+            .first { $0.identifier?.rawValue == "launch-at-login" })
 
         XCTAssertTrue(launch.isEnabled)
         XCTAssertEqual(launch.state, .off)
-        launch.performClick(nil)
+        launch.state = .on
+        XCTAssertTrue(launch.sendAction(launch.action, to: launch.target))
         XCTAssertEqual(changes, [true])
         XCTAssertEqual(launch.state, .on)
 
-        launch.performClick(nil)
+        launch.state = .off
+        XCTAssertTrue(launch.sendAction(launch.action, to: launch.target))
         XCTAssertEqual(changes, [true, false])
         XCTAssertEqual(launch.state, .on, "a failed change restores the prior state")
         XCTAssertEqual(errors.first?.0, "Could not update the login item.")
@@ -262,9 +424,13 @@ final class SettingsWindowTests: XCTestCase {
         XCTAssertEqual(SettingsKeys.editorFont(in: defaults).fontName, selected.fontName)
         XCTAssertEqual(SettingsKeys.editorFont(in: defaults).pointSize, 19)
 
-        try XCTUnwrap(buttons.first { $0.title.hasPrefix("Change Font") }).performClick(nil)
+        try XCTUnwrap(buttons.first {
+            $0.identifier?.rawValue == "change-font"
+        }).performClick(nil)
         XCTAssertTrue(NSFontManager.shared.target === controller)
-        try XCTUnwrap(buttons.first { $0.title == "Open Backup Folder" }).performClick(nil)
+        try XCTUnwrap(buttons.first {
+            $0.identifier?.rawValue == "open-backup-folder"
+        }).performClick(nil)
         XCTAssertEqual(openedURLs, [store.backupsDirectory])
 
         controller.windowWillClose(Notification(name: NSWindow.willCloseNotification))
@@ -290,6 +456,32 @@ final class SettingsWindowTests: XCTestCase {
         try XCTUnwrap(allSubviews(of: try XCTUnwrap(controller.window?.contentView))
             .compactMap { $0 as? NSButton }
             .first { $0.accessibilityLabel() == "Global shortcut" })
+    }
+
+    private func settingsNavigation(
+        in controller: SettingsWindowController
+    ) throws -> NSSegmentedControl {
+        try XCTUnwrap(allSubviews(of: try XCTUnwrap(controller.window?.contentView))
+            .compactMap { $0 as? NSSegmentedControl }
+            .first { $0.identifier?.rawValue == "settings-navigation" })
+    }
+
+    private func settingsButton(
+        identifier: String,
+        in controller: SettingsWindowController
+    ) throws -> NSButton {
+        try XCTUnwrap(allSubviews(of: try XCTUnwrap(controller.window?.contentView))
+            .compactMap { $0 as? NSButton }
+            .first { $0.identifier?.rawValue == identifier })
+    }
+
+    private func settingsLabel(
+        identifier: String,
+        in controller: SettingsWindowController
+    ) throws -> NSTextField {
+        try XCTUnwrap(allSubviews(of: try XCTUnwrap(controller.window?.contentView))
+            .compactMap { $0 as? NSTextField }
+            .first { $0.identifier?.rawValue == identifier })
     }
 
     private func keyEvent(

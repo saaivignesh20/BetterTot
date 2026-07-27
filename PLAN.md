@@ -127,6 +127,7 @@ Version 0.1 should include:
 16. Ad-hoc-signed private/local builds
 17. Apple Silicon support
 18. Automated regression testing
+19. User-initiated update check
 
 ## Explicitly excluded from version 0.1
 
@@ -853,7 +854,7 @@ Test with VoiceOver enabled from the beginning.
 
 BetterTot should:
 
-* Make no network requests
+* Make no network requests except an explicit user-initiated update check
 * Contain no analytics SDK
 * Contain no advertising SDK
 * Require no account
@@ -1239,8 +1240,13 @@ Provide:
 
 Do not include an automatic updater in version 0.1.
 
-For the private/local build, update by replacing the application bundle with a
-new locally built copy.
+Settings may check public release metadata only after an explicit user action.
+The check must use an ephemeral session, disclose its destination, send no note
+or workspace data, and validate any release URL before opening it. It must not
+run at launch, poll in the background, download an app, or install anything.
+
+For the private/local build, update by replacing the application bundle
+manually.
 
 An automatic updater creates network, signing, security, and operational responsibilities that are unnecessary before product validation.
 
@@ -1523,7 +1529,7 @@ Version 0.1 is complete only when all of the following are true:
 ## Privacy
 
 * No note contents appear in logs.
-* No network request occurs in the default build.
+* No network request occurs without an explicit update-check action.
 * No analytics or advertising dependency is present.
 * Storage and backup behavior are documented.
 

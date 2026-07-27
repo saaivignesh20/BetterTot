@@ -12,10 +12,10 @@ enum SettingsKeys {
     static func loadShortcut(from defaults: UserDefaults = .standard) -> Shortcut {
         guard let data = defaults.data(forKey: globalShortcut),
               let shortcut = try? JSONDecoder().decode(Shortcut.self, from: data),
-              // Re-validate at the trust boundary: a hand-edited or migrated
-              // plist must never register a bare key that eats ordinary typing.
-              Shortcut.isValid(keyCode: shortcut.keyCode,
-                               carbonModifiers: shortcut.carbonModifiers) else {
+              Shortcut.isValid(
+                keyCode: shortcut.keyCode,
+                carbonModifiers: shortcut.carbonModifiers
+              ) else {
             return .defaultShortcut
         }
         return shortcut
@@ -45,7 +45,8 @@ enum SettingsKeys {
 
     static func editorFont(in defaults: UserDefaults) -> NSFont {
         let size = defaults.double(forKey: fontSize)
-        if let name = defaults.string(forKey: fontName), let font = NSFont(name: name, size: size) {
+        if let name = defaults.string(forKey: fontName),
+           let font = NSFont(name: name, size: size) {
             return font
         }
         return .systemFont(ofSize: size)
@@ -54,6 +55,8 @@ enum SettingsKeys {
 
 @MainActor
 final class SettingsWindowController: NSWindowController, NSWindowDelegate {
+    private static let idleUpdateStatus = "Updates are checked only when requested."
+
     private let store: WorkspaceStore
     private let shortcutService: GlobalShortcutService
     private let defaults: UserDefaults
@@ -63,14 +66,14 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     private let openURL: @MainActor (URL) -> Void
     private let showError: @MainActor (String, String) -> Void
     private let convertFont: @MainActor (NSFont) -> NSFont
-    private let launchAtLogin = NSButton(checkboxWithTitle: "Launch at login", target: nil, action: nil)
-    private let spellChecking = NSButton(checkboxWithTitle: "Check spelling while typing", target: nil, action: nil)
-    private let smartQuotes = NSButton(checkboxWithTitle: "Smart quotes", target: nil, action: nil)
-    private let smartDashes = NSButton(checkboxWithTitle: "Smart dashes", target: nil, action: nil)
-    private let shortcutButton = NSButton(title: "", target: nil, action: nil)
-    private let fontLabel = NSTextField(labelWithString: "")
-    private let backupSummary = NSTextField(labelWithString: "Backups: …")
+    private let checkForUpdates: @MainActor () async throws -> UpdateCheckOutcome
+    private let currentVersion: String
+    private let currentBuild: String
+    private let settingsView = SettingsContentView()
+
     private var recordingMonitor: Any?
+    private var updateTask: Task<Void, Never>?
+    private var availableReleaseURL: URL?
 
     init(
         store: WorkspaceStore,
@@ -94,7 +97,12 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
             alert.informativeText = details
             alert.runModal()
         },
-        convertFont: @escaping @MainActor (NSFont) -> NSFont = { NSFontManager.shared.convert($0) }
+        convertFont: @escaping @MainActor (NSFont) -> NSFont = {
+            NSFontManager.shared.convert($0)
+        },
+        currentVersion: String? = nil,
+        currentBuild: String? = nil,
+        checkForUpdates: (@MainActor () async throws -> UpdateCheckOutcome)? = nil
     ) {
         self.store = store
         self.shortcutService = shortcutService
@@ -105,13 +113,32 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         self.openURL = openURL
         self.showError = showError
         self.convertFont = convertFont
+        let resolvedVersion = currentVersion ?? Self.bundleVersion
+        self.currentVersion = resolvedVersion
+        self.currentBuild = currentBuild ?? Self.bundleBuild
+
+        if let checkForUpdates {
+            self.checkForUpdates = checkForUpdates
+        } else if let version = AppVersion(resolvedVersion) {
+            let checker = GitHubUpdateChecker.live()
+            self.checkForUpdates = {
+                try await checker.check(currentVersion: version)
+            }
+        } else {
+            self.checkForUpdates = {
+                throw UpdateCheckError.invalidResponse
+            }
+        }
+
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 380, height: 300),
+            contentRect: NSRect(x: 0, y: 0, width: 620, height: 460),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
         )
         window.title = "BetterTot Settings"
+        window.minSize = NSSize(width: 620, height: 460)
+        window.isMovableByWindowBackground = true
         super.init(window: window)
         window.delegate = self
         buildContent()
@@ -120,8 +147,15 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
+    deinit {
+        updateTask?.cancel()
+        if let recordingMonitor {
+            NSEvent.removeMonitor(recordingMonitor)
+        }
+    }
+
     func present() {
-        endRecording() // re-presenting must never leave an invisible recording session
+        endRecording()
         refresh()
         NSApp.activate(ignoringOtherApps: true)
         window?.center()
@@ -129,88 +163,71 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     }
 
     private func buildContent() {
-        for (button, key) in checkboxKeys {
-            button.target = self
-            button.action = #selector(checkboxChanged(_:))
-            button.identifier = NSUserInterfaceItemIdentifier(key)
+        for (control, key) in editorSwitchKeys {
+            control.target = self
+            control.action = #selector(editorSwitchChanged(_:))
+            control.identifier = NSUserInterfaceItemIdentifier(key)
         }
-        launchAtLogin.target = self
-        launchAtLogin.action = #selector(launchAtLoginChanged)
 
-        shortcutButton.target = self
-        shortcutButton.action = #selector(recordShortcut)
-        shortcutButton.setAccessibilityLabel("Global shortcut")
-        let shortcutRow = NSStackView(views: [
-            NSTextField(labelWithString: "Global shortcut:"), shortcutButton,
-        ])
-        shortcutRow.orientation = .horizontal
-
-        let fontButton = NSButton(title: "Change Font…", target: self, action: #selector(showFontPanel))
-        let fontRow = NSStackView(views: [fontButton, fontLabel])
-        fontRow.orientation = .horizontal
-
-        let openBackups = NSButton(title: "Open Backup Folder", target: self, action: #selector(openBackupFolder))
-        backupSummary.textColor = .secondaryLabelColor
-        backupSummary.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
-
-        let stack = NSStackView(views: [
-            sectionLabel("General"),
-            launchAtLogin,
-            shortcutRow,
-            sectionLabel("Editor"),
-            spellChecking,
-            smartQuotes,
-            smartDashes,
-            fontRow,
-            sectionLabel("Backups"),
-            openBackups,
-            backupSummary,
-        ])
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.spacing = 8
-        stack.edgeInsets = NSEdgeInsets(top: 20, left: 20, bottom: 20, right: 20)
-        stack.setCustomSpacing(16, after: shortcutRow)
-        stack.setCustomSpacing(16, after: fontRow)
-        window?.contentView = stack
+        settingsView.launchAtLogin.target = self
+        settingsView.launchAtLogin.action = #selector(launchAtLoginChanged)
+        settingsView.shortcutButton.target = self
+        settingsView.shortcutButton.action = #selector(recordShortcut)
+        settingsView.fontButton.target = self
+        settingsView.fontButton.action = #selector(showFontPanel)
+        settingsView.checkUpdatesButton.target = self
+        settingsView.checkUpdatesButton.action = #selector(checkForUpdatesPressed)
+        settingsView.viewUpdateButton.target = self
+        settingsView.viewUpdateButton.action = #selector(viewUpdatePressed)
+        settingsView.onNavigate = { [weak self] _ in self?.endRecording() }
+        settingsView.onOpenBackupFolder = { [weak self] in self?.openBackupFolder() }
+        window?.contentView = settingsView
     }
 
-    private var checkboxKeys: [(NSButton, String)] {
+    private var editorSwitchKeys: [(NSSwitch, String)] {
         [
-            (spellChecking, SettingsKeys.spellChecking),
-            (smartQuotes, SettingsKeys.smartQuotes),
-            (smartDashes, SettingsKeys.smartDashes),
+            (settingsView.spellChecking, SettingsKeys.spellChecking),
+            (settingsView.smartQuotes, SettingsKeys.smartQuotes),
+            (settingsView.smartDashes, SettingsKeys.smartDashes),
         ]
     }
 
-    private func sectionLabel(_ title: String) -> NSTextField {
-        let label = NSTextField(labelWithString: title)
-        label.font = .boldSystemFont(ofSize: NSFont.systemFontSize)
-        return label
-    }
-
     private func refresh() {
-        for (button, key) in checkboxKeys {
-            button.state = defaults.bool(forKey: key) ? .on : .off
+        for (control, key) in editorSwitchKeys {
+            control.state = defaults.bool(forKey: key) ? .on : .off
         }
-        shortcutButton.title = shortcutService.currentShortcut?.display ?? "None — click to set"
+        settingsView.shortcutButton.title =
+            shortcutService.currentShortcut?.display ?? "None — click to set"
+
         let font = SettingsKeys.editorFont(in: defaults)
-        fontLabel.stringValue = "\(font.displayName ?? font.fontName) \(Int(font.pointSize))"
+        settingsView.fontLabel.stringValue =
+            "\(font.displayName ?? font.fontName) \(Int(font.pointSize)) pt"
+        settingsView.currentVersionLabel.stringValue =
+            "Version \(currentVersion) (\(currentBuild))"
 
         if bundledApp {
-            launchAtLogin.isEnabled = true
-            launchAtLogin.state = launchAtLoginEnabled() ? .on : .off
+            settingsView.launchAtLogin.isEnabled = true
+            settingsView.launchAtLogin.state = launchAtLoginEnabled() ? .on : .off
+            settingsView.launchAtLogin.toolTip = nil
         } else {
-            launchAtLogin.isEnabled = false
-            launchAtLogin.toolTip = "Requires an app bundle — build one with scripts/bundle.sh"
+            settingsView.launchAtLogin.isEnabled = false
+            settingsView.launchAtLogin.toolTip =
+                "Requires an app bundle — build one with scripts/bundle.sh"
         }
 
-        Task { @MainActor [weak self] in await self?.refreshBackupSummary() }
+        if AppVersion(currentVersion) == nil {
+            settingsView.checkUpdatesButton.isEnabled = false
+            settingsView.updateStatus.stringValue = "Update checks require a bundled build."
+        }
+
+        Task { @MainActor [weak self] in
+            await self?.refreshBackupSummary()
+        }
     }
 
     func refreshBackupSummary() async {
         let counts = await store.backupCounts()
-        backupSummary.stringValue = BackupKind.allCases
+        settingsView.backupSummary.stringValue = "Backups: " + BackupKind.allCases
             .map { kind in
                 let kept = kind.retention.map { " (keeps \($0))" } ?? ""
                 return "\(kind.rawValue.capitalized): \(counts[kind] ?? 0)\(kept)"
@@ -222,21 +239,35 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         Bundle.main.bundleURL.pathExtension == "app"
     }
 
-    // MARK: - Actions
+    static var bundleVersion: String {
+        Bundle.main.object(
+            forInfoDictionaryKey: "CFBundleShortVersionString"
+        ) as? String ?? "Development"
+    }
 
-    @objc private func checkboxChanged(_ sender: NSButton) {
+    static var bundleBuild: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "local"
+    }
+
+    // MARK: - Settings actions
+
+    @objc private func editorSwitchChanged(_ sender: NSSwitch) {
         guard let key = sender.identifier?.rawValue else { return }
         defaults.set(sender.state == .on, forKey: key)
     }
 
     @objc private func launchAtLoginChanged() {
         do {
-            try setLaunchAtLogin(launchAtLogin.state == .on)
+            try setLaunchAtLogin(settingsView.launchAtLogin.state == .on)
         } catch {
             let diagnostic = error as NSError
-            NSLog("BetterTot: login item change failed (%@:%ld)",
-                  diagnostic.domain, diagnostic.code)
-            launchAtLogin.state = launchAtLogin.state == .on ? .off : .on // revert
+            NSLog(
+                "BetterTot: login item change failed (%@:%ld)",
+                diagnostic.domain,
+                diagnostic.code
+            )
+            settingsView.launchAtLogin.state =
+                settingsView.launchAtLogin.state == .on ? .off : .on
             showError("Could not update the login item.", error.localizedDescription)
         }
     }
@@ -248,27 +279,28 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
             endRecording()
             return
         }
-        shortcutButton.title = "Type new shortcut… (⎋ cancels)"
-        recordingMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+        settingsView.shortcutButton.title = "Type new shortcut… (⎋ cancels)"
+        recordingMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) {
+            [weak self] event in
             guard let self, self.recordingMonitor != nil else { return event }
-            // Only keys aimed at this window are shortcut candidates. Without
-            // this, recording would swallow typing in the pinned scratchpad
-            // and silently rebind the global shortcut to ⌘V and friends.
             guard event.window === self.window else { return event }
             self.handleShortcutEvent(event)
-            return nil // recording swallows the event
+            return nil
         }
     }
 
     func handleShortcutEvent(_ event: NSEvent) {
         let modifiers = Shortcut.carbonModifiers(from: event.modifierFlags)
-        if event.keyCode == 53, modifiers == 0 { // bare Escape cancels
+        if event.keyCode == 53, modifiers == 0 {
             endRecording()
             return
         }
         let candidate = Shortcut.from(event: event)
-        guard Shortcut.isValid(keyCode: candidate.keyCode, carbonModifiers: candidate.carbonModifiers) else {
-            NSSound.beep() // needs ⌘/⌥/⌃ (or an F-key); keep listening
+        guard Shortcut.isValid(
+            keyCode: candidate.keyCode,
+            carbonModifiers: candidate.carbonModifiers
+        ) else {
+            NSSound.beep()
             return
         }
         let previous = shortcutService.currentShortcut
@@ -277,8 +309,6 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
             SettingsKeys.save(candidate, to: defaults)
             endRecording()
         } catch {
-            // Actionable conflict handling (plan §4.2): restore the old
-            // shortcut and tell the user why the new one was rejected.
             if let previous {
                 try? shortcutService.register(previous)
             }
@@ -292,8 +322,11 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
             NSEvent.removeMonitor(recordingMonitor)
         }
         recordingMonitor = nil
-        shortcutButton.title = shortcutService.currentShortcut?.display ?? "None — click to set"
+        settingsView.shortcutButton.title =
+            shortcutService.currentShortcut?.display ?? "None — click to set"
     }
+
+    // MARK: - Font and storage
 
     @objc private func showFontPanel() {
         let manager = NSFontManager.shared
@@ -305,21 +338,101 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     @objc func changeFont(_ sender: Any?) {
         let font = convertFont(SettingsKeys.editorFont(in: defaults))
         SettingsKeys.save(font, to: defaults)
-        fontLabel.stringValue = "\(font.displayName ?? font.fontName) \(Int(font.pointSize))"
+        settingsView.fontLabel.stringValue =
+            "\(font.displayName ?? font.fontName) \(Int(font.pointSize)) pt"
     }
 
-    @objc private func openBackupFolder() {
+    private func openBackupFolder() {
         openURL(store.backupsDirectory)
     }
 
-    // Clicking away (e.g. the panel taking key) ends recording rather than
-    // leaving an invisible session armed.
+    // MARK: - Updates
+
+    @objc private func checkForUpdatesPressed() {
+        guard updateTask == nil else { return }
+        availableReleaseURL = nil
+        settingsView.viewUpdateButton.isHidden = true
+        setUpdateStatus("Checking for updates…", announce: true)
+        settingsView.setCheckingForUpdates(true)
+
+        let checkForUpdates = self.checkForUpdates
+        updateTask = Task { @MainActor [weak self] in
+            do {
+                let outcome = try await checkForUpdates()
+                guard !Task.isCancelled, let self else { return }
+                self.render(outcome)
+                self.finishUpdateCheck()
+            } catch {
+                guard !Task.isCancelled, let self else { return }
+                self.setUpdateStatus(
+                    "Could not check for updates. \(error.localizedDescription)",
+                    announce: true
+                )
+                self.finishUpdateCheck()
+            }
+        }
+    }
+
+    private func render(_ outcome: UpdateCheckOutcome) {
+        switch outcome {
+        case .upToDate:
+            setUpdateStatus(
+                "BetterTot \(currentVersion) is up to date.",
+                announce: true
+            )
+        case .noPublishedReleases:
+            setUpdateStatus("No published updates are available.", announce: true)
+        case .updateAvailable(let release):
+            availableReleaseURL = release.pageURL
+            setUpdateStatus(
+                "Version \(release.version) is available.",
+                announce: true
+            )
+            settingsView.viewUpdateButton.isHidden = false
+        }
+    }
+
+    private func setUpdateStatus(_ message: String, announce: Bool) {
+        settingsView.updateStatus.stringValue = message
+        settingsView.updateStatus.setAccessibilityValue(message)
+        guard announce else { return }
+        NSAccessibility.post(
+            element: settingsView.updateStatus,
+            notification: .announcementRequested,
+            userInfo: [
+                .announcement: message,
+                .priority: NSAccessibilityPriorityLevel.medium.rawValue,
+            ]
+        )
+    }
+
+    private func finishUpdateCheck() {
+        settingsView.setCheckingForUpdates(false)
+        updateTask = nil
+    }
+
+    @objc private func viewUpdatePressed() {
+        guard let availableReleaseURL else { return }
+        openURL(availableReleaseURL)
+    }
+
+    // MARK: - Window lifecycle
+
     func windowDidResignKey(_ notification: Notification) {
         endRecording()
     }
 
     func windowWillClose(_ notification: Notification) {
         endRecording()
+        let wasCheckingForUpdates = updateTask != nil
+        updateTask?.cancel()
+        updateTask = nil
+        settingsView.setCheckingForUpdates(false)
+        if wasCheckingForUpdates {
+            availableReleaseURL = nil
+            settingsView.viewUpdateButton.isHidden = true
+            setUpdateStatus(Self.idleUpdateStatus, announce: false)
+        }
         if NSFontManager.shared.target === self {
             NSFontManager.shared.target = nil
             NSFontPanel.shared.orderOut(nil)

@@ -1,118 +1,109 @@
-# BetterTot — development prototype
+<p align="center">
+  <img src="./Assets/AppIcon.svg" alt="BetterTot app icon" width="128">
+</p>
 
-Native macOS menu-bar scratchpad (plan phases 0–3 implemented): seven fixed
-pads, custom key-capable `NSPanel` + `NSTextView`, crash-recovery journal,
-rolling backups, import/export, settings, local-first storage in
-`~/Library/Application Support/BetterTot/`:
+<h1 align="center">BetterTot</h1>
 
-```text
-BetterTot/
-├── Pads/<pad-uuid>.txt        # one UTF-8 file per pad, atomic writes
-├── workspace.json             # metadata (positions, selection, revisions)
-├── Journal/
-│   ├── <pad-uuid>.log         # append-only JSONL, cleared on commit
-│   └── recovered/             # pre-recovery file versions, kept forever
-└── Backups/
-    ├── hourly/                # newest 24, taken on write activity
-    ├── daily/                 # newest 14
-    └── manual/                # kept until you delete them
-```
+<p align="center">
+  <strong>A fast, local-first scratchpad for the macOS menu bar.</strong>
+</p>
 
-## Run
+<p align="center">
+  <a href="https://github.com/saaivignesh20/BetterTot/actions/workflows/ci.yml"><img alt="CI status" src="https://github.com/saaivignesh20/BetterTot/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="./LICENSE"><img alt="Apache 2.0 license" src="https://img.shields.io/badge/license-Apache%202.0-blue.svg"></a>
+  <img alt="macOS 13 or later" src="https://img.shields.io/badge/macOS-13%2B-black?logo=apple">
+  <img alt="development preview" src="https://img.shields.io/badge/status-development%20preview-orange">
+</p>
+
+BetterTot keeps seven lightweight text pads one shortcut away. It is a native
+AppKit application with no account, analytics, or cloud storage.
+
+> [!IMPORTANT]
+> BetterTot is currently distributed as a private, ad-hoc-signed development
+> preview. There is no public download or notarized release yet.
+
+## Quick Start
+
+Requires macOS 13 or later and a compatible Xcode toolchain.
 
 ```sh
-swift run                  # run directly
-scripts/bundle.sh          # build dist/BetterTot.app (enables launch at login)
-scripts/test.sh            # tests plus the enforced 80% line-coverage gate
+git clone https://github.com/saaivignesh20/BetterTot.git
+cd BetterTot
+scripts/bundle.sh
+open dist/BetterTot.app
 ```
 
-## Menu
+Move `BetterTot.app` to `/Applications` if you want Launch at Login to work
+reliably.
 
-Right-click the menu-bar icon for: Settings (⌘,), backups (create / open
-folder / restore), and import/export (current pad or all pads as plain
-`Pad N.txt` files). Importing into a non-empty pad offers Replace (after an
-automatic backup) or Append; imports are undoable.
+## Features
 
-## Keys
+- Seven color-coded scratchpads available from the menu bar
+- Global, configurable keyboard shortcut
+- Pinning by dragging, with position restored between launches
+- Per-pad undo history, selection, and scroll position
+- Crash recovery through an append-only journal
+- Atomic saves and rolling hourly, daily, and manual backups
+- Plain-text import and export
+- Native settings for behavior, editing, storage, and updates
+- Explicit, manual-only checks for GitHub release metadata
 
-| Key | Action |
+## Keyboard Shortcuts
+
+| Shortcut | Action |
 |---|---|
-| ⌥⌘Space | Toggle panel (global, configurable in Settings) |
-| ⌘1 … ⌘7 | Select pad |
-| ⌘← / ⌘→ | Previous / next pad |
-| ⇧⌘C | Copy entire pad |
-| ⇧⌘⌫ | Clear pad (undoable) |
-| Esc | Dismiss (unpinned only) |
-| Drag panel background | Pin at the dragged position |
-| ⌘P | Keyboard pin / unpin fallback |
-| ⌘W | Close attached or pinned panel |
-| ⌘Q | Quit |
-| ⌘Z / ⇧⌘Z / ⌘X / ⌘C / ⌘V / ⌘A | Standard editing (per-pad undo stacks) |
+| `Option-Command-Space` | Toggle BetterTot |
+| `Command-1` ... `Command-7` | Select a pad |
+| `Command-Left` / `Command-Right` | Select the previous / next pad |
+| `Shift-Command-C` | Copy the entire pad |
+| `Shift-Command-Delete` | Clear the pad |
+| `Command-P` | Pin or unpin |
+| `Command-W` | Close the panel |
+| `Escape` | Dismiss an unpinned panel |
 
-Note: ⌘←/⌘→ switch pads per the plan (§4.3), which shadows the default
-line-start/line-end caret navigation inside the editor.
+Standard macOS editing shortcuts remain available. The pad-switching shortcuts
+take precedence over line-start and line-end navigation in the editor.
 
-## Save model
+## Data and Privacy
 
-Every keystroke appends a full-text snapshot to the pad's journal; a 200 ms
-debounce then commits the pad file atomically and clears the journal. On
-launch, any journal entry newer than the committed revision is recovered and
-the previous file version is preserved under `Journal/recovered/`. Corrupted
-`workspace.json` is kept as `workspace.json.corrupt` and rebuilt by adopting
-the existing pad files — metadata damage never costs note text.
+BetterTot stores its data in:
 
-## Docs
+```text
+~/Library/Application Support/BetterTot/
+├── Pads/              # one UTF-8 file per pad
+├── Journal/           # crash-recovery snapshots
+├── Backups/           # hourly, daily, and manual backups
+└── workspace.json     # pad metadata and UI state
+```
 
-- [Privacy](docs/PRIVACY.md) — what is stored where, and what is never collected.
-- [Release runbook](docs/RELEASE.md) — local packaging, installation, upgrades,
-  and optional future public distribution.
+The app makes no automatic network requests. Choosing **Check for Updates**
+sends the installed version in a request to GitHub's public Releases API; note
+text, settings, paths, and backup data are never sent. See the complete
+[privacy documentation](docs/PRIVACY.md).
+
+## Development
+
+```sh
+swift run                  # run from source
+scripts/test.sh            # tests and the enforced 80% coverage gate
+scripts/bundle.sh          # build an ad-hoc-signed app bundle
+scripts/release.sh         # build and verify the local release ZIP
+```
+
+The test suite covers persistence, recovery, backups, imports, shortcuts,
+settings, update checks, and release tooling. See [SPEC.md](SPEC.md) for the
+implemented behavior and architecture, and [PLAN.md](PLAN.md) for project
+history and future phases.
+
+## Documentation
+
+- [Contributing](CONTRIBUTING.md)
+- [Manual testing](docs/MANUAL_TESTING.md)
+- [Privacy](docs/PRIVACY.md)
+- [Security policy](SECURITY.md)
+- [Local release runbook](docs/RELEASE.md)
 
 ## License
 
-BetterTot is licensed under the [Apache License 2.0](LICENSE). See
-[NOTICE](NOTICE) for project attribution.
-
-## Release artifact
-
-```sh
-scripts/release.sh
-```
-
-This builds and verifies a universal, ad-hoc-signed ZIP for local testing.
-The current distribution scope is private/local use, so this ad-hoc artifact is
-the final package and Apple notarization is not required. Do not redistribute
-it as an identified-developer build. Developer ID signing and notarization are
-documented only as an optional future path.
-
-## Manual test checklist
-
-- [ ] Return inserts a newline, never dismisses the panel
-- [ ] Editor is focused every time (status item open and shortcut open)
-- [ ] Esc dismisses only an unpinned panel; text survives
-- [ ] Outside click dismisses only an unpinned panel
-- [ ] Clicking the menu-bar icon while open closes once and does not reopen
-- [ ] Dragging the panel background pins it at the dragged position
-- [ ] The pin button beside Settings reflects both click-to-pin and
-      drag-to-pin state
-- [ ] Pinning does not recreate the editor (undo history survives pin/unpin)
-- [ ] Seven pad selectors appear as distinct colored rings; the active pad is
-      filled and selection remains visible without relying on color alone
-- [ ] The close button dismisses both modes; reopening after closing a pinned
-      panel returns it beneath the menu-bar icon
-- [ ] The Settings gear closes the attached popover and opens Settings
-- [ ] The footer reports live line, word, and character counts plus local-save
-      status
-- [ ] Type, then `kill -9` immediately → text recovered on relaunch
-- [ ] Rapid ⌘1…⌘7 cycling while typing never loses or crosses text
-- [ ] Undo after switching pads never edits the wrong pad
-- [ ] Selection and scroll position restored per pad
-- [ ] Panel positions correctly on a second display / near screen edge
-- [ ] Japanese/Chinese IME composition works; Esc cancels composition, not the panel
-- [ ] Settings → Global shortcut: record a new chord, confirm it works globally
-      and survives relaunch; plain letters beep instead of being accepted
-- [ ] Start recording, then click into a pinned pad — typing goes into the note,
-      not the recorder, and recording ends
-- [ ] Try recording a chord another app owns (e.g. ⌘Space) → actionable alert,
-      previous shortcut still works
-- [ ] VoiceOver: pad switches announce "Scratchpad N" (and ", empty"); the
-      editor reports the selected pad; every control is reachable and labelled
+Licensed under the [Apache License 2.0](LICENSE). See [NOTICE](NOTICE) for
+attribution.

@@ -1,0 +1,57 @@
+# Manual Testing
+
+Run `scripts/test.sh` before this checklist. Test an app bundle built with
+`scripts/bundle.sh`, not only `swift run`.
+
+## Panel and Editing
+
+- [ ] Return inserts a newline and never dismisses the panel.
+- [ ] The editor is focused when opened from both the status item and shortcut.
+- [ ] Escape and outside clicks dismiss only an unpinned panel.
+- [ ] Clicking the menu-bar icon while open closes it without reopening it.
+- [ ] Dragging the panel background pins it at the dragged position.
+- [ ] The pin button beside Settings reflects click-to-pin and drag-to-pin.
+- [ ] Pinning does not recreate the editor or discard its undo history.
+- [ ] The close button dismisses both modes; reopening a closed pinned panel
+      returns it beneath the menu-bar icon.
+- [ ] The Settings button closes the panel and opens Settings.
+- [ ] The footer reports live line, word, character, and save status.
+- [ ] Seven distinct colored pad selectors are visible, and selection does not
+      rely on color alone.
+- [ ] Rapidly switching pads while typing never loses or crosses text.
+- [ ] Undo after switching pads never edits the wrong pad.
+- [ ] Selection and scroll position are restored for each pad.
+- [ ] The panel remains correctly positioned on a second display and near each
+      screen edge.
+- [ ] Japanese or Chinese IME composition works; Escape cancels composition
+      before it dismisses the panel.
+
+## Persistence and Recovery
+
+- [ ] Type, immediately terminate BetterTot with `kill -9`, and confirm that the
+      text is recovered on relaunch.
+- [ ] Create a manual backup and restore it without losing newer data.
+- [ ] Import into a non-empty pad using both Replace and Append.
+- [ ] Export one pad and all pads, then verify the UTF-8 text files.
+
+## Settings
+
+- [ ] General, Editor, Storage, and Updates are reachable from the top
+      navigation and fit in both light and dark appearances.
+- [ ] A changed global shortcut works outside BetterTot and survives relaunch.
+- [ ] Plain letters are rejected while recording a shortcut.
+- [ ] Starting shortcut recording and then focusing a pinned pad ends recording
+      and sends typing to the note.
+- [ ] A shortcut already owned by another app produces an actionable alert and
+      leaves the previous shortcut active.
+- [ ] Font and text-substitution settings apply and survive relaunch.
+- [ ] Open Backup Folder reveals the expected local directory.
+- [ ] Check for Updates runs only after clicking the button, reports a useful
+      result, and never downloads or installs software.
+
+## Accessibility
+
+- [ ] VoiceOver announces pad changes as `Scratchpad N`, including the empty
+      state when appropriate.
+- [ ] The editor identifies the selected pad.
+- [ ] Every panel and settings control is keyboard-reachable and labelled.

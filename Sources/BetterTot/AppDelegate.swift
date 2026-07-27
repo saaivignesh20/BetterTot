@@ -1,0 +1,264 @@
+import AppKit
+
+@MainActor
+protocol SettingsPresenting: AnyObject {
+    func present()
+}
+
+extension SettingsWindowController: SettingsPresenting {}
+
+@MainActor
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    struct Dependencies {
+        let defaults: UserDefaults
+        let makeStore: @MainActor () -> WorkspaceStore
+        let loadStore: @MainActor (WorkspaceStore) async throws -> WorkspaceSnapshot
+        let makeShortcutService: @MainActor (@escaping () -> Void) -> GlobalShortcutService
+        let scheduleMainAction: (@escaping @MainActor () -> Void) -> Void
+        let makeSettingsController: @MainActor (WorkspaceStore, GlobalShortcutService) -> SettingsPresenting
+        let currentEvent: @MainActor () -> NSEvent?
+        let presentStatusMenu: @MainActor (NSStatusItem) -> Void
+        let presentShortcutFailureAlert: @MainActor (NSAlert) -> Void
+        let terminateApplication: @MainActor () -> Void
+        let flushPanel: @MainActor (PanelController) async -> FlushResult
+        let markCleanShutdown: @MainActor (WorkspaceStore) async -> Void
+        let replyToTermination: @MainActor (NSApplication, Bool) -> Void
+
+        init(
+            defaults: UserDefaults = .standard,
+            makeStore: @escaping @MainActor () -> WorkspaceStore = {
+                WorkspaceStore(root: WorkspaceStore.defaultRoot())
+            },
+            loadStore: @escaping @MainActor (WorkspaceStore) async throws -> WorkspaceSnapshot = {
+                try $0.load()
+            },
+            makeShortcutService: @escaping @MainActor (@escaping () -> Void) -> GlobalShortcutService = {
+                CarbonGlobalShortcutService(onPress: $0)
+            },
+            scheduleMainAction: @escaping (@escaping @MainActor () -> Void) -> Void = { action in
+                Task { @MainActor in action() }
+            },
+            makeSettingsController: @escaping @MainActor (
+                WorkspaceStore,
+                GlobalShortcutService
+            ) -> SettingsPresenting = {
+                SettingsWindowController(store: $0, shortcutService: $1)
+            },
+            currentEvent: @escaping @MainActor () -> NSEvent? = { NSApp.currentEvent },
+            presentStatusMenu: @escaping @MainActor (NSStatusItem) -> Void = {
+                $0.button?.performClick(nil)
+            },
+            presentShortcutFailureAlert: @escaping @MainActor (NSAlert) -> Void = { alert in
+                NSApp.activate(ignoringOtherApps: true)
+                alert.window.level = .floating
+                alert.window.center()
+                alert.window.makeKeyAndOrderFront(nil)
+            },
+            terminateApplication: @escaping @MainActor () -> Void = { NSApp.terminate(nil) },
+            flushPanel: @escaping @MainActor (PanelController) async -> FlushResult = {
+                await $0.flushAll()
+            },
+            markCleanShutdown: @escaping @MainActor (WorkspaceStore) async -> Void = {
+                $0.markCleanShutdown()
+            },
+            replyToTermination: @escaping @MainActor (NSApplication, Bool) -> Void = {
+                $0.reply(toApplicationShouldTerminate: $1)
+            }
+        ) {
+            self.defaults = defaults
+            self.makeStore = makeStore
+            self.loadStore = loadStore
+            self.makeShortcutService = makeShortcutService
+            self.scheduleMainAction = scheduleMainAction
+            self.makeSettingsController = makeSettingsController
+            self.currentEvent = currentEvent
+            self.presentStatusMenu = presentStatusMenu
+            self.presentShortcutFailureAlert = presentShortcutFailureAlert
+            self.terminateApplication = terminateApplication
+            self.flushPanel = flushPanel
+            self.markCleanShutdown = markCleanShutdown
+            self.replyToTermination = replyToTermination
+        }
+    }
+
+    private(set) var statusItem: NSStatusItem?
+    private(set) var panelController: PanelController?
+    private(set) var shortcutService: GlobalShortcutService?
+    private(set) var store: WorkspaceStore?
+    private(set) var settingsController: SettingsPresenting?
+    private(set) var statusMenu: NSMenu?
+    private(set) var shortcutFailureAlert: NSAlert?
+    private(set) var launchTask: Task<Void, Never>?
+    private var isTerminating = false
+    private let dependencies: Dependencies
+
+    init(dependencies: Dependencies = Dependencies()) {
+        self.dependencies = dependencies
+        super.init()
+    }
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        dependencies.defaults.register(defaults: SettingsKeys.defaults)
+        installMainMenu()
+        let store = dependencies.makeStore()
+        // Stay invisible until recovery finishes (plan §14.2).
+        launchTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                let snapshot = try await dependencies.loadStore(store)
+                self.setUp(store: store, snapshot: snapshot)
+            } catch {
+                let diagnostic = error as NSError
+                NSLog("BetterTot: storage initialization failed (%@:%ld)",
+                      diagnostic.domain, diagnostic.code)
+                dependencies.terminateApplication()
+            }
+        }
+    }
+
+    private func setUp(store: WorkspaceStore, snapshot: WorkspaceSnapshot) {
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        item.button?.image = NSImage(
+            systemSymbolName: "square.and.pencil",
+            accessibilityDescription: "BetterTot scratchpad"
+        )
+        item.button?.target = self
+        item.button?.action = #selector(statusItemClicked)
+        item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
+        statusItem = item
+
+        let controller = PanelController(
+            statusItem: item,
+            store: store,
+            snapshot: snapshot,
+            defaults: dependencies.defaults
+        )
+        controller.onOpenSettings = { [weak self] in self?.openSettings(nil) }
+        panelController = controller
+        statusMenu = buildStatusMenu(controller: controller)
+
+        let scheduleMainAction = dependencies.scheduleMainAction
+        let service = dependencies.makeShortcutService { [weak self] in
+            scheduleMainAction {
+                self?.panelController?.toggle(reason: .globalShortcutToggle)
+            }
+        }
+        do {
+            try service.register(SettingsKeys.loadShortcut(from: dependencies.defaults))
+        } catch {
+            let diagnostic = error as NSError
+            NSLog("BetterTot: shortcut registration failed (%@:%ld)",
+                  diagnostic.domain, diagnostic.code)
+            let alert = NSAlert()
+            alert.alertStyle = .warning
+            alert.messageText = "Global shortcut unavailable"
+            alert.informativeText = error.localizedDescription
+                + " Choose a different shortcut in Settings."
+            shortcutFailureAlert = alert
+            dependencies.presentShortcutFailureAlert(alert)
+        }
+        shortcutService = service
+        self.store = store
+    }
+
+    // A minimal main menu so app-wide key equivalents (⌘Q, ⌘,) and standard
+    // edit commands work whenever the app is active with any window key —
+    // e.g. the settings window. The nonactivating panel still routes its own
+    // keys in performKeyEquivalent because the app is usually inactive there.
+    private func installMainMenu() {
+        let main = NSMenu()
+
+        let appItem = NSMenuItem()
+        let appMenu = NSMenu()
+        let settings = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
+        settings.target = self
+        appMenu.addItem(settings)
+        appMenu.addItem(.separator())
+        appMenu.addItem(withTitle: "Quit BetterTot",
+                        action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appItem.submenu = appMenu
+        main.addItem(appItem)
+
+        let editItem = NSMenuItem()
+        let editMenu = NSMenu(title: "Edit")
+        editMenu.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
+        let redo = NSMenuItem(title: "Redo", action: Selector(("redo:")), keyEquivalent: "Z")
+        editMenu.addItem(redo)
+        editMenu.addItem(.separator())
+        editMenu.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        editMenu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        editMenu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        editMenu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        editItem.submenu = editMenu
+        main.addItem(editItem)
+
+        NSApp.mainMenu = main
+    }
+
+    private func buildStatusMenu(controller: PanelController) -> NSMenu {
+        let menu = NSMenu()
+        func add(_ title: String, _ action: Selector, target: AnyObject, key: String = "") {
+            let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
+            item.target = target
+            menu.addItem(item)
+        }
+        add("Settings…", #selector(openSettings), target: self, key: ",")
+        menu.addItem(.separator())
+        add("Create Backup Now", #selector(PanelController.createManualBackup(_:)), target: controller)
+        add("Open Backup Folder", #selector(PanelController.openBackupFolder(_:)), target: controller)
+        add("Restore Backup…", #selector(PanelController.restoreBackup(_:)), target: controller)
+        menu.addItem(.separator())
+        add("Import Into Current Pad…", #selector(PanelController.importIntoCurrentPad(_:)), target: controller)
+        add("Export Current Pad…", #selector(PanelController.exportCurrentPad(_:)), target: controller)
+        add("Export All Pads…", #selector(PanelController.exportAllPads(_:)), target: controller)
+        menu.addItem(.separator())
+        let quit = NSMenuItem(title: "Quit BetterTot", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        quit.target = NSApp
+        menu.addItem(quit)
+        return menu
+    }
+
+    @objc func statusItemClicked() {
+        let event = dependencies.currentEvent()
+        let isMenuGesture = event?.type == .rightMouseUp
+            || (event?.type == .leftMouseUp && event?.modifierFlags.contains(.control) == true)
+        if isMenuGesture, let statusItem, let statusMenu {
+            // standard trick: attach the menu, click, detach so left-click stays a toggle
+            statusItem.menu = statusMenu
+            dependencies.presentStatusMenu(statusItem)
+            statusItem.menu = nil
+        } else {
+            panelController?.toggle(reason: .statusItemToggle)
+        }
+    }
+
+    @objc func openSettings(_ sender: Any?) {
+        guard let store, let shortcutService else { return }
+        if settingsController == nil {
+            settingsController = dependencies.makeSettingsController(store, shortcutService)
+        }
+        settingsController?.present()
+    }
+
+    // Async flush before termination; never mark clean if a save may be pending.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard let panelController, let store else { return .terminateNow }
+        // Re-entry (⌘Q key-repeat) must not abort the in-flight flush; the
+        // first request's pending reply completes termination.
+        guard !isTerminating else { return .terminateCancel }
+        isTerminating = true
+        Task { @MainActor in
+            let flushResult = await dependencies.flushPanel(panelController)
+            if flushResult == .failed {
+                isTerminating = false
+                dependencies.replyToTermination(sender, false)
+                return
+            }
+            if flushResult == .committed {
+                await dependencies.markCleanShutdown(store)
+            }
+            dependencies.replyToTermination(sender, true)
+        }
+        return .terminateLater
+    }
+}

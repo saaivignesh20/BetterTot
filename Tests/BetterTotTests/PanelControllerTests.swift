@@ -108,6 +108,34 @@ final class PanelControllerTests: XCTestCase {
         XCTAssertEqual(controller.textView.string, "")
     }
 
+    func testDraggingAttachedPanelPinsWithoutLosingEditorState() {
+        controller.show()
+        controller.applyToCurrentPad("dragged draft", replacing: true)
+        controller.textView.setSelectedRange(NSRange(location: 3, length: 4))
+        let editor = controller.textView
+        let undoManager = controller.undoManager(for: editor)
+        let attachedOrigin = panel.frame.origin
+
+        panel.setFrameOrigin(NSPoint(x: attachedOrigin.x + 24, y: attachedOrigin.y - 18))
+        controller.windowDidMove(Notification(name: NSWindow.didMoveNotification, object: panel))
+        controller.dismiss(reason: .outsideClick)
+
+        XCTAssertTrue(panel.isVisible, "a user-moved panel must become pinned")
+        XCTAssertTrue(editor === controller.textView)
+        XCTAssertTrue(undoManager === controller.undoManager(for: controller.textView))
+        XCTAssertEqual(controller.textView.string, "dragged draft")
+        XCTAssertEqual(controller.textView.selectedRange(), NSRange(location: 3, length: 4))
+    }
+
+    func testProgrammaticAttachmentDoesNotPinPanel() {
+        controller.show()
+
+        controller.windowDidMove(Notification(name: NSWindow.didMoveNotification, object: panel))
+        controller.dismiss(reason: .outsideClick)
+
+        XCTAssertFalse(panel.isVisible)
+    }
+
     func testToggleDismissesUnpinnedPanelButKeepsPinnedPanelVisible() {
         controller.toggle(reason: .statusItemToggle)
         XCTAssertTrue(panel.isVisible)
@@ -177,12 +205,15 @@ final class PanelControllerTests: XCTestCase {
             keyCode: 51, modifiers: [.command, .shift])))
         XCTAssertEqual(controller.textView.string, "")
 
+        controller.show()
         XCTAssertTrue(panel.performKeyEquivalent(with: keyEvent(
             keyCode: 35, characters: "p", modifiers: [.command])))
-        XCTAssertTrue(panel.isMovableByWindowBackground)
+        controller.dismiss(reason: .outsideClick)
+        XCTAssertTrue(panel.isVisible)
         XCTAssertTrue(panel.performKeyEquivalent(with: keyEvent(
             keyCode: 35, characters: "p", modifiers: [.command])))
-        XCTAssertFalse(panel.isMovableByWindowBackground)
+        controller.dismiss(reason: .outsideClick)
+        XCTAssertFalse(panel.isVisible)
 
         var didOpenSettings = false
         controller.onOpenSettings = { didOpenSettings = true }
@@ -196,7 +227,23 @@ final class PanelControllerTests: XCTestCase {
             keyCode: 11, characters: "b", modifiers: [.command])))
     }
 
-    func testSegmentSelectionRestoresEditorFocusAndRejectsInvalidPads() {
+    func testPadDotsUseColorsAndAccessibleNumericIdentities() throws {
+        let segmented = try XCTUnwrap(descendant(of: panel.contentView, as: NSSegmentedControl.self))
+
+        XCTAssertEqual(segmented.segmentCount, WorkspaceMetadata.padCount)
+        XCTAssertEqual(segmented.selectedSegment, 0)
+        let images = try (0..<WorkspaceMetadata.padCount).map { index in
+            XCTAssertEqual(segmented.label(forSegment: index), "")
+            XCTAssertEqual(segmented.toolTip(forSegment: index), "Scratchpad \(index + 1)")
+            let image = try XCTUnwrap(segmented.image(forSegment: index))
+            XCTAssertEqual(image.accessibilityDescription, "Scratchpad \(index + 1)")
+            return image
+        }
+        let renderedDots = Set(images.compactMap(\.tiffRepresentation))
+        XCTAssertEqual(renderedDots.count, WorkspaceMetadata.padCount)
+    }
+
+    func testPadDotSelectionRestoresEditorFocusAndRejectsInvalidPads() {
         controller.show()
         let segmented = descendant(of: panel.contentView, as: NSSegmentedControl.self)!
         segmented.selectedSegment = 1
@@ -210,6 +257,42 @@ final class PanelControllerTests: XCTestCase {
         controller.selectPad(at: WorkspaceMetadata.padCount)
         XCTAssertEqual(controller.currentPadPosition, 1)
         XCTAssertEqual(segmented.selectedSegment, 1)
+    }
+
+    func testSettingsButtonInsidePanelInvokesCallback() throws {
+        var openCount = 0
+        controller.onOpenSettings = { openCount += 1 }
+        let button = try XCTUnwrap(
+            descendants(of: panel.contentView, as: NSButton.self).first {
+                $0.identifier?.rawValue == "panel-settings"
+            })
+
+        XCTAssertNotNil(button.image)
+        XCTAssertEqual(button.toolTip, "Settings")
+        XCTAssertEqual(button.accessibilityLabel(), "Settings")
+        XCTAssertTrue(button.sendAction(button.action, to: button.target))
+        XCTAssertEqual(openCount, 1)
+    }
+
+    func testStatusItemClickIsNotHandledAsOutsideClickBeforeToggle() throws {
+        controller.show()
+        let button = try XCTUnwrap(statusItem.button)
+        let buttonWindow = try XCTUnwrap(button.window)
+        let frame = buttonWindow.convertToScreen(button.convert(button.bounds, to: nil))
+
+        controller.handleOutsideClick(
+            window: nil,
+            screenLocation: NSPoint(x: frame.midX, y: frame.midY))
+        XCTAssertTrue(panel.isVisible)
+
+        controller.toggle(reason: .statusItemToggle)
+        XCTAssertFalse(panel.isVisible, "the status-item action must close without reopening")
+
+        controller.show()
+        controller.handleOutsideClick(
+            window: nil,
+            screenLocation: NSPoint(x: frame.maxX + 100, y: frame.minY - 100))
+        XCTAssertFalse(panel.isVisible)
     }
 
     func testEscapeDuringMarkedTextRemainsAnInputMethodCommand() {
@@ -393,5 +476,11 @@ final class PanelControllerTests: XCTestCase {
         guard let view else { return nil }
         if let match = view as? T { return match }
         return view.subviews.lazy.compactMap { self.descendant(of: $0, as: type) }.first
+    }
+
+    private func descendants<T: NSView>(of view: NSView?, as type: T.Type) -> [T] {
+        guard let view else { return [] }
+        let current = (view as? T).map { [$0] } ?? []
+        return current + view.subviews.flatMap { descendants(of: $0, as: type) }
     }
 }

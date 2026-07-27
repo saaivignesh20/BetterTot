@@ -71,7 +71,7 @@ final class ScratchpadPanel: NSPanel {
 }
 
 @MainActor
-final class PanelController: NSObject, NSTextViewDelegate {
+final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate {
     private let statusItem: NSStatusItem
     let store: WorkspaceStore
     private let defaults: UserDefaults
@@ -79,6 +79,7 @@ final class PanelController: NSObject, NSTextViewDelegate {
     let textView: NSTextView
     private let scrollView: NSScrollView
     private let segmented: NSSegmentedControl
+    private let settingsButton: NSButton
 
     private var pads: [PadMetadata]
     private var selectedIndex: Int
@@ -87,6 +88,7 @@ final class PanelController: NSObject, NSTextViewDelegate {
     private var undoManagers: [PadID: UndoManager] = [:]
 
     private var isPinned = false
+    private var attachedOrigin: NSPoint?
     private var pendingSave: DispatchWorkItem?
     private var mouseMonitors: [Any] = []
     private var editingSuspensionCount = 0
@@ -116,17 +118,41 @@ final class PanelController: NSObject, NSTextViewDelegate {
         scrollView.drawsBackground = false
 
         segmented = NSSegmentedControl(
-            labels: (1...WorkspaceMetadata.padCount).map(String.init),
+            labels: Array(repeating: "", count: WorkspaceMetadata.padCount),
             trackingMode: .selectOne,
             target: nil,
             action: nil
         )
+        segmented.segmentStyle = .capsule
         segmented.selectedSegment = selectedIndex
         segmented.refusesFirstResponder = true // keyboard path is ⌘1–7
         segmented.setAccessibilityLabel("Scratchpads")
         for index in 0..<WorkspaceMetadata.padCount {
+            let description = "Scratchpad \(index + 1)"
+            segmented.setImage(
+                Self.padDotImage(
+                    color: Self.padColor(for: pads[index]),
+                    accessibilityDescription: description),
+                forSegment: index)
+            segmented.setWidth(30, forSegment: index)
             segmented.setToolTip("Scratchpad \(index + 1)", forSegment: index)
         }
+
+        settingsButton = NSButton(
+            image: NSImage(
+                systemSymbolName: "gearshape",
+                accessibilityDescription: "Settings"
+            ) ?? NSImage(),
+            target: nil,
+            action: nil
+        )
+        settingsButton.identifier = NSUserInterfaceItemIdentifier("panel-settings")
+        settingsButton.imagePosition = .imageOnly
+        settingsButton.isBordered = false
+        settingsButton.refusesFirstResponder = true
+        settingsButton.toolTip = "Settings"
+        settingsButton.setAccessibilityLabel("Settings")
+        settingsButton.setContentHuggingPriority(.required, for: .horizontal)
 
         let background = NSVisualEffectView()
         background.material = .popover
@@ -135,7 +161,15 @@ final class PanelController: NSObject, NSTextViewDelegate {
         background.layer?.cornerRadius = 12
         background.layer?.masksToBounds = true
 
-        let stack = NSStackView(views: [segmented, scrollView])
+        let headerSpacer = NSView()
+        headerSpacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        headerSpacer.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        let header = NSStackView(views: [segmented, headerSpacer, settingsButton])
+        header.orientation = .horizontal
+        header.alignment = .centerY
+        header.spacing = 6
+
+        let stack = NSStackView(views: [header, scrollView])
         stack.orientation = .vertical
         stack.spacing = 6
         stack.translatesAutoresizingMaskIntoConstraints = false
@@ -162,11 +196,15 @@ final class PanelController: NSObject, NSTextViewDelegate {
         panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.contentView = background
+        panel.isMovableByWindowBackground = true
 
         super.init()
 
+        panel.delegate = self
         segmented.target = self
         segmented.action = #selector(segmentChanged)
+        settingsButton.target = self
+        settingsButton.action = #selector(openSettings)
         textView.delegate = self
         panel.onTogglePin = { [weak self] in self?.togglePin() }
         panel.onPadCommand = { [weak self] command in self?.handle(command) }
@@ -192,6 +230,10 @@ final class PanelController: NSObject, NSTextViewDelegate {
         textView.isContinuousSpellCheckingEnabled = defaults.bool(forKey: SettingsKeys.spellChecking)
         textView.isAutomaticQuoteSubstitutionEnabled = defaults.bool(forKey: SettingsKeys.smartQuotes)
         textView.isAutomaticDashSubstitutionEnabled = defaults.bool(forKey: SettingsKeys.smartDashes)
+    }
+
+    @objc private func openSettings() {
+        onOpenSettings?()
     }
 
     // MARK: - Pad commands
@@ -304,7 +346,9 @@ final class PanelController: NSObject, NSTextViewDelegate {
     }
 
     func show() {
-        positionPanel()
+        if !isPinned {
+            positionPanel()
+        }
         panel.makeKeyAndOrderFront(nil)
         panel.makeFirstResponder(textView)
         if !isPinned { installMouseMonitors() }
@@ -326,12 +370,31 @@ final class PanelController: NSObject, NSTextViewDelegate {
     }
 
     private func togglePin() {
-        isPinned.toggle()
-        panel.isMovableByWindowBackground = isPinned
-        if isPinned {
+        setPinned(!isPinned)
+    }
+
+    private func setPinned(_ pinned: Bool) {
+        guard isPinned != pinned else { return }
+        isPinned = pinned
+        if pinned {
             removeMouseMonitors()
         } else if panel.isVisible {
+            positionPanel()
             installMouseMonitors()
+        }
+    }
+
+    func windowDidMove(_ notification: Notification) {
+        guard notification.object as? NSWindow === panel,
+              panel.isVisible,
+              !isPinned,
+              let attachedOrigin else {
+            return
+        }
+        let dx = panel.frame.origin.x - attachedOrigin.x
+        let dy = panel.frame.origin.y - attachedOrigin.y
+        if hypot(dx, dy) >= 4 {
+            setPinned(true)
         }
     }
 
@@ -349,6 +412,7 @@ final class PanelController: NSObject, NSTextViewDelegate {
             origin.x = min(max(origin.x, visible.minX + 8), visible.maxX - panel.frame.width - 8)
             origin.y = max(origin.y, visible.minY + 8)
         }
+        attachedOrigin = origin
         panel.setFrameOrigin(origin)
     }
 
@@ -357,26 +421,82 @@ final class PanelController: NSObject, NSTextViewDelegate {
     private func installMouseMonitors() {
         guard mouseMonitors.isEmpty else { return }
         let events: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown]
-        if let global = NSEvent.addGlobalMonitorForEvents(matching: events, handler: { [weak self] _ in
-            self?.dismiss(reason: .outsideClick)
+        if let global = NSEvent.addGlobalMonitorForEvents(matching: events, handler: { [weak self] event in
+            self?.handleOutsideClick(window: event.window, screenLocation: NSEvent.mouseLocation)
         }) {
             mouseMonitors.append(global)
         }
         if let local = NSEvent.addLocalMonitorForEvents(matching: events, handler: { [weak self] event in
             guard let self else { return event }
-            // ignore clicks inside the panel and on the status item (its action handles the toggle)
-            if event.window !== self.panel, event.window !== self.statusItem.button?.window {
-                self.dismiss(reason: .outsideClick)
-            }
+            self.handleOutsideClick(
+                window: event.window,
+                screenLocation: Self.screenLocation(for: event))
             return event
         }) {
             mouseMonitors.append(local)
         }
     }
 
+    func handleOutsideClick(window: NSWindow?, screenLocation: NSPoint) {
+        guard window !== panel,
+              statusItemScreenFrame?.contains(screenLocation) != true else {
+            return
+        }
+        dismiss(reason: .outsideClick)
+    }
+
+    private var statusItemScreenFrame: NSRect? {
+        guard let button = statusItem.button, let window = button.window else { return nil }
+        return window.convertToScreen(button.convert(button.bounds, to: nil))
+    }
+
+    private static func screenLocation(for event: NSEvent) -> NSPoint {
+        guard let window = event.window else { return event.locationInWindow }
+        return window.convertPoint(toScreen: event.locationInWindow)
+    }
+
     private func removeMouseMonitors() {
         mouseMonitors.forEach(NSEvent.removeMonitor)
         mouseMonitors = []
+    }
+
+    private static func padColor(for pad: PadMetadata) -> NSColor {
+        let named: [String: NSColor] = [
+            "red": .systemRed,
+            "orange": .systemOrange,
+            "yellow": .systemYellow,
+            "green": .systemGreen,
+            "teal": .systemTeal,
+            "blue": .systemBlue,
+            "purple": .systemPurple,
+        ]
+        if let identifier = pad.colorIdentifier?.lowercased(),
+           let color = named[identifier] {
+            return color
+        }
+        let palette: [NSColor] = [
+            .systemRed,
+            .systemOrange,
+            .systemYellow,
+            .systemGreen,
+            .systemTeal,
+            .systemBlue,
+            .systemPurple,
+        ]
+        return palette[pad.position % palette.count]
+    }
+
+    private static func padDotImage(
+        color: NSColor,
+        accessibilityDescription: String
+    ) -> NSImage {
+        let image = NSImage(size: NSSize(width: 14, height: 14), flipped: false) { rect in
+            color.setFill()
+            NSBezierPath(ovalIn: rect.insetBy(dx: 2, dy: 2)).fill()
+            return true
+        }
+        image.accessibilityDescription = accessibilityDescription
+        return image
     }
 
     // MARK: - Persistence (journal per change, 200 ms debounced commit)

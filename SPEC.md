@@ -131,7 +131,8 @@ Status menu actions:
 
 The editor is a borderless, floating, nonactivating `NSPanel` containing:
 
-- An `NSSegmentedControl` with seven numbered pad segments.
+- An `NSSegmentedControl` with seven colored dot segments.
+- An image-only Settings button in the panel header.
 - A scrollable plain-text `NSTextView`.
 - A `NSVisualEffectView` popover-style background.
 
@@ -141,24 +142,28 @@ Panel behavior:
 - The panel can become key even though the app is accessory-only.
 - The editor receives focus whenever the panel opens.
 - The unpinned panel dismisses on Escape or outside click.
-- The pinned panel is movable by background drag and does not dismiss on
-  outside click.
+- Dragging the attached panel background away from its menu-bar position pins
+  it automatically.
+- The pinned panel does not dismiss on outside click.
 - Toggling while pinned brings the panel/key focus forward instead of hiding it.
+- Clicking the status item is excluded from outside-click handling so one click
+  closes an open, unpinned panel without dismissing and reopening it.
 - Escape is ignored by BetterTot while the text view has marked text, allowing
   input methods to handle IME composition cancellation.
 
 ### Pad Slots
 
 - There are exactly seven logical pads.
-- Pads are addressed by fixed positions `0...6` internally and shown as
-  `1...7` in the UI and exported file names.
+- Pads are addressed by fixed positions `0...6` internally. The panel displays
+  colored dots; numeric identities remain in tooltips, accessibility labels,
+  keyboard shortcuts, announcements, and exported file names.
 - Each pad has an independent text buffer, selection, scroll offset, content
   revision, and undo manager.
 - Pad switches persist the outgoing pad's selection/scroll state, commit any
   pending text save, load the incoming pad, and announce the selected pad to
   VoiceOver.
-- The model includes optional `name` and `colorIdentifier` fields, but the
-  current UI exposes only numbered pads.
+- The model includes optional `name` and `colorIdentifier` fields. Recognized
+  color identifiers override the deterministic seven-color fallback palette.
 
 ## Keyboard Behavior
 

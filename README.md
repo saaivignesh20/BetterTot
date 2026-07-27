@@ -43,7 +43,8 @@ automatic backup) or Append; imports are undoable.
 | ⇧⌘C | Copy entire pad |
 | ⇧⌘⌫ | Clear pad (undoable) |
 | Esc | Dismiss (unpinned only) |
-| ⌘P | Pin / unpin (pinned = movable, ignores outside clicks) |
+| Drag panel background | Pin at the dragged position |
+| ⌘P | Keyboard pin / unpin fallback |
 | ⌘Q | Quit |
 | ⌘Z / ⇧⌘Z / ⌘X / ⌘C / ⌘V / ⌘A | Standard editing (per-pad undo stacks) |
 
@@ -87,7 +88,12 @@ official releases.
 - [ ] Editor is focused every time (status item open and shortcut open)
 - [ ] Esc dismisses only an unpinned panel; text survives
 - [ ] Outside click dismisses only an unpinned panel
+- [ ] Clicking the menu-bar icon while open closes once and does not reopen
+- [ ] Dragging the panel background pins it at the dragged position
 - [ ] Pinning does not recreate the editor (undo history survives pin/unpin)
+- [ ] Seven pad selectors appear as distinct colored dots; selection remains
+      visible without relying on color alone
+- [ ] The Settings gear in the panel opens Settings
 - [ ] Type, then `kill -9` immediately → text recovered on relaunch
 - [ ] Rapid ⌘1…⌘7 cycling while typing never loses or crosses text
 - [ ] Undo after switching pads never edits the wrong pad

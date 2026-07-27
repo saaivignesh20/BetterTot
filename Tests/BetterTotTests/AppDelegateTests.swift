@@ -63,6 +63,9 @@ final class AppDelegateTests: XCTestCase {
         )
         XCTAssertEqual(bitmap.colorAt(x: 0, y: 0)?.alphaComponent, 0)
         XCTAssertGreaterThan(bitmap.colorAt(x: 120, y: 120)?.alphaComponent ?? 0, 0.9)
+        let centroid = alphaCentroid(of: bitmap)
+        XCTAssertEqual(centroid.x, 119.5, accuracy: 2)
+        XCTAssertEqual(centroid.y, 119.5, accuracy: 2)
 
         let appMenu = try XCTUnwrap(NSApp.mainMenu?.items.first?.submenu)
         XCTAssertEqual(appMenu.items.map(\.title), ["Settings…", "", "Quit BetterTot"])
@@ -85,6 +88,21 @@ final class AppDelegateTests: XCTestCase {
         XCTAssertTrue(statusMenu.items[0].target === delegate)
         XCTAssertTrue(statusMenu.items[2].target === delegate?.panelController)
         XCTAssertTrue(statusMenu.items.last?.target === NSApp)
+    }
+
+    private func alphaCentroid(of bitmap: NSBitmapImageRep) -> NSPoint {
+        var weightedX = 0.0
+        var weightedY = 0.0
+        var totalAlpha = 0.0
+        for y in 0..<bitmap.pixelsHigh {
+            for x in 0..<bitmap.pixelsWide {
+                let alpha = bitmap.colorAt(x: x, y: y)?.alphaComponent ?? 0
+                weightedX += Double(x) * alpha
+                weightedY += Double(y) * alpha
+                totalAlpha += alpha
+            }
+        }
+        return NSPoint(x: weightedX / totalAlpha, y: weightedY / totalAlpha)
     }
 
     func testShortcutRegistrationFailureReportsNonblockingAlertAndCompletesSetup() async throws {

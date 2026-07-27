@@ -64,8 +64,8 @@ the existing pad files — metadata damage never costs note text.
 ## Docs
 
 - [Privacy](docs/PRIVACY.md) — what is stored where, and what is never collected.
-- [Release runbook](docs/RELEASE.md) — signing, notarization, CI, installation,
-  upgrades, checksums, and Homebrew packaging.
+- [Release runbook](docs/RELEASE.md) — local packaging, installation, upgrades,
+  and optional future public distribution.
 
 ## License
 
@@ -79,9 +79,10 @@ scripts/release.sh
 ```
 
 This builds and verifies a universal, ad-hoc-signed ZIP for local testing.
-Public releases require a Developer ID Application identity and Apple
-notarization; see the release runbook. Ad-hoc builds must not be distributed as
-official releases.
+The current distribution scope is private/local use, so this ad-hoc artifact is
+the final package and Apple notarization is not required. Do not redistribute
+it as an identified-developer build. Developer ID signing and notarization are
+documented only as an optional future path.
 
 ## Manual test checklist
 

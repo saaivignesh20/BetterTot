@@ -1,36 +1,25 @@
-# BetterTot Release Runbook
+# BetterTot Local Build Runbook
 
-BetterTot release candidates are universal macOS application ZIPs signed with
-a Developer ID Application certificate, notarized by Apple, stapled, and
-prepared with a SHA-256 checksum. Automation creates a draft release; a
-maintainer publishes it only after clean-Mac acceptance.
+BetterTot's current distribution target is a private/local universal macOS
+application with an ad-hoc signature and SHA-256 checksum. It is not being
+published, so Developer ID signing, Apple notarization, and App Store access are
+not required.
 
 ## Current Release Status
 
 - Repository-controlled Phase 4 work is complete.
-- Apple Developer Program authorization is pending as of 2026-07-27.
-- Developer ID signing, notarization, and clean-Mac acceptance remain blocked
-  until Apple authorizes the account.
+- The ad-hoc app and ZIP are the final artifacts for the private/local scope.
+- Apple Developer Program authorization and notarization are not release
+  blockers.
 - CI may produce explicitly labeled ad-hoc development previews for testing.
-- Do not create the `v0.1.0` tag or publish a preview as an official release.
-  Resume with the credential setup below after authorization.
+- Do not create a public `v0.1.0` release from these artifacts.
 
-## Prerequisites
+## Local Prerequisites
 
 - A standalone Git repository whose root is the BetterTot directory.
-- A public GitHub repository with Actions enabled.
-- An Apple Developer Program team.
-- A `Developer ID Application` certificate exported as a password-protected
-  `.p12` file.
-- An App Store Connect API key with notarization access.
-- A GitHub environment named `release` with required reviewers.
-- The Xcode 16.4 toolchain available on the selected GitHub macOS runner.
+- A compatible Xcode toolchain.
 - The Apache 2.0 `LICENSE` and project `NOTICE` committed.
-- The 80% coverage target met and the README manual UI/VoiceOver checklist
-  signed off for the release candidate.
-
-Verify `git rev-parse --show-toplevel` resolves to the BetterTot directory and
-that `origin` points to the public release repository before creating tags.
+- The 80% coverage target met and the README manual checklist signed off.
 
 ## Local Artifact
 
@@ -47,14 +36,16 @@ dist/release/BetterTot-<version>.zip
 dist/release/BetterTot-<version>.sha256
 ```
 
-Ad-hoc signing is for local testing only. It is not a public release.
+Ad-hoc signing is sufficient for the current private/local scope. It is not an
+identified-developer signature and the artifact must not be represented as a
+public macOS release.
 
 ## CI Development Preview
 
-Until Apple Developer Program authorization is available, the `CI` workflow can
-upload the same verified ad-hoc ZIP as a development preview. Run the workflow
-manually against `main`, then download `BetterTot-preview-<commit>`. Ordinary
-push and pull-request runs do not upload preview artifacts.
+The `CI` workflow can upload the same verified ad-hoc ZIP as a development
+preview. Run the workflow manually against `main`, then download
+`BetterTot-preview-<commit>`. Ordinary push and pull-request runs do not upload
+preview artifacts.
 
 The artifact contains:
 
@@ -70,7 +61,13 @@ published as GitHub Releases or used by the Homebrew Cask. Never disable
 Gatekeeper globally to test a preview. The preview run number is also embedded
 as the bundle build number for traceability.
 
-## Local Signed Release
+## Optional Future Public Distribution
+
+The remaining Developer ID, notarization, GitHub Release, clean-Mac, and
+Homebrew instructions are intentionally inactive. Use them only after an
+explicit decision to distribute BetterTot to other users.
+
+## Optional Developer ID Release
 
 The protected GitHub workflow is the preferred signing path. For an exceptional
 local release, use a disposable Keychain rather than importing release
@@ -129,7 +126,7 @@ The script performs these operations in order:
 8. Verifies Gatekeeper acceptance and the application signature.
 9. Writes a SHA-256 checksum and a matching Homebrew Cask proposal.
 
-## GitHub Configuration
+## Optional GitHub Configuration
 
 Configure these secrets on the protected `release` environment:
 
@@ -164,7 +161,7 @@ Keychain, signs and notarizes the prebuilt bundle, and deletes the Keychain and
 decoded files when the step exits. A final job receives only signed assets and
 holds GitHub release and attestation permissions; it has no Apple credentials.
 
-## Version and Tag
+## Optional Version and Tag
 
 1. Update `VERSION` using `MAJOR.MINOR.PATCH` format.
 2. Update release notes and run `scripts/test.sh`.
@@ -178,7 +175,7 @@ notarizes in the protected environment, verifies and attests the artifacts, and
 creates a draft GitHub release. Publish the draft only after the clean-Mac
 acceptance checks pass.
 
-## Clean-Mac Acceptance
+## Optional Clean-Mac Acceptance
 
 Before announcing a release:
 
@@ -194,8 +191,8 @@ Before announcing a release:
 
 - 2026-07-27: Local ad-hoc candidate passed the README manual functional
   checklist, as reported by the tester.
-- Pending: Repeat the checklist with the notarized draft artifact on a clean,
-  supported Mac without Xcode before publishing.
+- Not required for the current private/local scope. Repeat the checklist with a
+  notarized draft on a clean supported Mac only if public distribution resumes.
 
 Command-line verification should report `source=Notarized Developer ID`:
 
@@ -224,7 +221,7 @@ data too, separately delete:
 Deleting the Application Support directory permanently removes pads, journals,
 and backups. Preserve or export it before destructive removal.
 
-## Homebrew Cask
+## Optional Homebrew Cask
 
 Each release generates `dist/release/bettertot.rb`. Test it against the public
 release URL before proposing it to Homebrew. The Cask intentionally does not

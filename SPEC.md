@@ -2,7 +2,7 @@
 
 ## Status
 
-BetterTot is a development-prototype native macOS menu-bar scratchpad. The
+BetterTot is a private/local native macOS menu-bar scratchpad. The
 current implementation provides seven fixed plain-text pads, a custom
 nonactivating AppKit panel, local-first file storage, crash recovery, rolling
 backups, import/export, settings, and a configurable global shortcut.
@@ -59,10 +59,10 @@ signing. Launch-at-login support is only enabled when BetterTot is running from
 an app bundle.
 
 `scripts/release.sh` runs the tests, creates a versioned ZIP and SHA-256
-checksum, optionally submits the signed ZIP to Apple's notary service, staples
-and validates the ticket, verifies Gatekeeper acceptance, and renders a
-matching Homebrew Cask. Tagged GitHub Actions releases are created as drafts so
-clean-Mac acceptance can occur before publication.
+checksum, and produces an ad-hoc-signed local artifact by default. This is the
+completed path for the current private/local scope. Developer ID signing,
+notarization, Homebrew rendering, and tagged GitHub releases remain available
+only as dormant infrastructure for a future public-distribution decision.
 
 ## Repository Layout
 
@@ -73,9 +73,9 @@ SPEC.md                               This implementation specification
 PLAN.md                               Original product and engineering plan
 VERSION                               Release marketing version
 docs/PRIVACY.md                       Privacy and local-storage notes
-docs/RELEASE.md                       Signing, notarization, and release runbook
+docs/RELEASE.md                       Local and optional public release runbook
 scripts/bundle.sh                     Universal app bundle builder
-scripts/release.sh                    Release packaging and notarization
+scripts/release.sh                    Local packaging; optional notarization
 scripts/verify-release.sh             Artifact integrity and signature checks
 .github/workflows/*.yml               CI and protected release automation
 Sources/BetterTot/App.swift           App entry point
@@ -547,29 +547,25 @@ Verification performed while writing this spec:
 
 ```text
 swift test
-Executed 90 tests, with 0 failures.
-Line coverage: 83.69% (1473/1760), minimum 80.00%.
+Executed 99 tests, with 0 failures.
+Line coverage: 86.42% (1916/2217), minimum 80.00%.
 ```
 
 ## Current Gaps and Risks
 
-- BetterTot now has a standalone local Git repository; a GitHub remote and
-  protected release environment are still required before tagged automation
-  can run.
 - `scripts/test.sh` enforces at least 80% aggregate source line coverage and a
   30% floor for every non-entry source file. The current instrumented result is
-  83.69% across 90 passing tests.
+  86.42% across 99 passing tests.
 - VoiceOver, IME, multi-display positioning, and launch-at-login remain manual
   acceptance checks. The local checklist passed on 2026-07-27 and must be
-  repeated against the notarized clean-Mac candidate.
+  repeated for a future public-distribution candidate if scope changes.
 - Launch-at-login can only be exercised meaningfully from `dist/BetterTot.app`.
 - `name` and `colorIdentifier` fields are persisted model fields without active
   UI affordances.
 - Backups and recovered journals intentionally preserve user text beyond active
   pad deletion; an explicit "erase history" action does not exist.
-- Release automation supports Developer ID signing and notarization, but this
-  machine only has an Apple Development identity. A real notarized artifact has
-  not been produced or accepted by Gatekeeper on a clean Mac.
+- Notarization and clean-Mac Gatekeeper acceptance are intentionally outside
+  the current private/local distribution scope.
 - The original seven-pad application icon is generated deterministically from
   `Assets/AppIcon.svg` and embedded in release bundles as `BetterTot.icns`.
 

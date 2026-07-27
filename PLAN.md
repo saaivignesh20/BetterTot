@@ -124,7 +124,7 @@ Version 0.1 should include:
 13. Launch-at-login option
 14. VoiceOver-compatible controls
 15. Floating/pinned panel mode
-16. Signed and notarized public builds
+16. Ad-hoc-signed private/local builds
 17. Apple Silicon support
 18. Automated regression testing
 
@@ -991,7 +991,7 @@ bettertot/
 │   ├── build.sh
 │   ├── test.sh
 │   ├── archive.sh
-│   └── notarize.sh
+│   └── checksum.sh
 ├── .github/
 │   ├── ISSUE_TEMPLATE/
 │   ├── pull_request_template.md
@@ -1213,34 +1213,34 @@ The exact threshold should be based on measurement.
 
 Use:
 
-* GitHub Releases
-* Developer ID signing
-* Apple notarization
-* Homebrew Cask after the first stable release
+* A locally built `.app`
+* Ad-hoc code signing
+* A versioned local ZIP and SHA-256 checksum
 
-Apple documents Developer ID signing for software distributed outside the Mac App Store, and Developer ID distributions are expected to use Apple’s notarization process. ([Apple Developer][3])
+Do not publish the current build. Developer ID signing, Apple notarization,
+GitHub Releases, and Homebrew distribution are optional future work only if the
+distribution scope changes. Apple documents Developer ID signing for software
+distributed outside the Mac App Store, and that future path would still require
+notarization. ([Apple Developer][3])
 
 ## Version 0.1 packaging
 
 Provide:
 
-* Signed `.app`
-* Notarized `.dmg` or `.zip`
+* Ad-hoc-signed `.app`
+* Local `.zip`
 * SHA-256 checksum
 * Release notes
 * Minimum supported macOS version
 * Architecture information
-* Source tag corresponding to the binary
 * Reproducible build instructions where practical
 
 ## Updates
 
 Do not include an automatic updater in version 0.1.
 
-Users can update through:
-
-* GitHub Releases
-* Homebrew Cask
+For the private/local build, update by replacing the application bundle with a
+new locally built copy.
 
 An automatic updater creates network, signing, security, and operational responsibilities that are unnecessary before product validation.
 
@@ -1403,21 +1403,20 @@ Exit criteria:
 Implement:
 
 * Release build configuration
-* Signing
-* Notarization
-* Packaging
-* GitHub Actions where secrets permit
+* Ad-hoc signing
+* Local packaging
 * Checksums
 * Release documentation
-* Homebrew Cask proposal
 
 Exit criteria:
 
-* Clean installation on a Mac without Xcode
-* Gatekeeper accepts the release
+* Local installation succeeds
 * Upgrade preserves all notes
 * Uninstall instructions are documented
-* Source tag matches the released binary
+
+Developer ID signing, notarization, tagged GitHub releases, clean-Mac
+Gatekeeper acceptance, and Homebrew are not Phase 4 exit criteria for the
+private/local scope.
 
 ## Phase 5 — Post-release hardening
 
@@ -1530,12 +1529,10 @@ Version 0.1 is complete only when all of the following are true:
 
 ## Distribution
 
-* Release is signed.
-* Release is notarized.
-* Installation works on a clean supported Mac.
+* Release is ad-hoc signed for private/local use.
+* Local installation works on the target Mac.
 * Upgrade preserves existing data.
 * Release artifacts have checksums.
-* Corresponding source code is tagged.
 
 ## Testing
 
@@ -1571,12 +1568,11 @@ Version 0.1 is complete only when all of the following are true:
 20. Add launch at login
 21. Add accessibility
 22. Complete test matrix
-23. Add signing and notarization
-24. Publish GitHub release
-25. Add Homebrew Cask
-26. Gather reliability feedback
-27. Consider Markdown conveniences
-28. Consider synchronization
+23. Add ad-hoc local packaging
+24. Gather reliability feedback
+25. Consider public distribution only if product scope changes
+26. Consider Markdown conveniences
+27. Consider synchronization
 ```
 
 ---

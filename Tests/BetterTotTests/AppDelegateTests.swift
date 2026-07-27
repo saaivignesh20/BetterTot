@@ -53,7 +53,16 @@ final class AppDelegateTests: XCTestCase {
         let statusItem = try XCTUnwrap(delegate?.statusItem)
         XCTAssertEqual(statusItem.button?.action, #selector(AppDelegate.statusItemClicked))
         XCTAssertTrue(statusItem.button?.target === delegate)
-        XCTAssertNotNil(statusItem.button?.image)
+        let statusImage = try XCTUnwrap(statusItem.button?.image)
+        XCTAssertTrue(statusImage.isTemplate)
+        XCTAssertEqual(statusImage.size, NSSize(width: 18, height: 18))
+        XCTAssertEqual(statusImage.accessibilityDescription, "BetterTot scratchpad")
+        XCTAssertTrue(statusImage.representations.contains { $0.pixelsWide == 240 })
+        let bitmap = try XCTUnwrap(
+            statusImage.representations.compactMap { $0 as? NSBitmapImageRep }.first
+        )
+        XCTAssertEqual(bitmap.colorAt(x: 0, y: 0)?.alphaComponent, 0)
+        XCTAssertGreaterThan(bitmap.colorAt(x: 120, y: 120)?.alphaComponent ?? 0, 0.9)
 
         let appMenu = try XCTUnwrap(NSApp.mainMenu?.items.first?.submenu)
         XCTAssertEqual(appMenu.items.map(\.title), ["Settings…", "", "Quit BetterTot"])

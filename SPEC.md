@@ -69,11 +69,11 @@ only as dormant infrastructure for a future public-distribution decision.
 ```text
 Package.swift                         SwiftPM package manifest
 README.md                             Project overview and quick start
-CONTRIBUTING.md                       Development and contribution workflow
-SECURITY.md                           Private vulnerability-reporting policy
+CONTRIBUTION.md                       Development and contribution workflow
 SPEC.md                               This implementation specification
 PLAN.md                               Original product and engineering plan
 VERSION                               Release marketing version
+Assets/MenuBarIcon.png                Material note-stack status-item artwork
 docs/MANUAL_TESTING.md                Manual app acceptance checklist
 docs/PRIVACY.md                       Privacy and local-storage notes
 docs/RELEASE.md                       Local and optional public release runbook
@@ -96,6 +96,7 @@ Sources/BetterTot/SettingsWindow.swift
                                       Settings UI and UserDefaults bindings
 Sources/BetterTot/SettingsContentView.swift
                                       Top navigation and settings page layout
+Sources/BetterTot/MenuBarIcon.swift    Template status-item icon
 Sources/BetterTot/UpdateChecker.swift Version parsing and manual release check
 Tests/BetterTotTests/*.swift          XCTest coverage
 ```
@@ -120,8 +121,9 @@ Tests/BetterTotTests/*.swift          XCTest coverage
 
 - Left-click toggles the scratchpad panel.
 - Right-click or Control-left-click opens the status menu.
-- The status item uses the SF Symbol `square.and.pencil` with an accessibility
-  description of "BetterTot scratchpad".
+- The status item uses a custom monochrome template icon based on BetterTot's
+  stacked-note mark, with an accessibility description of "BetterTot
+  scratchpad".
 
 Status menu actions:
 
@@ -566,14 +568,14 @@ Verification performed while writing this spec:
 ```text
 swift test
 Executed 108 tests, with 0 failures.
-Line coverage: 86.62% (2479/2862), minimum 80.00%.
+Line coverage: 86.36% (2520/2918), minimum 80.00%.
 ```
 
 ## Current Gaps and Risks
 
 - `scripts/test.sh` enforces at least 80% aggregate source line coverage and a
   30% floor for every non-entry source file. The current instrumented result is
-  86.62% across 108 passing tests.
+  86.36% across 108 passing tests.
 - VoiceOver, IME, multi-display positioning, and launch-at-login remain manual
   acceptance checks. The local checklist passed on 2026-07-27 and must be
   repeated for a future public-distribution candidate if scope changes.
@@ -584,7 +586,7 @@ Line coverage: 86.62% (2479/2862), minimum 80.00%.
   pad deletion; an explicit "erase history" action does not exist.
 - Notarization and clean-Mac Gatekeeper acceptance are intentionally outside
   the current private/local distribution scope.
-- The original seven-pad application icon is generated deterministically from
+- The layered seven-pad application icon is generated deterministically from
   `Assets/AppIcon.svg` and embedded in release bundles as `BetterTot.icns`.
 
 ## Contribution Constraints

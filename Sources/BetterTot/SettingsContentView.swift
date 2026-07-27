@@ -265,11 +265,10 @@ final class SettingsContentView: NSVisualEffectView {
         actionRow.alignment = .centerY
         actionRow.spacing = 10
 
-        let icon = NSImageView(image: Self.symbol(
-            "square.and.pencil",
-            label: "BetterTot"
-        ))
-        icon.contentTintColor = .controlAccentColor
+        let appIcon = BetterTotAppIcon.make()
+        let icon = NSImageView(image: appIcon)
+        icon.identifier = NSUserInterfaceItemIdentifier("bettertot-app-icon")
+        icon.setAccessibilityLabel("BetterTot app icon")
         icon.imageScaling = .scaleProportionallyUpOrDown
         icon.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([

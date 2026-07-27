@@ -15,6 +15,10 @@
   <img alt="development preview" src="https://img.shields.io/badge/status-development%20preview-orange">
 </p>
 
+<p align="center">
+  <img src="./Assets/BetterTot-screenshot.png" alt="BetterTot scratchpad showing its seven color-coded pads" width="720">
+</p>
+
 BetterTot keeps seven lightweight text pads one shortcut away. It is a native
 AppKit application with no account, analytics, or cloud storage.
 
@@ -97,10 +101,9 @@ history and future phases.
 
 ## Documentation
 
-- [Contributing](CONTRIBUTING.md)
+- [Contributing](CONTRIBUTION.md)
 - [Manual testing](docs/MANUAL_TESTING.md)
 - [Privacy](docs/PRIVACY.md)
-- [Security policy](SECURITY.md)
 - [Local release runbook](docs/RELEASE.md)
 
 ## License

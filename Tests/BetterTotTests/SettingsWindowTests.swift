@@ -182,7 +182,15 @@ final class SettingsWindowTests: XCTestCase {
         let checkButton = try settingsButton(identifier: "check-for-updates", in: controller)
         let status = try settingsLabel(identifier: "update-status", in: controller)
         let version = try settingsLabel(identifier: "current-version", in: controller)
+        let appIcon = try XCTUnwrap(
+            allSubviews(of: try XCTUnwrap(controller.window?.contentView))
+                .compactMap { $0 as? NSImageView }
+                .first { $0.identifier?.rawValue == "bettertot-app-icon" }
+        )
         XCTAssertEqual(version.stringValue, "Version 0.1.0 (7)")
+        XCTAssertNotNil(appIcon.image)
+        XCTAssertEqual(appIcon.image?.size, NSSize(width: 1024, height: 1024))
+        XCTAssertEqual(appIcon.accessibilityLabel(), "BetterTot app icon")
 
         checkButton.performClick(nil)
         await fulfillment(of: [checked], timeout: 1)

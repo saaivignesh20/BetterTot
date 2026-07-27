@@ -984,8 +984,6 @@ bettertot/
 │   ├── DATA_FORMAT.md
 │   ├── RECOVERY.md
 │   ├── PRIVACY.md
-│   ├── SECURITY.md
-│   ├── CONTRIBUTING.md
 │   ├── RELEASE.md
 │   └── TRADEMARKS.md
 ├── scripts/
@@ -1000,8 +998,7 @@ bettertot/
 ├── LICENSE
 ├── NOTICE
 ├── README.md
-├── SECURITY.md
-└── CODE_OF_CONDUCT.md
+└── CONTRIBUTION.md
 ```
 
 ---

@@ -118,10 +118,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func setUp(store: WorkspaceStore, snapshot: WorkspaceSnapshot) {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        item.button?.image = NSImage(
-            systemSymbolName: "square.and.pencil",
-            accessibilityDescription: "BetterTot scratchpad"
-        )
+        item.button?.image = MenuBarIcon.make()
         item.button?.target = self
         item.button?.action = #selector(statusItemClicked)
         item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])

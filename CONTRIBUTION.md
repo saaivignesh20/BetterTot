@@ -66,5 +66,8 @@ or `chore:`. Keep unrelated changes in separate pull requests.
 
 ## Reporting Security Issues
 
-Do not open a public issue for a suspected vulnerability. Follow
-[SECURITY.md](SECURITY.md) instead.
+Do not open a public issue for a suspected vulnerability. Report it privately
+through
+[GitHub Security Advisories](https://github.com/saaivignesh20/BetterTot/security/advisories/new).
+Do not include real note contents, credentials, signing identities, or other
+private user data.

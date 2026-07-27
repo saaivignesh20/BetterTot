@@ -115,8 +115,12 @@ app="$TMP_DIR/BetterTot.app"
     --output "$app" >/dev/null
 [[ -s "$app/Contents/Resources/BetterTot.icns" ]] || \
     fail "application bundle must contain BetterTot.icns"
+[[ -s "$app/Contents/Resources/MenuBarIcon.png" ]] || \
+    fail "application bundle must contain MenuBarIcon.png"
 cmp -s "$icon_one" "$app/Contents/Resources/BetterTot.icns" || \
     fail "application bundle must contain the generated app icon"
+cmp -s "$ROOT/Assets/MenuBarIcon.png" "$app/Contents/Resources/MenuBarIcon.png" || \
+    fail "application bundle must contain the selected menu-bar icon"
 [[ "$(plutil -extract CFBundleIconFile raw "$app/Contents/Info.plist")" == "BetterTot.icns" ]] || \
     fail "bundled plist must reference BetterTot.icns"
 
@@ -125,6 +129,9 @@ ditto -c -k --norsrc --noextattr --keepParent "$app" "$release_zip"
 assert_contains "$(unzip -Z1 "$release_zip")" \
     "BetterTot.app/Contents/Resources/BetterTot.icns" \
     "release ZIP must contain the bundled app icon"
+assert_contains "$(unzip -Z1 "$release_zip")" \
+    "BetterTot.app/Contents/Resources/MenuBarIcon.png" \
+    "release ZIP must contain the menu-bar icon"
 if unzip -Z1 "$release_zip" | grep -E '(^|/)\._' >/dev/null; then
     fail "release ZIP must not contain AppleDouble metadata files"
 fi

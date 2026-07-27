@@ -74,6 +74,7 @@ BIN_DIR="$(swift build -c release --arch arm64 --arch x86_64 --show-bin-path)"
 swift build -c release --arch arm64 --arch x86_64
 cp "$BIN_DIR/BetterTot" "$APP/Contents/MacOS/BetterTot"
 cp "$ROOT/LICENSE" "$ROOT/NOTICE" "$APP/Contents/Resources/"
+cp "$ROOT/Assets/MenuBarIcon.png" "$APP/Contents/Resources/"
 "$ROOT/scripts/generate-app-icon.sh" \
     --output "$APP/Contents/Resources/BetterTot.icns"
 

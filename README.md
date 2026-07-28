@@ -46,7 +46,7 @@ reliably.
 - Global, configurable keyboard shortcut
 - Pinning by dragging, with position restored between launches
 - Per-pad undo history, selection, and scroll position
-- Automatic continuation for bullets and plain-text Markdown checkboxes
+- Clickable plain-text checkboxes with automatic bullet and checkbox continuation
 - Crash recovery through an append-only journal
 - Atomic saves and rolling hourly, daily, and manual backups
 - Plain-text import and export
@@ -64,6 +64,7 @@ reliably.
 | `Shift-Command-Delete` | Clear the pad |
 | `Command-P` | Pin or unpin |
 | `Command-W` | Close the panel |
+| `Command-Return` | Toggle the checkbox on the current line |
 | `Escape` | Dismiss an unpinned panel |
 
 Standard macOS editing shortcuts remain available. The pad-switching shortcuts

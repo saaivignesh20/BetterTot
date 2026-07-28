@@ -7,8 +7,11 @@ Run `scripts/test.sh` before this checklist. Test an app bundle built with
 
 - [ ] Return inserts a newline and never dismisses the panel.
 - [ ] Return continues `- ` and `* ` bullets, including indented bullets.
-- [ ] Return after `- [ ] `, `- [x] `, or `- [X] ` creates a new unchecked
-      checkbox.
+- [ ] Return after `☐`, `☑`, or legacy Markdown checkbox markers creates a new
+      unchecked `☐` checkbox.
+- [ ] Clicking `☐` or `☑` toggles it without changing the task text.
+- [ ] Command-Return toggles the checkbox on the current line and is undoable.
+- [ ] Toggling a legacy `- [ ] ` or `- [x] ` line converts it to `☑` or `☐`.
 - [ ] Return on an empty bullet or checkbox removes its marker and exits the
       list.
 - [ ] The editor is focused when opened from both the status item and shortcut.

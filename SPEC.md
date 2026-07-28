@@ -86,6 +86,8 @@ Sources/BetterTot/App.swift           App entry point
 Sources/BetterTot/AppDelegate.swift   Launch, status item, menu, termination
 Sources/BetterTot/PanelController.swift
                                       Panel behavior, editor, pad switching
+Sources/BetterTot/CheckboxTextView.swift
+                                      Checkbox parsing and click hit-testing
 Sources/BetterTot/PanelView.swift     Panel controls, layout, and status footer
 Sources/BetterTot/Model.swift         Codable data model
 Sources/BetterTot/WorkspaceStore.swift
@@ -172,9 +174,13 @@ Panel behavior:
 - Escape is ignored by BetterTot while the text view has marked text, allowing
   input methods to handle IME composition cancellation.
 - Return continues `- ` and `* ` bullet lines while preserving indentation.
-- Return continues `- [ ] `, `- [x] `, and `- [X] ` checkbox lines with a new
-  unchecked checkbox. Return on an empty bullet or checkbox removes the marker
-  and exits the list.
+- Checkboxes are stored and displayed as plain-text `☐` and `☑` glyphs. Clicking
+  the glyph or pressing Command-Return on its line toggles its state through
+  the normal undo and persistence pipeline.
+- Return continues `☐`, `☑`, and legacy `- [ ] `, `- [x] `, or `- [X] ` lines
+  with a new unchecked `☐`. Interacting with a legacy marker converts that line
+  to the visible Unicode form without rewriting unrelated stored text.
+- Return on an empty bullet or checkbox removes the marker and exits the list.
 - Automatic list handling is disabled while the text view has marked text, so
   Return remains available to the active input method.
 
@@ -214,6 +220,7 @@ Panel/editor shortcuts:
 | `Shift-Command-Delete` | Clear current pad through undoable text editing |
 | `Command-P` | Pin or unpin panel |
 | `Command-W` | Close an attached or pinned panel |
+| `Command-Return` | Toggle the checkbox on the current line |
 | `Return` | Continue a bullet or checkbox; exit an empty list item |
 | `Escape` | Dismiss unpinned panel unless IME composition is active |
 | `Command-Q` | Quit BetterTot |
@@ -555,7 +562,8 @@ Current automated coverage is concentrated in:
   Carbon registration lifecycle, failed re-registration behavior, persisted
   shortcut validation, and event-to-shortcut conversion.
 - `PanelControllerTests`: ordinary Return behavior, automatic bullet and
-  checkbox continuation, empty-item list exit, IME command ownership, panel
+  checkbox continuation, clickable and keyboard checkbox toggling, legacy
+  marker conversion, empty-item list exit, IME command ownership, panel
   dismissal, pinning, focus, pad switching, and undo isolation.
 
 Manual checklist coverage remains important for UI behaviors that are hard to
@@ -579,15 +587,15 @@ Verification performed while writing this spec:
 
 ```text
 swift test
-Executed 113 tests, with 0 failures.
-Line coverage: 86.63% (2598/2999), minimum 80.00%.
+Executed 117 tests, with 0 failures.
+Line coverage: 87.21% (2768/3174), minimum 80.00%.
 ```
 
 ## Current Gaps and Risks
 
 - `scripts/test.sh` enforces at least 80% aggregate source line coverage and a
   30% floor for every non-entry source file. The current instrumented result is
-  86.63% across 113 passing tests.
+  87.21% across 117 passing tests.
 - VoiceOver, IME, multi-display positioning, and launch-at-login remain manual
   acceptance checks. The local checklist passed on 2026-07-27 and must be
   repeated for a future public-distribution candidate if scope changes.

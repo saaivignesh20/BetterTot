@@ -28,42 +28,10 @@ private struct PersistenceRevision: Hashable {
     let revision: UInt64
 }
 
-private struct AutomaticListLine {
-    let indentationLength: Int
-    let markerLength: Int
-    let continuationMarker: String
-    let isEmpty: Bool
-
-    static func parse(_ line: NSString) -> AutomaticListLine? {
-        var indentationLength = 0
-        while indentationLength < line.length {
-            let character = line.character(at: indentationLength)
-            guard character == 0x20 || character == 0x09 else { break }
-            indentationLength += 1
-        }
-
-        let remainder = line.substring(from: indentationLength)
-        let markers = [
-            ("- [ ] ", "- [ ] "),
-            ("- [x] ", "- [ ] "),
-            ("- [X] ", "- [ ] "),
-            ("- ", "- "),
-            ("* ", "* "),
-        ]
-        guard let (marker, continuation) = markers.first(where: { remainder.hasPrefix($0.0) }) else {
-            return nil
-        }
-
-        let markerLength = (marker as NSString).length
-        let contentStart = indentationLength + markerLength
-        let content = line.substring(from: contentStart)
-        return AutomaticListLine(
-            indentationLength: indentationLength,
-            markerLength: markerLength,
-            continuationMarker: continuation,
-            isEmpty: content.trimmingCharacters(in: .whitespaces).isEmpty
-        )
-    }
+private struct LocatedAutomaticListLine {
+    let range: NSRange
+    let text: NSString
+    let list: AutomaticListLine
 }
 
 final class ScratchpadPanel: NSPanel {
@@ -72,12 +40,20 @@ final class ScratchpadPanel: NSPanel {
 
     var onTogglePin: (() -> Void)?
     var onPadCommand: ((PadCommand) -> Void)?
+    var onToggleCheckbox: (() -> Bool)?
     var onOpenSettings: (() -> Void)?
     var onClose: (() -> Void)?
 
     // ponytail: accessory app has no menu bar, so standard edit key equivalents
     // are routed by hand here; replace with a real main menu when settings land.
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        let shortcutModifiers: NSEvent.ModifierFlags = [.command, .shift, .option, .control]
+        let modifiers = event.modifierFlags.intersection(shortcutModifiers)
+        if event.keyCode == 36,
+           modifiers == .command,
+           onToggleCheckbox?() == true {
+            return true
+        }
         if super.performKeyEquivalent(with: event) { return true }
         guard event.modifierFlags.contains(.command) else { return false }
         let shift = event.modifierFlags.contains(.shift)
@@ -159,8 +135,9 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate {
         self.selectedIndex = pads.firstIndex { $0.id == snapshot.metadata.selectedPadID } ?? 0
         self.revisions = snapshot.revisions
 
-        scrollView = NSTextView.scrollableTextView()
-        textView = scrollView.documentView as! NSTextView
+        let editor = CheckboxTextView.makeScrollable()
+        scrollView = editor.scrollView
+        textView = editor.textView
         textView.isRichText = false
         textView.allowsUndo = true
         textView.textContainerInset = NSSize(width: 12, height: 12)
@@ -189,6 +166,8 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.contentView = content
         panel.isMovableByWindowBackground = true
+        content.layoutSubtreeIfNeeded()
+        editor.textView.fitDocument(to: scrollView)
 
         super.init()
 
@@ -202,8 +181,12 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate {
         content.onTogglePin = { [weak self] in self?.togglePin() }
         content.onOpenSettings = { [weak self] in self?.openSettings() }
         textView.delegate = self
+        editor.textView.onCheckboxClickAtCharacter = { [weak self] location in
+            self?.toggleCheckbox(atUTF16Location: location, markerHitOnly: true) ?? false
+        }
         panel.onTogglePin = { [weak self] in self?.togglePin() }
         panel.onPadCommand = { [weak self] command in self?.handle(command) }
+        panel.onToggleCheckbox = { [weak self] in self?.toggleCurrentCheckbox() ?? false }
         panel.onOpenSettings = { [weak self] in self?.openSettings() }
         panel.onClose = { [weak self] in self?.dismiss(reason: .explicitClose) }
         applySettings()
@@ -683,35 +666,107 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate {
 
     // MARK: - Editor commands
 
-    private func handleAutomaticListReturn(in textView: NSTextView) -> Bool {
-        let selection = textView.selectedRange()
-        let source = textView.string as NSString
-        guard selection.location != NSNotFound,
-              selection.length == 0,
-              selection.location <= source.length else { return false }
-
-        let lineRange = source.lineRange(for: NSRange(location: selection.location, length: 0))
-        let rawLine = source.substring(with: lineRange) as NSString
+    private func automaticListLine(
+        atUTF16Location location: Int,
+        in source: NSString
+    ) -> LocatedAutomaticListLine? {
+        guard location != NSNotFound, location <= source.length else { return nil }
+        let range = source.lineRange(for: NSRange(location: location, length: 0))
+        let rawLine = source.substring(with: range) as NSString
         var contentLength = rawLine.length
         while contentLength > 0, [0x0A, 0x0D].contains(rawLine.character(at: contentLength - 1)) {
             contentLength -= 1
         }
         let line = rawLine.substring(to: contentLength) as NSString
-        guard let list = AutomaticListLine.parse(line) else { return false }
+        guard let list = AutomaticListLine.parse(line) else { return nil }
+        return LocatedAutomaticListLine(
+            range: NSRange(location: range.location, length: contentLength),
+            text: line,
+            list: list
+        )
+    }
 
-        let contentStart = lineRange.location + list.indentationLength + list.markerLength
+    @discardableResult
+    private func toggleCheckbox(atUTF16Location location: Int, markerHitOnly: Bool = false) -> Bool {
+        let source = textView.string as NSString
+        guard let located = automaticListLine(atUTF16Location: location, in: source),
+              let replacement = located.list.toggledMarker else { return false }
+
+        let markerRange = NSRange(
+            location: located.range.location + located.list.indentationLength,
+            length: located.list.markerLength
+        )
+        if markerHitOnly {
+            let clickableRange = NSRange(
+                location: markerRange.location,
+                length: located.list.clickableMarkerLength
+            )
+            guard clickableRange.length > 0, NSLocationInRange(location, clickableRange) else {
+                return false
+            }
+        }
+
+        let oldSelection = textView.selectedRange()
+        guard textView.shouldChangeText(in: markerRange, replacementString: replacement) else {
+            return true
+        }
+        textView.textStorage?.replaceCharacters(in: markerRange, with: replacement)
+        textView.didChangeText()
+
+        let replacementLength = (replacement as NSString).length
+        let newLocation: Int
+        if markerHitOnly || oldSelection.location < NSMaxRange(markerRange) {
+            newLocation = markerRange.location + replacementLength
+        } else {
+            newLocation = oldSelection.location + replacementLength - markerRange.length
+        }
+        textView.setSelectedRange(NSRange(location: newLocation, length: 0))
+        return true
+    }
+
+    private func toggleCurrentCheckbox() -> Bool {
+        let selection = textView.selectedRange()
+        guard !textView.hasMarkedText(), selection.length == 0 else { return false }
+        return toggleCheckbox(atUTF16Location: selection.location)
+    }
+
+    private func handleAutomaticListReturn(in textView: NSTextView) -> Bool {
+        let selection = textView.selectedRange()
+        let source = textView.string as NSString
+        guard selection.location != NSNotFound,
+              selection.length == 0,
+              let located = automaticListLine(
+                atUTF16Location: selection.location,
+                in: source
+              ) else { return false }
+        let list = located.list
+
+        let contentStart = located.range.location + list.indentationLength + list.markerLength
         guard selection.location >= contentStart else { return false }
 
-        let contentEnd = lineRange.location + contentLength
-        let indentation = line.substring(to: list.indentationLength)
+        let contentEnd = NSMaxRange(located.range)
+        let indentation = located.text.substring(to: list.indentationLength)
         let changeRange: NSRange
         let replacement: String
         if list.isEmpty, selection.location == contentEnd {
             changeRange = NSRange(
-                location: lineRange.location + list.indentationLength,
-                length: contentEnd - lineRange.location - list.indentationLength
+                location: located.range.location + list.indentationLength,
+                length: contentEnd - located.range.location - list.indentationLength
             )
             replacement = ""
+        } else if let normalizedMarker = list.normalizedMarker,
+                  (normalizedMarker as NSString).length != list.markerLength {
+            let markerStart = located.range.location + list.indentationLength
+            let contentBeforeCaret = source.substring(with: NSRange(
+                location: markerStart + list.markerLength,
+                length: selection.location - markerStart - list.markerLength
+            ))
+            changeRange = NSRange(
+                location: markerStart,
+                length: selection.location - markerStart
+            )
+            replacement = "\(normalizedMarker)\(contentBeforeCaret)\n\(indentation)" +
+                list.continuationMarker
         } else {
             changeRange = selection
             replacement = "\n\(indentation)\(list.continuationMarker)"

@@ -58,9 +58,11 @@ final class PanelControllerTests: XCTestCase {
         let cases = [
             ("- first item", "- first item\n- "),
             ("  * nested item", "  * nested item\n  * "),
-            ("- [ ] pending", "- [ ] pending\n- [ ] "),
-            ("- [x] completed", "- [x] completed\n- [ ] "),
-            ("- [X] completed", "- [X] completed\n- [ ] "),
+            ("☐ pending", "☐ pending\n☐ "),
+            ("☑ completed", "☑ completed\n☐ "),
+            ("- [ ] legacy", "☐ legacy\n☐ "),
+            ("- [x] legacy", "☑ legacy\n☐ "),
+            ("- [X] legacy", "☑ legacy\n☐ "),
         ]
 
         for (text, expected) in cases {
@@ -83,6 +85,8 @@ final class PanelControllerTests: XCTestCase {
             ("- first\n- ", "- first\n"),
             ("- first\n- [ ] ", "- first\n"),
             ("- first\n- [x] ", "- first\n"),
+            ("☐ first\n☐ ", "☐ first\n"),
+            ("☑ first\n  ☑ ", "☑ first\n  "),
             ("* first\n  * ", "* first\n  "),
         ]
 

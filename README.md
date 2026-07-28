@@ -103,6 +103,7 @@ history and future phases.
 ## Documentation
 
 - [Contributing](CONTRIBUTION.md)
+- [Security policy](SECURITY.md)
 - [Manual testing](docs/MANUAL_TESTING.md)
 - [Privacy](docs/PRIVACY.md)
 - [Local release runbook](docs/RELEASE.md)

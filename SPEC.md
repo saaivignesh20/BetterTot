@@ -70,6 +70,7 @@ only as dormant infrastructure for a future public-distribution decision.
 Package.swift                         SwiftPM package manifest
 README.md                             Project overview and quick start
 CONTRIBUTION.md                       Development and contribution workflow
+SECURITY.md                           Vulnerability reporting policy
 SPEC.md                               This implementation specification
 PLAN.md                               Original product and engineering plan
 VERSION                               Release marketing version

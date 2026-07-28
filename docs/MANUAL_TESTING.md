@@ -6,6 +6,11 @@ Run `scripts/test.sh` before this checklist. Test an app bundle built with
 ## Panel and Editing
 
 - [ ] Return inserts a newline and never dismisses the panel.
+- [ ] Return continues `- ` and `* ` bullets, including indented bullets.
+- [ ] Return after `- [ ] `, `- [x] `, or `- [X] ` creates a new unchecked
+      checkbox.
+- [ ] Return on an empty bullet or checkbox removes its marker and exits the
+      list.
 - [ ] The editor is focused when opened from both the status item and shortcut.
 - [ ] Escape and outside clicks dismiss only an unpinned panel.
 - [ ] Clicking the menu-bar icon while open closes it without reopening it.
@@ -24,7 +29,8 @@ Run `scripts/test.sh` before this checklist. Test an app bundle built with
 - [ ] The panel remains correctly positioned on a second display and near each
       screen edge.
 - [ ] Japanese or Chinese IME composition works; Escape cancels composition
-      before it dismisses the panel.
+      before it dismisses the panel, and Return remains owned by the IME while
+      text is marked.
 
 ## Persistence and Recovery
 

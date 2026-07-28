@@ -54,6 +54,89 @@ final class PanelControllerTests: XCTestCase {
         XCTAssertEqual(controller.textView.string, "before\nafter")
     }
 
+    func testReturnContinuesBulletsAndCreatesUncheckedCheckboxes() {
+        let cases = [
+            ("- first item", "- first item\n- "),
+            ("  * nested item", "  * nested item\n  * "),
+            ("- [ ] pending", "- [ ] pending\n- [ ] "),
+            ("- [x] completed", "- [x] completed\n- [ ] "),
+            ("- [X] completed", "- [X] completed\n- [ ] "),
+        ]
+
+        for (text, expected) in cases {
+            controller.applyToCurrentPad(text, replacing: true)
+            controller.textView.setSelectedRange(NSRange(
+                location: (text as NSString).length,
+                length: 0
+            ))
+
+            XCTAssertTrue(controller.textView(
+                controller.textView,
+                doCommandBy: #selector(NSResponder.insertNewline(_:))
+            ))
+            XCTAssertEqual(controller.textView.string, expected)
+        }
+    }
+
+    func testReturnOnEmptyBulletOrCheckboxExitsTheList() {
+        let cases = [
+            ("- first\n- ", "- first\n"),
+            ("- first\n- [ ] ", "- first\n"),
+            ("- first\n- [x] ", "- first\n"),
+            ("* first\n  * ", "* first\n  "),
+        ]
+
+        for (text, expected) in cases {
+            controller.applyToCurrentPad(text, replacing: true)
+            controller.textView.setSelectedRange(NSRange(
+                location: (text as NSString).length,
+                length: 0
+            ))
+
+            XCTAssertTrue(controller.textView(
+                controller.textView,
+                doCommandBy: #selector(NSResponder.insertNewline(_:))
+            ))
+            XCTAssertEqual(controller.textView.string, expected)
+        }
+    }
+
+    func testAutomaticListReturnIsUndoableWithUTF16Content() {
+        let original = "- café 👩🏽‍💻"
+        controller.applyToCurrentPad(original, replacing: true)
+        controller.textView.setSelectedRange(NSRange(
+            location: (original as NSString).length,
+            length: 0
+        ))
+        let undoManager = controller.undoManager(for: controller.textView)
+        undoManager?.removeAllActions()
+
+        XCTAssertTrue(controller.textView(
+            controller.textView,
+            doCommandBy: #selector(NSResponder.insertNewline(_:))
+        ))
+        XCTAssertEqual(controller.textView.string, "\(original)\n- ")
+
+        undoManager?.undo()
+        XCTAssertEqual(controller.textView.string, original)
+    }
+
+    func testAutomaticListReturnPersistsTextAndCaret() async throws {
+        controller.applyToCurrentPad("- saved", replacing: true)
+        controller.textView.setSelectedRange(NSRange(location: 7, length: 0))
+
+        XCTAssertTrue(controller.textView(
+            controller.textView,
+            doCommandBy: #selector(NSResponder.insertNewline(_:))
+        ))
+        await controller.flushAll()
+
+        let reloaded = try await WorkspaceStore(root: root).load()
+        let pad = reloaded.metadata.pads.sorted { $0.position < $1.position }[0]
+        XCTAssertEqual(reloaded.texts[pad.id], "- saved\n- ")
+        XCTAssertEqual(pad.selection, StoredSelection(utf16Location: 10, utf16Length: 0))
+    }
+
     func testEscapeDismissesUnpinnedPanelWithoutDestroyingText() async throws {
         controller.show()
         controller.applyToCurrentPad("survives escape", replacing: true)
@@ -384,6 +467,21 @@ final class PanelControllerTests: XCTestCase {
 
         XCTAssertFalse(handled)
         XCTAssertTrue(panel.isVisible)
+        controller.textView.unmarkText()
+    }
+
+    func testReturnDuringMarkedTextRemainsAnInputMethodCommand() {
+        controller.textView.setMarkedText(
+            "- composing",
+            selectedRange: NSRange(location: 11, length: 0),
+            replacementRange: NSRange(location: NSNotFound, length: 0))
+        XCTAssertTrue(controller.textView.hasMarkedText())
+
+        let handled = controller.textView(
+            controller.textView,
+            doCommandBy: #selector(NSResponder.insertNewline(_:)))
+
+        XCTAssertFalse(handled)
         controller.textView.unmarkText()
     }
 

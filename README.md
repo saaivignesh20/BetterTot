@@ -46,6 +46,7 @@ reliably.
 - Global, configurable keyboard shortcut
 - Pinning by dragging, with position restored between launches
 - Per-pad undo history, selection, and scroll position
+- Automatic continuation for bullets and plain-text Markdown checkboxes
 - Crash recovery through an append-only journal
 - Atomic saves and rolling hourly, daily, and manual backups
 - Plain-text import and export

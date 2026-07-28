@@ -170,6 +170,12 @@ Panel behavior:
   closes an open, unpinned panel without dismissing and reopening it.
 - Escape is ignored by BetterTot while the text view has marked text, allowing
   input methods to handle IME composition cancellation.
+- Return continues `- ` and `* ` bullet lines while preserving indentation.
+- Return continues `- [ ] `, `- [x] `, and `- [X] ` checkbox lines with a new
+  unchecked checkbox. Return on an empty bullet or checkbox removes the marker
+  and exits the list.
+- Automatic list handling is disabled while the text view has marked text, so
+  Return remains available to the active input method.
 
 ### Pad Slots
 
@@ -207,6 +213,7 @@ Panel/editor shortcuts:
 | `Shift-Command-Delete` | Clear current pad through undoable text editing |
 | `Command-P` | Pin or unpin panel |
 | `Command-W` | Close an attached or pinned panel |
+| `Return` | Continue a bullet or checkbox; exit an empty list item |
 | `Escape` | Dismiss unpinned panel unless IME composition is active |
 | `Command-Q` | Quit BetterTot |
 | `Command-,` | Open Settings |
@@ -546,12 +553,16 @@ Current automated coverage is concentrated in:
 - `ShortcutTests`: shortcut validation, display formatting, Codable round trips,
   Carbon registration lifecycle, failed re-registration behavior, persisted
   shortcut validation, and event-to-shortcut conversion.
+- `PanelControllerTests`: ordinary Return behavior, automatic bullet and
+  checkbox continuation, empty-item list exit, IME command ownership, panel
+  dismissal, pinning, focus, pad switching, and undo isolation.
 
 Manual checklist coverage remains important for UI behaviors that are hard to
 exercise through the current test suite:
 
 - Editor focus from status item and global shortcut.
-- Return inserting newline rather than dismissing.
+- Return inserting ordinary newlines, continuing lists, and exiting empty list
+  items without dismissing.
 - Outside-click dismissal when unpinned.
 - Pin/unpin preserving editor and undo history.
 - Rapid pad switching while typing.
@@ -567,15 +578,15 @@ Verification performed while writing this spec:
 
 ```text
 swift test
-Executed 108 tests, with 0 failures.
-Line coverage: 86.36% (2520/2918), minimum 80.00%.
+Executed 113 tests, with 0 failures.
+Line coverage: 86.63% (2598/2999), minimum 80.00%.
 ```
 
 ## Current Gaps and Risks
 
 - `scripts/test.sh` enforces at least 80% aggregate source line coverage and a
   30% floor for every non-entry source file. The current instrumented result is
-  86.36% across 108 passing tests.
+  86.63% across 113 passing tests.
 - VoiceOver, IME, multi-display positioning, and launch-at-login remain manual
   acceptance checks. The local checklist passed on 2026-07-27 and must be
   repeated for a future public-distribution candidate if scope changes.

@@ -28,6 +28,44 @@ private struct PersistenceRevision: Hashable {
     let revision: UInt64
 }
 
+private struct AutomaticListLine {
+    let indentationLength: Int
+    let markerLength: Int
+    let continuationMarker: String
+    let isEmpty: Bool
+
+    static func parse(_ line: NSString) -> AutomaticListLine? {
+        var indentationLength = 0
+        while indentationLength < line.length {
+            let character = line.character(at: indentationLength)
+            guard character == 0x20 || character == 0x09 else { break }
+            indentationLength += 1
+        }
+
+        let remainder = line.substring(from: indentationLength)
+        let markers = [
+            ("- [ ] ", "- [ ] "),
+            ("- [x] ", "- [ ] "),
+            ("- [X] ", "- [ ] "),
+            ("- ", "- "),
+            ("* ", "* "),
+        ]
+        guard let (marker, continuation) = markers.first(where: { remainder.hasPrefix($0.0) }) else {
+            return nil
+        }
+
+        let markerLength = (marker as NSString).length
+        let contentStart = indentationLength + markerLength
+        let content = line.substring(from: contentStart)
+        return AutomaticListLine(
+            indentationLength: indentationLength,
+            markerLength: markerLength,
+            continuationMarker: continuation,
+            isEmpty: content.trimmingCharacters(in: .whitespaces).isEmpty
+        )
+    }
+}
+
 final class ScratchpadPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
@@ -643,9 +681,59 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate {
         return result
     }
 
-    // MARK: - Escape dismisses; Return is deliberately untouched (plan §4.4)
+    // MARK: - Editor commands
+
+    private func handleAutomaticListReturn(in textView: NSTextView) -> Bool {
+        let selection = textView.selectedRange()
+        let source = textView.string as NSString
+        guard selection.location != NSNotFound,
+              selection.length == 0,
+              selection.location <= source.length else { return false }
+
+        let lineRange = source.lineRange(for: NSRange(location: selection.location, length: 0))
+        let rawLine = source.substring(with: lineRange) as NSString
+        var contentLength = rawLine.length
+        while contentLength > 0, [0x0A, 0x0D].contains(rawLine.character(at: contentLength - 1)) {
+            contentLength -= 1
+        }
+        let line = rawLine.substring(to: contentLength) as NSString
+        guard let list = AutomaticListLine.parse(line) else { return false }
+
+        let contentStart = lineRange.location + list.indentationLength + list.markerLength
+        guard selection.location >= contentStart else { return false }
+
+        let contentEnd = lineRange.location + contentLength
+        let indentation = line.substring(to: list.indentationLength)
+        let changeRange: NSRange
+        let replacement: String
+        if list.isEmpty, selection.location == contentEnd {
+            changeRange = NSRange(
+                location: lineRange.location + list.indentationLength,
+                length: contentEnd - lineRange.location - list.indentationLength
+            )
+            replacement = ""
+        } else {
+            changeRange = selection
+            replacement = "\n\(indentation)\(list.continuationMarker)"
+        }
+
+        guard textView.shouldChangeText(in: changeRange, replacementString: replacement) else {
+            return true
+        }
+        textView.textStorage?.replaceCharacters(in: changeRange, with: replacement)
+        textView.didChangeText()
+        textView.setSelectedRange(NSRange(
+            location: changeRange.location + (replacement as NSString).length,
+            length: 0
+        ))
+        return true
+    }
 
     func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+        if commandSelector == #selector(NSResponder.insertNewline(_:)) {
+            if textView.hasMarkedText() { return false }
+            return handleAutomaticListReturn(in: textView)
+        }
         if commandSelector == #selector(NSResponder.cancelOperation(_:)) {
             // Mid-IME-composition, Esc belongs to the input method (plan §2.5).
             if textView.hasMarkedText() { return false }

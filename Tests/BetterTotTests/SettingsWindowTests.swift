@@ -29,7 +29,9 @@ final class SettingsWindowTests: XCTestCase {
         XCTAssertTrue(defaults.bool(forKey: SettingsKeys.spellChecking))
         XCTAssertFalse(defaults.bool(forKey: SettingsKeys.smartQuotes))
         XCTAssertFalse(defaults.bool(forKey: SettingsKeys.smartDashes))
+        XCTAssertEqual(defaults.string(forKey: SettingsKeys.fontName), "AmericanTypewriter")
         XCTAssertEqual(defaults.double(forKey: SettingsKeys.fontSize), 14)
+        XCTAssertEqual(SettingsKeys.editorFont(in: defaults).fontName, "AmericanTypewriter")
     }
 
     func testFontSaveAndLoadRoundTripWithFallbackForUnknownFont() throws {

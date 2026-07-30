@@ -1466,7 +1466,7 @@ Do not prioritize feature expansion over reliability.
 ## P2 — Post-release improvements
 
 * [x] Markdown list continuation
-* [x] Clickable plain-text checkboxes with Markdown marker compatibility
+* [x] Native inline checkboxes with Markdown-backed persistence
 * Syntax highlighting
 * Shortcuts.app actions
 * URL scheme

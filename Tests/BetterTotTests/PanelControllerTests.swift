@@ -57,7 +57,7 @@ final class PanelControllerTests: XCTestCase {
     func testReturnContinuesBulletsAndCreatesUncheckedCheckboxes() {
         let cases = [
             ("- first item", "- first item\n- "),
-            ("  * nested item", "  * nested item\n  * "),
+            ("  * nested item", "  • nested item\n  • "),
             ("☐ pending", "☐ pending\n☐ "),
             ("☑ completed", "☑ completed\n☐ "),
             ("- [ ] legacy", "☐ legacy\n☐ "),
@@ -67,8 +67,9 @@ final class PanelControllerTests: XCTestCase {
 
         for (text, expected) in cases {
             controller.applyToCurrentPad(text, replacing: true)
+            let editor = controller.textView as! CheckboxTextView
             controller.textView.setSelectedRange(NSRange(
-                location: (text as NSString).length,
+                location: (editor.plainText as NSString).length,
                 length: 0
             ))
 
@@ -76,8 +77,20 @@ final class PanelControllerTests: XCTestCase {
                 controller.textView,
                 doCommandBy: #selector(NSResponder.insertNewline(_:))
             ))
-            XCTAssertEqual(controller.textView.string, expected)
+            XCTAssertEqual(editor.plainText, expected)
         }
+    }
+
+    func testLoadingPadMigratesGeneratedEmojiCheckboxes() {
+        controller.applyToCurrentPad("⬜ pending\n  ✅ complete", replacing: true)
+
+        controller.selectPad(at: 1)
+        controller.selectPad(at: 0)
+
+        XCTAssertEqual(
+            (controller.textView as! CheckboxTextView).plainText,
+            "☐ pending\n  ☑ complete"
+        )
     }
 
     func testReturnOnEmptyBulletOrCheckboxExitsTheList() {
@@ -87,13 +100,14 @@ final class PanelControllerTests: XCTestCase {
             ("- first\n- [x] ", "- first\n"),
             ("☐ first\n☐ ", "☐ first\n"),
             ("☑ first\n  ☑ ", "☑ first\n  "),
-            ("* first\n  * ", "* first\n  "),
+            ("* first\n  * ", "• first\n  "),
         ]
 
         for (text, expected) in cases {
             controller.applyToCurrentPad(text, replacing: true)
+            let editor = controller.textView as! CheckboxTextView
             controller.textView.setSelectedRange(NSRange(
-                location: (text as NSString).length,
+                location: (editor.plainText as NSString).length,
                 length: 0
             ))
 
@@ -101,7 +115,7 @@ final class PanelControllerTests: XCTestCase {
                 controller.textView,
                 doCommandBy: #selector(NSResponder.insertNewline(_:))
             ))
-            XCTAssertEqual(controller.textView.string, expected)
+            XCTAssertEqual(editor.plainText, expected)
         }
     }
 
@@ -414,20 +428,88 @@ final class PanelControllerTests: XCTestCase {
         XCTAssertFalse(panel.isVisible)
     }
 
-    func testFooterReportsPlainTextCountsAndSaveState() async throws {
+    func testFooterProvidesListControlsCountsAndSaveSpinner() async throws {
+        let bullets = try panelButton(identifier: "panel-bulleted-list")
+        let numbers = try panelButton(identifier: "panel-numbered-list")
+        let checkboxes = try panelButton(identifier: "panel-checkbox-list")
         let counts = try panelLabel(identifier: "panel-counts")
-        let saveStatus = try panelLabel(identifier: "panel-save-status")
+        let saveStatus = try XCTUnwrap(
+            descendants(of: panel.contentView, as: NSView.self).first {
+                $0.identifier?.rawValue == "panel-save-status"
+            }
+        )
+        let spinner = try XCTUnwrap(
+            descendants(of: panel.contentView, as: NSProgressIndicator.self).first {
+                $0.identifier?.rawValue == "panel-save-spinner"
+            }
+        )
 
+        XCTAssertEqual(bullets.toolTip, "Bulleted list")
+        XCTAssertEqual(numbers.toolTip, "Numbered list")
+        XCTAssertEqual(checkboxes.toolTip, "Checkbox list")
         XCTAssertEqual(counts.stringValue, "0 lines · 0 words · 0 characters")
-        XCTAssertEqual(saveStatus.stringValue, "Saved")
+        XCTAssertEqual(saveStatus.accessibilityValue() as? String, "Saved")
+        XCTAssertTrue(spinner.isHidden)
 
         controller.applyToCurrentPad("one two\nthree", replacing: true)
 
         XCTAssertEqual(counts.stringValue, "2 lines · 3 words · 13 characters")
-        XCTAssertEqual(saveStatus.stringValue, "Saving…")
+        XCTAssertEqual(saveStatus.accessibilityValue() as? String, "Saving…")
+        XCTAssertFalse(spinner.isHidden)
 
         try await Task.sleep(for: .milliseconds(350))
-        XCTAssertEqual(saveStatus.stringValue, "Saved")
+        XCTAssertEqual(saveStatus.accessibilityValue() as? String, "Saved")
+        XCTAssertTrue(spinner.isHidden)
+    }
+
+    func testFooterListButtonsToggleSelectedLinesAndReturnFocusToEditor() throws {
+        let bullets = try panelButton(identifier: "panel-bulleted-list")
+        let numbers = try panelButton(identifier: "panel-numbered-list")
+        let checkboxes = try panelButton(identifier: "panel-checkbox-list")
+        controller.applyToCurrentPad("alpha\nbeta", replacing: true)
+        controller.textView.setSelectedRange(NSRange(location: 0, length: 10))
+
+        XCTAssertTrue(bullets.sendAction(bullets.action, to: bullets.target))
+        XCTAssertEqual(controller.textView.string, "• alpha\n• beta")
+        XCTAssertTrue(panel.firstResponder === controller.textView)
+
+        XCTAssertTrue(numbers.sendAction(numbers.action, to: numbers.target))
+        XCTAssertEqual(controller.textView.string, "1. alpha\n2. beta")
+
+        XCTAssertTrue(numbers.sendAction(numbers.action, to: numbers.target))
+        XCTAssertEqual(controller.textView.string, "alpha\nbeta")
+
+        XCTAssertTrue(checkboxes.sendAction(checkboxes.action, to: checkboxes.target))
+        let editor = controller.textView as! CheckboxTextView
+        XCTAssertEqual(editor.plainText, "☐ alpha\n☐ beta")
+        XCTAssertEqual(editor.sourceText, "- [ ] alpha\n- [ ] beta")
+    }
+
+    func testEditorWrapsLongLinesInsideVisibleWidth() throws {
+        controller.show()
+        panel.contentView?.layoutSubtreeIfNeeded()
+        let text = String(repeating: "wrapping text ", count: 12)
+        controller.applyToCurrentPad(text, replacing: true)
+
+        let layoutManager = try XCTUnwrap(controller.textView.layoutManager)
+        let textContainer = try XCTUnwrap(controller.textView.textContainer)
+        layoutManager.ensureLayout(for: textContainer)
+        var lineFragments = 0
+        layoutManager.enumerateLineFragments(
+            forGlyphRange: NSRange(location: 0, length: layoutManager.numberOfGlyphs)
+        ) { _, _, _, _, _ in
+            lineFragments += 1
+        }
+
+        XCTAssertGreaterThan(
+            lineFragments,
+            1,
+            "frame=\(controller.textView.frame) container=\(textContainer.containerSize)"
+        )
+        XCTAssertLessThanOrEqual(
+            textContainer.containerSize.width,
+            controller.textView.bounds.width - (controller.textView.textContainerInset.width * 2)
+        )
     }
 
     func testSaveStateDistinguishesCommittedRecoveryAndFailedWrites() {
@@ -455,6 +537,20 @@ final class PanelControllerTests: XCTestCase {
             window: nil,
             screenLocation: NSPoint(x: frame.maxX + 100, y: frame.minY - 100))
         XCTAssertFalse(panel.isVisible)
+    }
+
+    func testTextSystemPanelClickIsNotHandledAsOutsideClick() {
+        controller.show()
+        let correctionPanel = NSPanel(
+            contentRect: NSRect(x: 0, y: 0, width: 100, height: 40),
+            styleMask: .borderless,
+            backing: .buffered,
+            defer: false
+        )
+
+        controller.handleOutsideClick(window: correctionPanel, screenLocation: .zero)
+
+        XCTAssertTrue(panel.isVisible)
     }
 
     func testEscapeDuringMarkedTextRemainsAnInputMethodCommand() {
@@ -582,6 +678,36 @@ final class PanelControllerTests: XCTestCase {
         XCTAssertTrue(injected.textView.isAutomaticQuoteSubstitutionEnabled)
         XCTAssertTrue(injected.textView.isAutomaticDashSubstitutionEnabled)
         XCTAssertEqual(injected.textView.font?.pointSize, 19)
+
+        injected.applyToCurrentPad("- [ ] existing text", replacing: true)
+        defaults.set(24.0, forKey: SettingsKeys.fontSize)
+        injected.applySettings()
+
+        let attributedText = injected.textView.attributedString()
+        let existingTextFont = try XCTUnwrap(
+            attributedText.attribute(.font, at: 2, effectiveRange: nil) as? NSFont
+        )
+        let existingTextColor = try XCTUnwrap(
+            attributedText.attribute(.foregroundColor, at: 2, effectiveRange: nil)
+                as? NSColor
+        )
+        let paragraphStyle = try XCTUnwrap(
+            attributedText.attribute(.paragraphStyle, at: 2, effectiveRange: nil)
+                as? NSParagraphStyle
+        )
+        let attachment = try XCTUnwrap(
+            attributedText.attribute(.attachment, at: 0, effectiveRange: nil)
+                as? NSTextAttachment
+        )
+        let checkbox = try XCTUnwrap(
+            attachment.attachmentCell as? CheckboxAttachmentCell
+        )
+        XCTAssertEqual(existingTextFont.pointSize, 24)
+        XCTAssertEqual(existingTextColor, .labelColor)
+        XCTAssertEqual(paragraphStyle.lineSpacing, 7)
+        XCTAssertEqual(checkbox.cellSize, NSSize(width: 30, height: 30))
+        XCTAssertGreaterThan(paragraphStyle.headIndent, checkbox.cellSize.width)
+        XCTAssertEqual(paragraphStyle.firstLineHeadIndent, 0)
         injected.dismiss(reason: .explicitClose)
     }
 

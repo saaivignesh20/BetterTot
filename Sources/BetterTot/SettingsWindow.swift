@@ -36,6 +36,7 @@ enum SettingsKeys {
         spellChecking: true,
         smartQuotes: false,
         smartDashes: false,
+        fontName: "AmericanTypewriter",
         fontSize: 14.0,
     ]
 

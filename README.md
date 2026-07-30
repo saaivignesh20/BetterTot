@@ -46,7 +46,8 @@ reliably.
 - Global, configurable keyboard shortcut
 - Pinning by dragging, with position restored between launches
 - Per-pad undo history, selection, and scroll position
-- Clickable plain-text checkboxes with automatic bullet and checkbox continuation
+- Footer controls for bulleted, numbered, and checkbox lists
+- Native inline checkboxes backed by portable Markdown task-list text
 - Crash recovery through an append-only journal
 - Atomic saves and rolling hourly, daily, and manual backups
 - Plain-text import and export

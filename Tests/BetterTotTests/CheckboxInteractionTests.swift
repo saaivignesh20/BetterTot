@@ -42,23 +42,26 @@ final class CheckboxInteractionTests: XCTestCase {
         for (text, expected) in cases {
             controller.applyToCurrentPad(text, replacing: true)
             controller.textView.setSelectedRange(NSRange(
-                location: (text as NSString).length,
+                location: (checkboxTextView.plainText as NSString).length,
                 length: 0
             ))
             let undoManager = controller.undoManager(for: controller.textView)
             undoManager?.removeAllActions()
 
             XCTAssertTrue(panel.performKeyEquivalent(with: commandReturnEvent()))
-            XCTAssertEqual(controller.textView.string, expected)
+            XCTAssertEqual(checkboxTextView.plainText, expected)
 
             undoManager?.undo()
-            XCTAssertEqual(controller.textView.string, text)
+            let originalState = AutomaticListLine.parse(text as NSString)?.isChecked == true
+                ? "☑"
+                : "☐"
+            XCTAssertTrue(checkboxTextView.plainText.hasPrefix(originalState))
         }
 
         controller.applyToCurrentPad("☐ Caps Lock", replacing: true)
         controller.textView.setSelectedRange(NSRange(location: 11, length: 0))
         XCTAssertTrue(panel.performKeyEquivalent(with: commandReturnEvent([.command, .capsLock])))
-        XCTAssertEqual(controller.textView.string, "☑ Caps Lock")
+        XCTAssertEqual(checkboxTextView.plainText, "☑ Caps Lock")
     }
 
     func testCommandReturnFallsThroughDuringMarkedTextAndSelection() {
@@ -66,7 +69,7 @@ final class CheckboxInteractionTests: XCTestCase {
         controller.textView.setSelectedRange(NSRange(location: 2, length: 4))
 
         XCTAssertFalse(panel.performKeyEquivalent(with: commandReturnEvent()))
-        XCTAssertEqual(controller.textView.string, "☐ Keep editing")
+        XCTAssertEqual(checkboxTextView.plainText, "☐ Keep editing")
 
         controller.textView.setMarkedText(
             "composing",
@@ -87,39 +90,152 @@ final class CheckboxInteractionTests: XCTestCase {
 
         let reloaded = try await WorkspaceStore(root: root).load()
         let pad = reloaded.metadata.pads.sorted { $0.position < $1.position }[0]
-        XCTAssertEqual(reloaded.texts[pad.id], "☑ Saved")
-        XCTAssertEqual(pad.selection, StoredSelection(utf16Location: 7, utf16Length: 0))
+        XCTAssertEqual(reloaded.texts[pad.id], "- [x] Saved")
+        XCTAssertEqual(pad.selection, StoredSelection(utf16Location: 11, utf16Length: 0))
     }
 
-    func testCheckboxClickAllowsJitterAndRejectsModifiersAndDrags() throws {
+    func testInlineCheckboxAttachmentTogglesWithoutChangingSelection() throws {
         let textView = try XCTUnwrap(controller.textView as? CheckboxTextView)
         controller.applyToCurrentPad("  ☐ Click me", replacing: true)
+        let originalSelection = NSRange(location: 12, length: 0)
+        textView.setSelectedRange(originalSelection)
         controller.show()
-        let checkboxPoint = try point(forCharacterAt: 2, in: textView)
+        let attachment = try XCTUnwrap(
+            textView.attributedString().attribute(
+                .attachment,
+                at: 2,
+                effectiveRange: nil
+            ) as? NSTextAttachment
+        )
+        let cell = try XCTUnwrap(attachment.attachmentCell as? CheckboxAttachmentCell)
 
-        textView.mouseDown(with: try mouseEvent(.leftMouseDown, at: checkboxPoint, in: textView))
-        textView.mouseUp(with: try mouseEvent(.leftMouseUp, at: checkboxPoint, in: textView))
-        XCTAssertEqual(textView.string, "  ☑ Click me")
+        controller.textView(textView, clickedOn: cell, in: .zero, at: 2)
 
-        let jitterPoint = NSPoint(x: checkboxPoint.x + 2, y: checkboxPoint.y + 1)
-        textView.mouseDown(with: try mouseEvent(.leftMouseDown, at: checkboxPoint, in: textView))
-        textView.mouseDragged(with: try mouseEvent(.leftMouseDragged, at: jitterPoint, in: textView))
-        textView.mouseUp(with: try mouseEvent(.leftMouseUp, at: jitterPoint, in: textView))
-        XCTAssertEqual(textView.string, "  ☐ Click me")
+        XCTAssertEqual(textView.plainText, "  ☑ Click me")
+        XCTAssertEqual(textView.sourceText, "  - [x] Click me")
+        XCTAssertEqual(textView.selectedRange(), originalSelection)
+        XCTAssertGreaterThanOrEqual(cell.cellSize.width, 18)
+        XCTAssertEqual(cell.cellSize.width, cell.cellSize.height)
+        let updatedAttachment = try XCTUnwrap(
+            textView.attributedString().attribute(
+                .attachment,
+                at: 2,
+                effectiveRange: nil
+            ) as? NSTextAttachment
+        )
+        let updatedCell = try XCTUnwrap(
+            updatedAttachment.attachmentCell as? CheckboxAttachmentCell
+        )
+        XCTAssertEqual(updatedCell.cellSize, cell.cellSize)
+    }
+
+    func testDoubleClickOnAttachmentTogglesOnlyOnce() throws {
+        let textView = try XCTUnwrap(controller.textView as? CheckboxTextView)
+        controller.applyToCurrentPad("- [ ] Double click", replacing: true)
+        controller.show()
+        let checkboxPoint = try point(forCharacterAt: 0, in: textView)
 
         textView.mouseDown(with: try mouseEvent(
-            .leftMouseDown, at: checkboxPoint, in: textView, modifiers: .shift
+            .leftMouseDown,
+            at: checkboxPoint,
+            in: textView,
+            clickCount: 1
         ))
         textView.mouseUp(with: try mouseEvent(
-            .leftMouseUp, at: checkboxPoint, in: textView, modifiers: .shift
+            .leftMouseUp,
+            at: checkboxPoint,
+            in: textView,
+            clickCount: 1
         ))
-        XCTAssertEqual(textView.string, "  ☐ Click me")
+        XCTAssertEqual(textView.plainText, "☑ Double click")
 
-        let dragPoint = NSPoint(x: checkboxPoint.x + 20, y: checkboxPoint.y)
-        textView.mouseDown(with: try mouseEvent(.leftMouseDown, at: checkboxPoint, in: textView))
-        textView.mouseDragged(with: try mouseEvent(.leftMouseDragged, at: dragPoint, in: textView))
-        textView.mouseUp(with: try mouseEvent(.leftMouseUp, at: dragPoint, in: textView))
-        XCTAssertEqual(textView.string, "  ☐ Click me")
+        textView.mouseDown(with: try mouseEvent(
+            .leftMouseDown,
+            at: checkboxPoint,
+            in: textView,
+            clickCount: 2
+        ))
+        textView.mouseUp(with: try mouseEvent(
+            .leftMouseUp,
+            at: checkboxPoint,
+            in: textView,
+            clickCount: 2
+        ))
+        XCTAssertEqual(textView.plainText, "☑ Double click")
+    }
+
+    func testMarkdownProjectionMapsSelectionAndSerializesWithoutReplacementCharacters() throws {
+        let textView = try XCTUnwrap(controller.textView as? CheckboxTextView)
+        controller.applyToCurrentPad("Before\n- [ ] task\nAfter", replacing: true)
+
+        XCTAssertEqual(textView.plainText, "Before\n☐ task\nAfter")
+        XCTAssertEqual(textView.sourceText, "Before\n- [ ] task\nAfter")
+        XCTAssertFalse(textView.sourceText.contains("\u{FFFC}"))
+        XCTAssertEqual(
+            textView.displayRange(forSourceRange: NSRange(location: 13, length: 4)),
+            NSRange(location: 9, length: 4)
+        )
+        XCTAssertEqual(
+            textView.sourceRange(forDisplayRange: NSRange(location: 9, length: 4)),
+            NSRange(location: 13, length: 4)
+        )
+    }
+
+    func testTypingMarkerTerminatingSpaceCreatesAttachmentBeforePersistence() throws {
+        let textView = try XCTUnwrap(controller.textView as? CheckboxTextView)
+        textView.string = "- [ ]"
+        textView.setSelectedRange(NSRange(location: 5, length: 0))
+
+        textView.insertText(" ", replacementRange: textView.selectedRange())
+
+        XCTAssertEqual(textView.plainText, "☐ ")
+        XCTAssertEqual(textView.sourceText, "- [ ] ")
+        XCTAssertNotNil(textView.attributedString().attribute(
+            .attachment,
+            at: 0,
+            effectiveRange: nil
+        ))
+        XCTAssertEqual(textView.selectedRange(), NSRange(location: 2, length: 0))
+    }
+
+    func testTypingDashStaysPlainAndAsteriskCreatesDisplayedBullet() throws {
+        let textView = try XCTUnwrap(controller.textView as? CheckboxTextView)
+
+        textView.string = "-"
+        textView.setSelectedRange(NSRange(location: 1, length: 0))
+        textView.insertText(" ", replacementRange: textView.selectedRange())
+
+        XCTAssertEqual(textView.plainText, "- ")
+        XCTAssertEqual(textView.sourceText, "- ")
+
+        textView.string = "*"
+        textView.setSelectedRange(NSRange(location: 1, length: 0))
+        textView.insertText(" ", replacementRange: textView.selectedRange())
+
+        XCTAssertEqual(textView.plainText, "• ")
+        XCTAssertEqual(textView.sourceText, "* ")
+        XCTAssertEqual(textView.selectedRange(), NSRange(location: 2, length: 0))
+    }
+
+    func testReturnContinuesAndExitsNumberedLists() {
+        controller.applyToCurrentPad("8. eighth", replacing: true)
+        controller.textView.setSelectedRange(NSRange(location: 9, length: 0))
+
+        XCTAssertTrue(controller.textView(
+            controller.textView,
+            doCommandBy: #selector(NSResponder.insertNewline(_:))
+        ))
+        XCTAssertEqual(controller.textView.string, "8. eighth\n9. ")
+
+        XCTAssertTrue(controller.textView(
+            controller.textView,
+            doCommandBy: #selector(NSResponder.insertNewline(_:))
+        ))
+        XCTAssertEqual(controller.textView.string, "8. eighth\n")
+    }
+
+    private var checkboxTextView: CheckboxTextView {
+        controller.textView as! CheckboxTextView
     }
 
     private var panel: ScratchpadPanel {
@@ -152,28 +268,30 @@ final class CheckboxInteractionTests: XCTestCase {
             forGlyphRange: NSRange(location: glyphIndex, length: 1),
             in: textContainer
         )
-        return NSPoint(
+        let localPoint = NSPoint(
             x: bounds.midX + textView.textContainerOrigin.x,
             y: bounds.midY + textView.textContainerOrigin.y
         )
+        return textView.convert(localPoint, to: nil)
     }
 
     private func mouseEvent(
         _ type: NSEvent.EventType,
-        at localPoint: NSPoint,
+        at windowPoint: NSPoint,
         in textView: NSTextView,
-        modifiers: NSEvent.ModifierFlags = []
+        clickCount: Int
     ) throws -> NSEvent {
         try XCTUnwrap(NSEvent.mouseEvent(
             with: type,
-            location: textView.convert(localPoint, to: nil),
-            modifierFlags: modifiers,
+            location: windowPoint,
+            modifierFlags: [],
             timestamp: 0,
             windowNumber: panel.windowNumber,
             context: nil,
             eventNumber: 0,
-            clickCount: 1,
+            clickCount: clickCount,
             pressure: type == .leftMouseDown ? 1 : 0
         ))
     }
+
 }

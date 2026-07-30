@@ -39,7 +39,7 @@ extension PanelController {
         }
 
         let choice: ImportChoice
-        if textView.string.isEmpty {
+        if currentSourceText.isEmpty {
             choice = .replace
         } else {
             let alert = NSAlert()
@@ -144,7 +144,7 @@ extension PanelController {
     // MARK: - Non-dialog workflows
 
     func importText(_ imported: String, choice: ImportChoice) async -> ImportResult {
-        if textView.string.isEmpty {
+        if currentSourceText.isEmpty {
             applyToCurrentPad(imported, replacing: true)
             return .imported
         }
@@ -167,7 +167,7 @@ extension PanelController {
     }
 
     func writeCurrentPad(to url: URL) throws {
-        try textView.string.write(to: url, atomically: true, encoding: .utf8)
+        try currentSourceText.write(to: url, atomically: true, encoding: .utf8)
     }
 
     func writeAllPads(to directory: URL) async throws {

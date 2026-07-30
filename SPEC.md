@@ -87,7 +87,8 @@ Sources/BetterTot/AppDelegate.swift   Launch, status item, menu, termination
 Sources/BetterTot/PanelController.swift
                                       Panel behavior, editor, pad switching
 Sources/BetterTot/CheckboxTextView.swift
-                                      Checkbox parsing and click hit-testing
+                                      Markdown projection, native checkbox
+                                      attachments, and coordinate mapping
 Sources/BetterTot/PanelView.swift     Panel controls, layout, and status footer
 Sources/BetterTot/Model.swift         Codable data model
 Sources/BetterTot/WorkspaceStore.swift
@@ -171,16 +172,33 @@ Panel behavior:
   the active macOS light or dark appearance.
 - Clicking the status item is excluded from outside-click handling so one click
   closes an open, unpinned panel without dismissing and reopening it.
+- Clicking AppKit auxiliary panels such as spelling and correction suggestions
+  does not dismiss the scratchpad.
 - Escape is ignored by BetterTot while the text view has marked text, allowing
   input methods to handle IME composition cancellation.
-- Return continues `- ` and `* ` bullet lines while preserving indentation.
-- Checkboxes are stored and displayed as plain-text `☐` and `☑` glyphs. Clicking
-  the glyph or pressing Command-Return on its line toggles its state through
-  the normal undo and persistence pipeline.
-- Return continues `☐`, `☑`, and legacy `- [ ] `, `- [x] `, or `- [X] ` lines
-  with a new unchecked `☐`. Interacting with a legacy marker converts that line
-  to the visible Unicode form without rewriting unrelated stored text.
-- Return on an empty bullet or checkbox removes the marker and exits the list.
+- AppKit Writing Tools are disabled for the scratchpad editor, preventing the
+  macOS 27 Write with Siri cursor accessory from covering compact pad content.
+- Return continues plain `- ` lines without changing their marker.
+- Typing `* ` starts bullet mode: the editor renders `• ` while persistence,
+  copying, and export retain the portable Markdown `* ` marker.
+- Footer controls toggle bulleted, numbered, or checkbox formatting across the
+  current line or selected lines. Numbered lists increment on Return.
+- Checkboxes are persisted and exported as Markdown task-list markers:
+  `- [ ] ` and `- [x] `. The editor projects those markers into native inline
+  TextKit attachment cells tinted to match the selected pad.
+- The source/display adapter maps UTF-16 selections between Markdown source
+  coordinates and attachment-backed editor coordinates. Attachments never leak
+  object-replacement characters into journals, backups, exports, or pasteboard
+  text.
+- Clicking an attachment or pressing Command-Return on its line toggles state
+  through the normal undo and persistence pipeline.
+- Return continues rendered checkboxes and legacy `☐`, `☑`, `- [ ] `, `- [x] `,
+  or `- [X] ` input with a new unchecked task. Legacy forms normalize to
+  Markdown when persisted without rewriting unrelated text.
+- Return on an empty dash, bullet, numbered item, or checkbox removes the marker
+  and exits the list.
+- Checklist paragraphs use a font-scaled hanging indent so wrapped lines align
+  with their text rather than the checkbox gutter.
 - Automatic list handling is disabled while the text view has marked text, so
   Return remains available to the active input method.
 
@@ -562,9 +580,9 @@ Current automated coverage is concentrated in:
   Carbon registration lifecycle, failed re-registration behavior, persisted
   shortcut validation, and event-to-shortcut conversion.
 - `PanelControllerTests`: ordinary Return behavior, automatic bullet and
-  checkbox continuation, clickable and keyboard checkbox toggling, legacy
-  marker conversion, empty-item list exit, IME command ownership, panel
-  dismissal, pinning, focus, pad switching, and undo isolation.
+  checkbox continuation, attachment and keyboard checkbox toggling, Markdown
+  serialization, empty-item list exit, IME command ownership, panel dismissal,
+  pinning, focus, pad switching, and undo isolation.
 
 Manual checklist coverage remains important for UI behaviors that are hard to
 exercise through the current test suite:

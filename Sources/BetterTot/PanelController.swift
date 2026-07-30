@@ -120,6 +120,11 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate {
     private var editingSuspensionCount = 0
     private var editableBeforeSuspension = true
     var onOpenSettings: (() -> Void)?
+    private var checkboxEditor: CheckboxTextView {
+        textView as! CheckboxTextView
+    }
+    var currentSourceText: String { checkboxEditor.sourceText }
+    var currentPlainText: String { checkboxEditor.plainText }
 
     init(
         statusItem: NSStatusItem,
@@ -140,8 +145,12 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate {
         textView = editor.textView
         textView.isRichText = false
         textView.allowsUndo = true
+        if #available(macOS 15.0, *) {
+            textView.writingToolsBehavior = .none
+        }
         textView.textContainerInset = NSSize(width: 12, height: 12)
         textView.drawsBackground = false
+        textView.textColor = .labelColor
         scrollView.drawsBackground = false
 
         content = PanelContentView(
@@ -180,9 +189,12 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate {
         }
         content.onTogglePin = { [weak self] in self?.togglePin() }
         content.onOpenSettings = { [weak self] in self?.openSettings() }
+        content.onToggleBulletedList = { [weak self] in self?.toggleList(.bulleted) }
+        content.onToggleNumberedList = { [weak self] in self?.toggleList(.numbered) }
+        content.onToggleCheckboxList = { [weak self] in self?.toggleList(.checkbox) }
         textView.delegate = self
-        editor.textView.onCheckboxClickAtCharacter = { [weak self] location in
-            self?.toggleCheckbox(atUTF16Location: location, markerHitOnly: true) ?? false
+        editor.textView.onCheckboxActivation = { [weak self] location in
+            _ = self?.toggleCheckbox(atUTF16Location: location, markerHitOnly: true)
         }
         panel.onTogglePin = { [weak self] in self?.togglePin() }
         panel.onPadCommand = { [weak self] command in self?.handle(command) }
@@ -215,7 +227,14 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate {
     }
 
     func applySettings() {
-        textView.font = SettingsKeys.editorFont(in: defaults)
+        let font = SettingsKeys.editorFont(in: defaults)
+        textView.font = font
+        if let checkboxTextView = textView as? CheckboxTextView {
+            checkboxTextView.updateCheckboxPresentation(
+                baseFont: font,
+                tintColor: PanelContentView.padColor(for: pads[selectedIndex])
+            )
+        }
         textView.isContinuousSpellCheckingEnabled = defaults.bool(forKey: SettingsKeys.spellChecking)
         textView.isAutomaticQuoteSubstitutionEnabled = defaults.bool(forKey: SettingsKeys.smartQuotes)
         textView.isAutomaticDashSubstitutionEnabled = defaults.bool(forKey: SettingsKeys.smartDashes)
@@ -241,7 +260,7 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate {
         case .copyAll:
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()
-            pasteboard.setString(textView.string, forType: .string)
+            pasteboard.setString(currentSourceText, forType: .string)
         case .clear:
             clearCurrentPad()
         }
@@ -283,12 +302,46 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate {
 
     private func loadSelectedPadIntoEditor() {
         let pad = pads[selectedIndex]
+        let storedText = texts[pad.id] ?? ""
         textView.setAccessibilityLabel("Scratchpad \(pad.position + 1)")
-        textView.string = texts[pad.id] ?? ""
-        content.updateTextStatistics(textView.string)
+        let projection = checkboxEditor.setSourceText(
+            storedText,
+            baseFont: textView.font ?? SettingsKeys.editorFont(in: defaults),
+            tintColor: PanelContentView.padColor(for: pad)
+        )
+        content.updateTextStatistics(checkboxEditor.plainText)
         content.updateSaveState(saveStates[pad.id] ?? .saved)
-        let length = (textView.string as NSString).length
-        textView.setSelectedRange(pad.selection.clamped(toTextLength: length))
+        let sourceSelection = NSRange(
+            location: pad.selection.utf16Location,
+            length: pad.selection.utf16Length
+        )
+        let displaySelection = projection.inputToDisplayMap
+            .displayRange(forSourceRange: sourceSelection)
+        let displayLength = textView.attributedString().length
+        let displayLocation = min(max(0, displaySelection.location), displayLength)
+        textView.setSelectedRange(NSRange(
+            location: displayLocation,
+            length: min(displaySelection.length, displayLength - displayLocation)
+        ))
+        if projection.canonicalSource != storedText {
+            let canonicalRange = checkboxEditor.sourceRange(
+                forDisplayRange: textView.selectedRange()
+            )
+            let canonicalSelection = StoredSelection(
+                utf16Location: canonicalRange.location,
+                utf16Length: canonicalRange.length
+            )
+            pads[selectedIndex].selection = canonicalSelection
+            let task = Task { [store] in
+                await store.updatePadState(
+                    pad.id,
+                    selection: canonicalSelection,
+                    scrollOffset: pad.scrollOffset
+                )
+            }
+            padStateTasks.append(task)
+            textView.didChangeText()
+        }
         textView.layoutManager?.ensureLayout(for: textView.textContainer!)
         let maxOffset = max(0, textView.frame.height - scrollView.contentView.bounds.height)
         let offset = min(max(0, pad.scrollOffset), maxOffset)
@@ -297,7 +350,7 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate {
     }
 
     private func persistCurrentPadUIState() {
-        let range = textView.selectedRange()
+        let range = checkboxEditor.sourceRange(forDisplayRange: textView.selectedRange())
         let selection = StoredSelection(utf16Location: range.location, utf16Length: range.length)
         let offset = Double(scrollView.contentView.bounds.origin.y)
         pads[selectedIndex].selection = selection
@@ -312,7 +365,7 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate {
 
     // Undoable clear (plan §4.3: clearing needs confirmation or immediate undo).
     private func clearCurrentPad() {
-        let full = NSRange(location: 0, length: (textView.string as NSString).length)
+        let full = NSRange(location: 0, length: textView.attributedString().length)
         guard full.length > 0, textView.shouldChangeText(in: full, replacementString: "") else { return }
         textView.textStorage?.replaceCharacters(in: full, with: "")
         textView.didChangeText()
@@ -440,6 +493,7 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate {
 
     func handleOutsideClick(window: NSWindow?, screenLocation: NSPoint) {
         guard window !== panel,
+              !(window is NSPanel),
               statusItemScreenFrame?.contains(screenLocation) != true else {
             return
         }
@@ -465,12 +519,12 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate {
 
     func textDidChange(_ notification: Notification) {
         let id = pads[selectedIndex].id
-        let text = textView.string
+        let text = currentSourceText
         texts[id] = text
         let revision = (revisions[id] ?? 0) + 1
         revisions[id] = revision
         saveStates[id] = .saving
-        content.updateTextStatistics(text)
+        content.updateTextStatistics(currentPlainText)
         content.updateSaveState(.saving)
         let key = PersistenceRevision(padID: id, revision: revision)
         let journalTask = Task { [store] in
@@ -567,6 +621,7 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate {
         pendingSave?.cancel()
         pendingSave = nil
         await drainPersistenceTasks()
+        await canonicalizeStoredPads()
         var allCommitted = true
         var allDurable = true
         for pad in pads {
@@ -579,6 +634,37 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate {
         }
         if allCommitted { return .committed }
         return allDurable ? .journaled : .failed
+    }
+
+    private func canonicalizeStoredPads() async {
+        for index in pads.indices {
+            let id = pads[index].id
+            let storedText = texts[id] ?? ""
+            let storedSelection = pads[index].selection
+            let result = CheckboxTextView.canonicalize(
+                storedText,
+                sourceRange: NSRange(
+                    location: storedSelection.utf16Location,
+                    length: storedSelection.utf16Length
+                )
+            )
+            let canonicalSelection = StoredSelection(
+                utf16Location: result.sourceRange.location,
+                utf16Length: result.sourceRange.length
+            )
+            if result.source != storedText {
+                texts[id] = result.source
+                revisions[id] = (revisions[id] ?? 0) + 1
+            }
+            if canonicalSelection != storedSelection {
+                pads[index].selection = canonicalSelection
+                await store.updatePadState(
+                    id,
+                    selection: canonicalSelection,
+                    scrollOffset: pads[index].scrollOffset
+                )
+            }
+        }
     }
 
     func withEditingSuspended<T>(
@@ -609,19 +695,22 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate {
     // Routes through shouldChangeText/didChangeText so imports are undoable
     // and flow through the normal journal + commit path.
     func applyToCurrentPad(_ text: String, replacing: Bool) {
-        let length = (textView.string as NSString).length
+        let length = textView.attributedString().length
         let range: NSRange
         var insert = text
         if replacing {
             range = NSRange(location: 0, length: length)
         } else {
             range = NSRange(location: length, length: 0)
-            if length > 0, !textView.string.hasSuffix("\n") {
+            if length > 0, !currentPlainText.hasSuffix("\n") {
                 insert = "\n" + insert
             }
         }
-        guard textView.shouldChangeText(in: range, replacementString: insert) else { return }
-        textView.textStorage?.replaceCharacters(in: range, with: insert)
+        let replacement = checkboxEditor.attributedPresentation(for: insert)
+        guard textView.shouldChangeText(in: range, replacementString: replacement.string) else {
+            return
+        }
+        textView.textStorage?.replaceCharacters(in: range, with: replacement)
         textView.didChangeText()
     }
 
@@ -666,6 +755,25 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate {
 
     // MARK: - Editor commands
 
+    private func toggleList(_ style: EditorListStyle) {
+        guard textView.isEditable, !textView.hasMarkedText() else { return }
+        let result = ListFormatter.toggle(
+            in: currentPlainText,
+            selection: textView.selectedRange(),
+            style: style
+        )
+        let replacement = checkboxEditor.attributedPresentation(for: result.replacement)
+        guard textView.shouldChangeText(
+            in: result.replacementRange,
+            replacementString: replacement.string
+        ) else { return }
+
+        textView.textStorage?.replaceCharacters(in: result.replacementRange, with: replacement)
+        textView.didChangeText()
+        textView.setSelectedRange(result.selection)
+        panel.makeFirstResponder(textView)
+    }
+
     private func automaticListLine(
         atUTF16Location location: Int,
         in source: NSString
@@ -688,7 +796,7 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate {
 
     @discardableResult
     private func toggleCheckbox(atUTF16Location location: Int, markerHitOnly: Bool = false) -> Bool {
-        let source = textView.string as NSString
+        let source = currentPlainText as NSString
         guard let located = automaticListLine(atUTF16Location: location, in: source),
               let replacement = located.list.toggledMarker else { return false }
 
@@ -707,15 +815,30 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate {
         }
 
         let oldSelection = textView.selectedRange()
-        guard textView.shouldChangeText(in: markerRange, replacementString: replacement) else {
+        let attributedReplacement = checkboxEditor.attributedPresentation(for: replacement)
+        guard textView.shouldChangeText(
+            in: markerRange,
+            replacementString: attributedReplacement.string
+        ) else {
             return true
         }
-        textView.textStorage?.replaceCharacters(in: markerRange, with: replacement)
+        textView.textStorage?.replaceCharacters(in: markerRange, with: attributedReplacement)
         textView.didChangeText()
 
-        let replacementLength = (replacement as NSString).length
+        let replacementLength = attributedReplacement.length
         let newLocation: Int
-        if markerHitOnly || oldSelection.location < NSMaxRange(markerRange) {
+        if markerHitOnly {
+            let lengthDelta = replacementLength - markerRange.length
+            let adjustedLocation = oldSelection.location >= NSMaxRange(markerRange)
+                ? oldSelection.location + lengthDelta
+                : oldSelection.location
+            let textLength = textView.attributedString().length
+            textView.setSelectedRange(NSRange(
+                location: min(max(0, adjustedLocation), textLength),
+                length: min(oldSelection.length, max(0, textLength - adjustedLocation))
+            ))
+            return true
+        } else if oldSelection.location < NSMaxRange(markerRange) {
             newLocation = markerRange.location + replacementLength
         } else {
             newLocation = oldSelection.location + replacementLength - markerRange.length
@@ -732,7 +855,7 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate {
 
     private func handleAutomaticListReturn(in textView: NSTextView) -> Bool {
         let selection = textView.selectedRange()
-        let source = textView.string as NSString
+        let source = currentPlainText as NSString
         guard selection.location != NSNotFound,
               selection.length == 0,
               let located = automaticListLine(
@@ -772,16 +895,30 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate {
             replacement = "\n\(indentation)\(list.continuationMarker)"
         }
 
-        guard textView.shouldChangeText(in: changeRange, replacementString: replacement) else {
+        let attributedReplacement = checkboxEditor.attributedPresentation(for: replacement)
+        guard textView.shouldChangeText(
+            in: changeRange,
+            replacementString: attributedReplacement.string
+        ) else {
             return true
         }
-        textView.textStorage?.replaceCharacters(in: changeRange, with: replacement)
+        textView.textStorage?.replaceCharacters(in: changeRange, with: attributedReplacement)
         textView.didChangeText()
         textView.setSelectedRange(NSRange(
-            location: changeRange.location + (replacement as NSString).length,
+            location: changeRange.location + attributedReplacement.length,
             length: 0
         ))
         return true
+    }
+
+    func textView(
+        _ textView: NSTextView,
+        clickedOn cell: any NSTextAttachmentCellProtocol,
+        in cellFrame: NSRect,
+        at charIndex: Int
+    ) {
+        guard cell is CheckboxAttachmentCell else { return }
+        _ = toggleCheckbox(atUTF16Location: charIndex, markerHitOnly: true)
     }
 
     func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {

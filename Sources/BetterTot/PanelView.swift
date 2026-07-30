@@ -73,15 +73,21 @@ final class PanelContentView: NSVisualEffectView {
     let padButtons: [PadDotButton]
     let pinButton: NSButton
     let settingsButton: NSButton
+    let bulletedListButton: NSButton
+    let numberedListButton: NSButton
+    let checkboxListButton: NSButton
     let countsLabel = NSTextField(labelWithString: "")
-    let saveStatusLabel = NSTextField(labelWithString: "")
+    let saveIndicatorHost = NSView()
+    let saveProgressIndicator = NSProgressIndicator()
+    let saveIssueImageView = NSImageView()
 
     var onClose: (() -> Void)?
     var onSelectPad: ((Int) -> Void)?
     var onTogglePin: (() -> Void)?
     var onOpenSettings: (() -> Void)?
-
-    private let footerDot = NSImageView()
+    var onToggleBulletedList: (() -> Void)?
+    var onToggleNumberedList: (() -> Void)?
+    var onToggleCheckboxList: (() -> Void)?
 
     init(
         scrollView: NSScrollView,
@@ -106,6 +112,21 @@ final class PanelContentView: NSVisualEffectView {
             label: "Settings",
             identifier: "panel-settings"
         )
+        bulletedListButton = Self.toolbarButton(
+            symbol: "list.bullet",
+            label: "Bulleted list",
+            identifier: "panel-bulleted-list"
+        )
+        numberedListButton = Self.toolbarButton(
+            symbol: "list.number",
+            label: "Numbered list",
+            identifier: "panel-numbered-list"
+        )
+        checkboxListButton = Self.toolbarButton(
+            symbol: "checklist",
+            label: "Checkbox list",
+            identifier: "panel-checkbox-list"
+        )
 
         super.init(frame: .zero)
 
@@ -121,6 +142,12 @@ final class PanelContentView: NSVisualEffectView {
         pinButton.action = #selector(pinPressed)
         settingsButton.target = self
         settingsButton.action = #selector(settingsPressed)
+        bulletedListButton.target = self
+        bulletedListButton.action = #selector(bulletedListPressed)
+        numberedListButton.target = self
+        numberedListButton.action = #selector(numberedListPressed)
+        checkboxListButton.target = self
+        checkboxListButton.action = #selector(checkboxListPressed)
         for button in padButtons {
             button.target = self
             button.action = #selector(padPressed(_:))
@@ -129,24 +156,42 @@ final class PanelContentView: NSVisualEffectView {
         countsLabel.identifier = NSUserInterfaceItemIdentifier("panel-counts")
         countsLabel.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         countsLabel.textColor = .secondaryLabelColor
+        countsLabel.alignment = .left
         countsLabel.lineBreakMode = .byTruncatingTail
         countsLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
-        saveStatusLabel.identifier = NSUserInterfaceItemIdentifier("panel-save-status")
-        saveStatusLabel.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
-        saveStatusLabel.textColor = .secondaryLabelColor
-        saveStatusLabel.alignment = .right
-        saveStatusLabel.setContentHuggingPriority(.required, for: .horizontal)
+        saveIndicatorHost.identifier = NSUserInterfaceItemIdentifier("panel-save-status")
+        saveIndicatorHost.translatesAutoresizingMaskIntoConstraints = false
+        saveIndicatorHost.setAccessibilityLabel("Local save status")
 
-        footerDot.image = NSImage(
-            systemSymbolName: "circle.fill",
-            accessibilityDescription: nil
-        )?.withSymbolConfiguration(.init(pointSize: 8, weight: .regular))
-        footerDot.imageScaling = .scaleNone
-        footerDot.translatesAutoresizingMaskIntoConstraints = false
+        saveProgressIndicator.identifier = NSUserInterfaceItemIdentifier("panel-save-spinner")
+        saveProgressIndicator.style = .spinning
+        saveProgressIndicator.controlSize = .small
+        saveProgressIndicator.isIndeterminate = true
+        saveProgressIndicator.isDisplayedWhenStopped = false
+        saveProgressIndicator.translatesAutoresizingMaskIntoConstraints = false
+        saveIndicatorHost.addSubview(saveProgressIndicator)
+
+        saveIssueImageView.identifier = NSUserInterfaceItemIdentifier("panel-save-issue")
+        saveIssueImageView.imageScaling = .scaleProportionallyDown
+        saveIssueImageView.translatesAutoresizingMaskIntoConstraints = false
+        saveIndicatorHost.addSubview(saveIssueImageView)
+
         NSLayoutConstraint.activate([
-            footerDot.widthAnchor.constraint(equalToConstant: 12),
-            footerDot.heightAnchor.constraint(equalToConstant: 12),
+            saveIndicatorHost.widthAnchor.constraint(equalToConstant: 16),
+            saveIndicatorHost.heightAnchor.constraint(equalToConstant: 16),
+            saveProgressIndicator.centerXAnchor.constraint(
+                equalTo: saveIndicatorHost.centerXAnchor
+            ),
+            saveProgressIndicator.centerYAnchor.constraint(
+                equalTo: saveIndicatorHost.centerYAnchor
+            ),
+            saveProgressIndicator.widthAnchor.constraint(equalToConstant: 14),
+            saveProgressIndicator.heightAnchor.constraint(equalToConstant: 14),
+            saveIssueImageView.centerXAnchor.constraint(equalTo: saveIndicatorHost.centerXAnchor),
+            saveIssueImageView.centerYAnchor.constraint(equalTo: saveIndicatorHost.centerYAnchor),
+            saveIssueImageView.widthAnchor.constraint(equalToConstant: 14),
+            saveIssueImageView.heightAnchor.constraint(equalToConstant: 14),
         ])
 
         let padStack = NSStackView(views: padButtons)
@@ -180,11 +225,17 @@ final class PanelContentView: NSVisualEffectView {
         header.setAccessibilityLabel("Panel controls")
 
         let footerSpacer = Self.flexibleSpacer()
+        let statisticsSpacer = NSView()
+        statisticsSpacer.translatesAutoresizingMaskIntoConstraints = false
+        statisticsSpacer.widthAnchor.constraint(equalToConstant: 6).isActive = true
         let footer = NSStackView(views: [
-            footerDot,
+            bulletedListButton,
+            numberedListButton,
+            checkboxListButton,
+            statisticsSpacer,
             countsLabel,
             footerSpacer,
-            saveStatusLabel,
+            saveIndicatorHost,
         ])
         footer.orientation = .horizontal
         footer.alignment = .centerY
@@ -229,9 +280,6 @@ final class PanelContentView: NSVisualEffectView {
         for button in padButtons {
             button.isSelectedPad = button.padIndex == index
         }
-        if padButtons.indices.contains(index) {
-            footerDot.contentTintColor = padButtons[index].dotColor
-        }
     }
 
     func updatePinned(_ pinned: Bool) {
@@ -258,9 +306,30 @@ final class PanelContentView: NSVisualEffectView {
     }
 
     func updateSaveState(_ state: PanelSaveState) {
-        saveStatusLabel.stringValue = state.label
-        saveStatusLabel.textColor = state == .failed ? .systemRed : .secondaryLabelColor
-        saveStatusLabel.setAccessibilityLabel("Local save status: \(state.label)")
+        saveProgressIndicator.stopAnimation(nil)
+        saveProgressIndicator.isHidden = true
+        saveIssueImageView.isHidden = true
+        saveIndicatorHost.toolTip = state.label
+        saveIndicatorHost.setAccessibilityValue(state.label)
+
+        switch state {
+        case .saving:
+            saveProgressIndicator.isHidden = false
+            saveProgressIndicator.startAnimation(nil)
+        case .saved:
+            break
+        case .recoveryPending, .failed:
+            let description = state == .failed ? "Save failed" : "Recovery saved"
+            saveIssueImageView.image = Self.symbolImage(
+                "exclamationmark.triangle.fill",
+                label: description,
+                pointSize: 13
+            )
+            saveIssueImageView.contentTintColor = state == .failed
+                ? .systemRed
+                : .systemOrange
+            saveIssueImageView.isHidden = false
+        }
     }
 
     @objc private func closePressed() {
@@ -277,6 +346,18 @@ final class PanelContentView: NSVisualEffectView {
 
     @objc private func settingsPressed() {
         onOpenSettings?()
+    }
+
+    @objc private func bulletedListPressed() {
+        onToggleBulletedList?()
+    }
+
+    @objc private func numberedListPressed() {
+        onToggleNumberedList?()
+    }
+
+    @objc private func checkboxListPressed() {
+        onToggleCheckboxList?()
     }
 
     private static func toolbarButton(
@@ -302,8 +383,15 @@ final class PanelContentView: NSVisualEffectView {
         return button
     }
 
-    private static func symbolImage(_ symbol: String, label: String) -> NSImage {
-        let configuration = NSImage.SymbolConfiguration(pointSize: 19, weight: .regular)
+    private static func symbolImage(
+        _ symbol: String,
+        label: String,
+        pointSize: CGFloat = 19
+    ) -> NSImage {
+        let configuration = NSImage.SymbolConfiguration(
+            pointSize: pointSize,
+            weight: .regular
+        )
         return NSImage(
             systemSymbolName: symbol,
             accessibilityDescription: label
@@ -323,7 +411,7 @@ final class PanelContentView: NSVisualEffectView {
         return separator
     }
 
-    private static func padColor(for pad: PadMetadata) -> NSColor {
+    static func padColor(for pad: PadMetadata) -> NSColor {
         let named: [String: NSColor] = [
             "red": .systemRed,
             "orange": .systemOrange,

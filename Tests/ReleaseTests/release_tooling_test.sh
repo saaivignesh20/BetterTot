@@ -136,6 +136,23 @@ if unzip -Z1 "$release_zip" | grep -E '(^|/)\._' >/dev/null; then
     fail "release ZIP must not contain AppleDouble metadata files"
 fi
 
+polluted_dir="$TMP_DIR/polluted"
+mkdir -p "$polluted_dir"
+cp "$release_zip" "$polluted_dir/BetterTot-1.2.3.zip"
+printf 'unexpected payload\n' > "$TMP_DIR/unexpected.txt"
+(
+    cd "$TMP_DIR"
+    zip -q "$polluted_dir/BetterTot-1.2.3.zip" unexpected.txt
+    cd "$polluted_dir"
+    shasum -a 256 BetterTot-1.2.3.zip > BetterTot-1.2.3.sha256
+)
+assert_fails "release verification must reject unexpected top-level entries" \
+    "$ROOT/scripts/verify-release.sh" \
+    --version 1.2.3 \
+    --directory "$polluted_dir"
+assert_contains "$(cat "$TMP_DIR/stderr")" "unexpected archive entry" \
+    "unexpected archive entries must produce an actionable error"
+
 sha="0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 cask_output="$("$ROOT/scripts/render-cask.sh" \
     --version 1.2.3 \
@@ -169,47 +186,44 @@ ci_workflow="$(cat "$ROOT/.github/workflows/ci.yml")"
 release_script="$(cat "$ROOT/scripts/release.sh")"
 assert_contains "$release_script" '--norsrc --noextattr' \
     "local release archives must omit resource forks and extended attributes"
-assert_contains "$release_workflow" '--norsrc --noextattr' \
-    "CI release archives must omit resource forks and extended attributes"
+assert_contains "$release_script" 'REPOSITORY=""' \
+    "Homebrew rendering must require an explicit repository option"
+assert_not_contains "$release_script" 'REPOSITORY="${GITHUB_REPOSITORY' \
+    "GitHub's ambient repository variable must not enable Homebrew rendering"
 assert_contains "$release_workflow" '"v*.*.*"' \
     "release workflow must use a GitHub-compatible tag glob"
-assert_contains "$release_workflow" '--draft' \
-    "release workflow must leave clean-install candidates as drafts"
 assert_contains "$release_workflow" \
     'git merge-base --is-ancestor "$GITHUB_SHA" "origin/main"' \
     "release workflow must reject tags outside main history"
-assert_contains "$release_workflow" 'needs: build' \
-    "credentialed release job must consume an unprivileged build job"
-assert_contains "$release_workflow" 'needs: sign' \
-    "publishing must consume the credentialed signing job"
-assert_contains "$release_workflow" 'BetterTot-signed-${{ github.sha }}' \
-    "signing and publishing must exchange only signed artifacts"
-assert_contains "$release_workflow" 'unexpected_entries=' \
-    "signing must reject files outside the BetterTot.app archive root"
-assert_contains "$release_workflow" 'mktemp -d "$RUNNER_TEMP/bettertot-unsigned.XXXXXX"' \
-    "signing must extract into a fresh temporary directory"
-assert_contains "$release_workflow" 'needs.sign.outputs.version' \
-    "publishing must address exact versioned assets"
-assert_contains "$release_workflow" 'scripts/render-cask.sh' \
-    "production Cask must come from the tested renderer"
+assert_contains "$release_workflow" 'persist-credentials: false' \
+    "tagged source must not retain checkout credentials while repository scripts run"
+assert_contains "$release_workflow" \
+    'git cat-file -t "$GITHUB_REF_NAME"' \
+    "release workflow must require an annotated tag"
 assert_contains "$release_workflow" '[[ -f LICENSE && -f NOTICE ]]' \
     "release workflow must require Apache legal files"
-secret_section="${release_workflow#*APPLE_CERTIFICATE_BASE64}"
-assert_not_contains "$secret_section" 'scripts/' \
-    "secret-bearing workflow steps must not execute repository scripts"
-sign_section="${release_workflow#*  sign:}"
-sign_section="${sign_section%%  publish:*}"
-assert_not_contains "$sign_section" 'contents: write' \
-    "Apple credential job must not have repository write permission"
-assert_not_contains "$sign_section" 'id-token: write' \
-    "Apple credential job must not have OIDC permission"
-assert_not_contains "$sign_section" 'attestations: write' \
-    "Apple credential job must not have attestation permission"
-publish_section="${release_workflow#*  publish:}"
-assert_not_contains "$publish_section" 'APPLE_CERTIFICATE' \
-    "publishing job must not receive the signing certificate"
-assert_not_contains "$publish_section" 'APPLE_API_KEY' \
-    "publishing job must not receive notarization credentials"
+assert_contains "$release_workflow" 'scripts/release.sh' \
+    "tagged builds must use the tested release script"
+assert_contains "$release_workflow" '--sign-identity -' \
+    "tagged builds must use an ad-hoc signature"
+assert_contains "$release_workflow" 'TAGGED-BUILD-NOTICE.txt' \
+    "tagged artifacts must include an unnotarized-build warning"
+assert_contains "$release_workflow" 'actions/upload-artifact' \
+    "tagged builds must remain repository-scoped workflow artifacts"
+assert_not_contains "$release_workflow" 'APPLE_CERTIFICATE' \
+    "tagged builds must not receive Apple signing certificates"
+assert_not_contains "$release_workflow" 'APPLE_API_KEY' \
+    "tagged builds must not receive Apple notarization credentials"
+assert_not_contains "$release_workflow" 'notarytool' \
+    "tagged builds must not attempt notarization"
+assert_not_contains "$release_workflow" 'gh release create' \
+    "tagged builds must not create a public GitHub Release"
+assert_not_contains "$release_workflow" 'contents: write' \
+    "tagged builds must not receive repository write permission"
+assert_not_contains "$release_workflow" 'id-token: write' \
+    "tagged builds must not receive OIDC permission"
+assert_not_contains "$release_workflow" 'attestations: write' \
+    "tagged builds must not receive attestation permission"
 assert_contains "$ci_workflow" 'workflow_dispatch:' \
     "CI must support manually requested preview builds"
 assert_contains "$ci_workflow" 'BetterTot-preview-${{ github.sha }}' \

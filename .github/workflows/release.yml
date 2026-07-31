@@ -1,11 +1,12 @@
-name: Release
+name: Tagged Build
 
 on:
   push:
     tags:
       - "v*.*.*"
 
-permissions: {}
+permissions:
+  contents: read
 
 env:
   DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
@@ -13,19 +14,16 @@ env:
 jobs:
   build:
     runs-on: macos-15
-    timeout-minutes: 20
-    outputs:
-      version: ${{ steps.release-source.outputs.version }}
-    permissions:
-      contents: read
+    timeout-minutes: 25
 
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
 
-      - name: Verify release source
+      - name: Verify tagged source
         id: release-source
         run: |
           set -euo pipefail
@@ -35,263 +33,67 @@ jobs:
             echo "Tag $GITHUB_REF_NAME does not match VERSION ($expected)" >&2
             exit 1
           fi
+          if [[ "$(git cat-file -t "$GITHUB_REF_NAME")" != "tag" ]]; then
+            echo "Tagged builds require an annotated tag" >&2
+            exit 1
+          fi
           if ! [[ -f LICENSE && -f NOTICE ]]; then
-            echo "Apache 2.0 LICENSE and NOTICE are required for release" >&2
+            echo "Apache 2.0 LICENSE and NOTICE are required for a tagged build" >&2
             exit 1
           fi
-          git fetch --no-tags origin main:refs/remotes/origin/main
-          if ! git merge-base --is-ancestor "$GITHUB_SHA" "origin/main"; then
-            echo "Release tag must point to a commit on main" >&2
-            exit 1
-          fi
-          xcodebuild -version
-          swift --version
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-
-      - name: Test and build without release credentials
-        run: |
-          set -euo pipefail
-          version="${GITHUB_REF_NAME#v}"
-          scripts/test.sh
-          scripts/bundle.sh \
-            --version "$version" \
-            --build-number "$GITHUB_RUN_NUMBER" \
-            --sign-identity - \
-            --output dist/staging/BetterTot.app
-          ditto -c -k --norsrc --noextattr --keepParent \
-            dist/staging/BetterTot.app \
-            dist/staging/BetterTot-unsigned.zip
-          printf -v placeholder_sha '%064d' 0
-          scripts/render-cask.sh \
-            --version "$version" \
-            --sha256 "$placeholder_sha" \
-            --repository "$GITHUB_REPOSITORY" \
-            > dist/staging/bettertot.rb.template
           notes="docs/releases/$version.md"
           if [[ ! -f "$notes" ]]; then
             echo "Release notes are missing: $notes" >&2
             exit 1
           fi
-          cp "$notes" dist/staging/release-notes.md
+          if ! git show-ref --verify --quiet refs/remotes/origin/main; then
+            echo "origin/main is unavailable in the full checkout" >&2
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" "origin/main"; then
+            echo "Tagged commit must be in main history" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
-      - name: Upload unsigned application
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: BetterTot-unsigned-${{ github.sha }}
-          path: |
-            dist/staging/BetterTot-unsigned.zip
-            dist/staging/bettertot.rb.template
-            dist/staging/release-notes.md
-          if-no-files-found: error
-          retention-days: 1
-
-  sign:
-    needs: build
-    runs-on: macos-15
-    timeout-minutes: 20
-    environment: release
-    outputs:
-      version: ${{ needs.build.outputs.version }}
-    permissions:
-      actions: read
-      contents: read
-
-    steps:
-      - name: Download unsigned application
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: BetterTot-unsigned-${{ github.sha }}
-          path: dist/staging
-
-      - name: Sign, notarize, and package
+      - name: Test and build ad-hoc artifact
         env:
-          VERSION: ${{ needs.build.outputs.version }}
-          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
-          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
-          APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
-          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+          VERSION: ${{ steps.release-source.outputs.version }}
         run: |
           set -euo pipefail
+          xcodebuild -version
+          swift --version
+          scripts/release.sh \
+            --version "$VERSION" \
+            --build-number "$GITHUB_RUN_NUMBER" \
+            --sign-identity -
 
-          required=(
-            APPLE_CERTIFICATE_BASE64
-            APPLE_CERTIFICATE_PASSWORD
-            APPLE_SIGNING_IDENTITY
-            APPLE_API_KEY_BASE64
-            APPLE_API_KEY_ID
-            APPLE_API_ISSUER_ID
-            KEYCHAIN_PASSWORD
-          )
-          for name in "${required[@]}"; do
-            if [[ -z "${!name:-}" ]]; then
-              echo "Required release secret is missing: $name" >&2
-              exit 1
-            fi
-          done
-          if [[ "$APPLE_SIGNING_IDENTITY" != "Developer ID Application:"* ]]; then
-            echo "APPLE_SIGNING_IDENTITY must be a Developer ID Application identity" >&2
-            exit 1
-          fi
-
-          version="$VERSION"
-          out="$GITHUB_WORKSPACE/dist/release"
-          app="$out/BetterTot.app"
-          unsigned="$GITHUB_WORKSPACE/dist/staging/BetterTot-unsigned.zip"
-          extracted="$(mktemp -d "$RUNNER_TEMP/bettertot-unsigned.XXXXXX")"
-          zip_name="BetterTot-$version.zip"
-          checksum_name="BetterTot-$version.sha256"
-          certificate="$RUNNER_TEMP/developer-id.p12"
-          api_key="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY_ID}.p8"
-          keychain="$RUNNER_TEMP/bettertot-signing.keychain-db"
-
-          cleanup() {
-            security delete-keychain "$keychain" >/dev/null 2>&1 || true
-            rm -f "$certificate" "$api_key"
-            rm -rf "$extracted"
-          }
-          trap cleanup EXIT
-
-          unexpected_entries="$(unzip -Z1 "$unsigned" | \
-            awk '!/^BetterTot\.app\// || /(^|\/)\.\.(\/|$)/ || /^\// || /\\/ { print }')"
-          if [[ -n "$unexpected_entries" ]]; then
-            echo "Unsigned archive contains unexpected entries:" >&2
-            printf '%s\n' "$unexpected_entries" >&2
-            exit 1
-          fi
-          mkdir -p "$out"
-          ditto -x -k "$unsigned" "$extracted"
-          if [[ ! -d "$extracted/BetterTot.app" ]]; then
-            echo "Unsigned artifact does not contain BetterTot.app" >&2
-            exit 1
-          fi
-          mv "$extracted/BetterTot.app" "$app"
-          if [[ "$(plutil -extract CFBundleShortVersionString raw "$app/Contents/Info.plist")" != "$version" ]]; then
-            echo "Unsigned artifact version does not match release tag" >&2
-            exit 1
-          fi
-          architectures="$(lipo -archs "$app/Contents/MacOS/BetterTot")"
-          [[ " $architectures " == *" arm64 "* && " $architectures " == *" x86_64 "* ]]
-
-          printf '%s' "$APPLE_CERTIFICATE_BASE64" | base64 --decode > "$certificate"
-          printf '%s' "$APPLE_API_KEY_BASE64" | base64 --decode > "$api_key"
-
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$keychain"
-          security set-keychain-settings -lut 21600 "$keychain"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$keychain"
-          security import "$certificate" \
-            -k "$keychain" \
-            -P "$APPLE_CERTIFICATE_PASSWORD" \
-            -T /usr/bin/codesign \
-            -T /usr/bin/security
-          security set-key-partition-list \
-            -S apple-tool:,apple:,codesign: \
-            -s \
-            -k "$KEYCHAIN_PASSWORD" \
-            "$keychain"
-          security list-keychains -d user -s "$keychain"
-
-          xcrun notarytool store-credentials BetterTotCI \
-            --keychain "$keychain" \
-            --key "$api_key" \
-            --key-id "$APPLE_API_KEY_ID" \
-            --issuer "$APPLE_API_ISSUER_ID"
-
-          codesign \
-            --force \
-            --options runtime \
-            --timestamp \
-            --keychain "$keychain" \
-            --sign "$APPLE_SIGNING_IDENTITY" \
-            "$app"
-          codesign --verify --deep --strict --verbose=2 "$app"
-
-          ditto -c -k --norsrc --noextattr --keepParent "$app" "$out/$zip_name"
-          xcrun notarytool submit "$out/$zip_name" \
-            --keychain-profile BetterTotCI \
-            --keychain "$keychain" \
-            --wait
-          xcrun stapler staple "$app"
-          xcrun stapler validate "$app"
-
-          rm -f "$out/$zip_name"
-          ditto -c -k --norsrc --noextattr --keepParent "$app" "$out/$zip_name"
-          codesign --verify --deep --strict --verbose=2 "$app"
-          spctl --assess --type execute --verbose=2 "$app"
-
-          (
-            cd "$out"
-            shasum -a 256 "$zip_name" > "$checksum_name"
-          )
-          sha256="$(shasum -a 256 "$out/$zip_name" | awk '{print $1}')"
-          printf -v placeholder_sha '%064d' 0
-          if [[ ! -f dist/staging/bettertot.rb.template ]]; then
-            echo "Unsigned artifact is missing the Cask template" >&2
-            exit 1
-          fi
-          sed "s/$placeholder_sha/$sha256/" \
-            dist/staging/bettertot.rb.template \
-            > "$out/bettertot.rb"
-          ruby -c "$out/bettertot.rb"
-
-      - name: Stage signed release assets
+      - name: Stage tagged artifact
         env:
-          VERSION: ${{ needs.build.outputs.version }}
+          VERSION: ${{ steps.release-source.outputs.version }}
         run: |
           set -euo pipefail
-          version="$VERSION"
-          mkdir -p dist/publish
+          mkdir -p dist/tagged
           cp \
-            "dist/release/BetterTot-$version.zip" \
-            "dist/release/BetterTot-$version.sha256" \
-            dist/release/bettertot.rb \
-            dist/staging/release-notes.md \
-            dist/publish/
+            "dist/release/BetterTot-$VERSION.zip" \
+            "dist/release/BetterTot-$VERSION.sha256" \
+            dist/tagged/
+          cp "docs/releases/$VERSION.md" dist/tagged/release-notes.md
+          printf '%s\n' \
+            'UNNOTARIZED AD-HOC BUILD' \
+            '' \
+            'This BetterTot build is ad-hoc signed and has not been notarized by Apple.' \
+            'It is a repository-scoped tagged artifact, not a public GitHub Release.' \
+            'An explicit local Gatekeeper override may be required.' \
+            "Source tag: $GITHUB_REF_NAME" \
+            "Source commit: $GITHUB_SHA" \
+            "Workflow run: $GITHUB_RUN_NUMBER" \
+            > dist/tagged/TAGGED-BUILD-NOTICE.txt
 
-      - name: Upload signed release assets
+      - name: Upload tagged artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: BetterTot-signed-${{ github.sha }}
-          path: dist/publish
+          name: BetterTot-v${{ steps.release-source.outputs.version }}-${{ github.sha }}
+          path: dist/tagged
           if-no-files-found: error
-          retention-days: 7
-
-  publish:
-    needs: sign
-    runs-on: macos-15
-    timeout-minutes: 10
-    permissions:
-      actions: read
-      contents: write
-      id-token: write
-      attestations: write
-
-    steps:
-      - name: Download signed release assets
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: BetterTot-signed-${{ github.sha }}
-          path: dist/publish
-
-      - name: Attest release assets
-        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
-        with:
-          subject-path: |
-            dist/publish/BetterTot-${{ needs.sign.outputs.version }}.zip
-            dist/publish/BetterTot-${{ needs.sign.outputs.version }}.sha256
-            dist/publish/bettertot.rb
-
-      - name: Create draft GitHub release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release create "$GITHUB_REF_NAME" \
-            "dist/publish/BetterTot-${{ needs.sign.outputs.version }}.zip" \
-            "dist/publish/BetterTot-${{ needs.sign.outputs.version }}.sha256" \
-            dist/publish/bettertot.rb \
-            --verify-tag \
-            --notes-file dist/publish/release-notes.md \
-            --draft \
-            --title "BetterTot $GITHUB_REF_NAME"
+          retention-days: 90

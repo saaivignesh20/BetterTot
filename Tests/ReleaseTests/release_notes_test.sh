@@ -12,9 +12,9 @@ fail() {
 [[ -f "$ROOT/docs/releases/0.1.0.md" ]] || fail "0.1.0 release notes are missing"
 [[ "$WORKFLOW" == *'docs/releases/$version.md'* ]] || \
     fail "release workflow must select notes matching VERSION"
-[[ "$WORKFLOW" == *'--notes-file dist/publish/release-notes.md'* ]] || \
-    fail "draft release must use the curated notes artifact"
-[[ "$WORKFLOW" != *'--generate-notes'* ]] || \
-    fail "generated notes must not replace curated initial-release notes"
+[[ "$WORKFLOW" == *'dist/tagged/release-notes.md'* ]] || \
+    fail "tagged artifact must include the curated release notes"
+[[ "$WORKFLOW" != *'gh release create'* ]] || \
+    fail "tagged builds must not create a public GitHub Release"
 
 printf 'Release notes tests passed\n'

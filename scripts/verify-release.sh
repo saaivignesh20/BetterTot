@@ -44,6 +44,12 @@ ARCHIVE_ENTRIES="$(unzip -Z1 "$ZIP")"
 if grep -E '(^|/)\._' <<< "$ARCHIVE_ENTRIES" >/dev/null; then
     die "archive contains AppleDouble metadata files"
 fi
+UNEXPECTED_ENTRY="$(awk \
+    '!/^BetterTot\.app\// || /(^|\/)\.\.(\/|$)/ || /^\// || /\\/ { print; exit }' \
+    <<< "$ARCHIVE_ENTRIES")"
+if [[ -n "$UNEXPECTED_ENTRY" ]]; then
+    die "unexpected archive entry: $UNEXPECTED_ENTRY"
+fi
 
 (
     cd "$DIRECTORY"

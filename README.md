@@ -23,8 +23,8 @@ BetterTot keeps seven lightweight text pads one shortcut away. It is a native
 AppKit application with no account, analytics, or cloud storage.
 
 > [!IMPORTANT]
-> BetterTot is currently distributed as a private, ad-hoc-signed development
-> preview. There is no public download or notarized release yet.
+> BetterTot currently provides repository-scoped, ad-hoc-signed development
+> builds. There is no public download or notarized release yet.
 
 ## Quick Start
 
@@ -108,7 +108,7 @@ history and future phases.
 - [Security policy](SECURITY.md)
 - [Manual testing](docs/MANUAL_TESTING.md)
 - [Privacy](docs/PRIVACY.md)
-- [Local release runbook](docs/RELEASE.md)
+- [Release runbook](docs/RELEASE.md)
 
 ## License
 

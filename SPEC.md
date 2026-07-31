@@ -60,9 +60,10 @@ an app bundle.
 
 `scripts/release.sh` runs the tests, creates a versioned ZIP and SHA-256
 checksum, and produces an ad-hoc-signed local artifact by default. This is the
-completed path for the current private/local scope. Developer ID signing,
-notarization, Homebrew rendering, and tagged GitHub releases remain available
-only as dormant infrastructure for a future public-distribution decision.
+completed path for the current private/local scope. A matching version tag runs
+the same ad-hoc build in CI and stores it as a repository-scoped Actions
+artifact. The tag workflow does not use Apple credentials, notarize the app,
+create a GitHub Release, or publish a Homebrew Cask.
 
 ## Repository Layout
 
@@ -77,11 +78,11 @@ VERSION                               Release marketing version
 Assets/MenuBarIcon.png                Material note-stack status-item artwork
 docs/MANUAL_TESTING.md                Manual app acceptance checklist
 docs/PRIVACY.md                       Privacy and local-storage notes
-docs/RELEASE.md                       Local and optional public release runbook
+docs/RELEASE.md                       Local and tagged-build release runbook
 scripts/bundle.sh                     Universal app bundle builder
-scripts/release.sh                    Local packaging; optional notarization
+scripts/release.sh                    Local ad-hoc packaging and verification
 scripts/verify-release.sh             Artifact integrity and signature checks
-.github/workflows/*.yml               CI and protected release automation
+.github/workflows/*.yml               CI and read-only tagged-build automation
 Sources/BetterTot/App.swift           App entry point
 Sources/BetterTot/AppDelegate.swift   Launch, status item, menu, termination
 Sources/BetterTot/PanelController.swift

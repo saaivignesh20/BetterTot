@@ -132,13 +132,13 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         }
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 620, height: 460),
+            contentRect: NSRect(x: 0, y: 0, width: 760, height: 500),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
         )
         window.title = "BetterTot Settings"
-        window.minSize = NSSize(width: 620, height: 460)
+        window.minSize = NSSize(width: 760, height: 500)
         window.isMovableByWindowBackground = true
         super.init(window: window)
         window.delegate = self
@@ -228,12 +228,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
 
     func refreshBackupSummary() async {
         let counts = await store.backupCounts()
-        settingsView.backupSummary.stringValue = "Backups: " + BackupKind.allCases
-            .map { kind in
-                let kept = kind.retention.map { " (keeps \($0))" } ?? ""
-                return "\(kind.rawValue.capitalized): \(counts[kind] ?? 0)\(kept)"
-            }
-            .joined(separator: " · ")
+        settingsView.setBackupCounts(counts)
     }
 
     static var isBundledApp: Bool {

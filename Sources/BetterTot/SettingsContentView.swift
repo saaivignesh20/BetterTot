@@ -22,15 +22,14 @@ final class SettingsContentView: NSVisualEffectView {
 
         var symbol: String {
             switch self {
-            case .general: "gearshape"
-            case .editor: "textformat"
-            case .storage: "externaldrive"
+            case .general: "slider.horizontal.3"
+            case .editor: "square.and.pencil"
+            case .storage: "internaldrive"
             case .updates: "arrow.triangle.2.circlepath"
             }
         }
     }
 
-    let navigation: NSSegmentedControl
     let launchAtLogin = NSSwitch()
     let spellChecking = NSSwitch()
     let smartQuotes = NSSwitch()
@@ -38,11 +37,11 @@ final class SettingsContentView: NSVisualEffectView {
     let shortcutButton = NSButton(title: "", target: nil, action: nil)
     let fontLabel = NSTextField(labelWithString: "")
     let fontButton = SettingsContentView.actionButton(
-        title: "Change…",
+        title: "Change...",
         symbol: "textformat.size",
         identifier: "change-font"
     )
-    let backupSummary = NSTextField(labelWithString: "Backups: …")
+    let backupSummary = NSTextField(labelWithString: "Loading backup history...")
     let checkUpdatesButton = SettingsContentView.actionButton(
         title: "Check for Updates",
         symbol: "arrow.clockwise",
@@ -60,16 +59,23 @@ final class SettingsContentView: NSVisualEffectView {
     var onOpenBackupFolder: (() -> Void)?
 
     private let pageHost = NSView()
-    private var pages: [Page: NSView] = [:]
     private let updateProgress = NSProgressIndicator()
+    private let hourlyBackupCount = SettingsContentView.metricCountLabel(
+        identifier: "backup-hourly-count",
+        accessibilityLabel: "Hourly backups"
+    )
+    private let dailyBackupCount = SettingsContentView.metricCountLabel(
+        identifier: "backup-daily-count",
+        accessibilityLabel: "Daily backups"
+    )
+    private let manualBackupCount = SettingsContentView.metricCountLabel(
+        identifier: "backup-manual-count",
+        accessibilityLabel: "Manual backups"
+    )
+    private var navigationButtons: [Page: SettingsSidebarButton] = [:]
+    private var pages: [Page: NSView] = [:]
 
     override init(frame frameRect: NSRect) {
-        navigation = NSSegmentedControl(
-            labels: Page.allCases.map(\.title),
-            trackingMode: .selectOne,
-            target: nil,
-            action: nil
-        )
         super.init(frame: frameRect)
         build()
     }
@@ -78,15 +84,36 @@ final class SettingsContentView: NSVisualEffectView {
     required init?(coder: NSCoder) { fatalError() }
 
     func show(_ page: Page) {
-        navigation.selectedSegment = page.rawValue
+        for (candidate, button) in navigationButtons {
+            button.state = candidate == page ? .on : .off
+        }
         for (candidate, view) in pages {
             view.isHidden = candidate != page
         }
     }
 
+    func setBackupCounts(_ counts: [BackupKind: Int]) {
+        let hourly = counts[.hourly] ?? 0
+        let daily = counts[.daily] ?? 0
+        let manual = counts[.manual] ?? 0
+        let total = hourly + daily + manual
+
+        hourlyBackupCount.stringValue = String(hourly)
+        dailyBackupCount.stringValue = String(daily)
+        manualBackupCount.stringValue = String(manual)
+        backupSummary.stringValue = switch total {
+        case 0: "No backups yet"
+        case 1: "1 backup available"
+        default: "\(total) backups available"
+        }
+        backupSummary.setAccessibilityValue(
+            "\(backupSummary.stringValue). Hourly \(hourly), daily \(daily), manual \(manual)."
+        )
+    }
+
     func setCheckingForUpdates(_ checking: Bool) {
         checkUpdatesButton.isEnabled = !checking
-        checkUpdatesButton.title = checking ? "Checking…" : "Check for Updates"
+        checkUpdatesButton.title = checking ? "Checking..." : "Check for Updates"
         if checking {
             updateProgress.startAnimation(nil)
         } else {
@@ -98,49 +125,27 @@ final class SettingsContentView: NSVisualEffectView {
         material = .underWindowBackground
         state = .active
 
-        navigation.identifier = NSUserInterfaceItemIdentifier("settings-navigation")
-        navigation.segmentStyle = .rounded
-        navigation.selectedSegment = Page.general.rawValue
-        navigation.target = self
-        navigation.action = #selector(navigationChanged)
-        navigation.setAccessibilityLabel("Settings sections")
-        navigation.translatesAutoresizingMaskIntoConstraints = false
-        for page in Page.allCases {
-            navigation.setImage(Self.symbol(page.symbol, label: page.title), forSegment: page.rawValue)
-            navigation.setImageScaling(.scaleProportionallyDown, forSegment: page.rawValue)
-            navigation.setWidth(128, forSegment: page.rawValue)
-            navigation.setToolTip(page.title, forSegment: page.rawValue)
-        }
-
-        let header = NSVisualEffectView()
-        header.material = .headerView
-        header.blendingMode = .withinWindow
-        header.state = .active
-        header.translatesAutoresizingMaskIntoConstraints = false
-        header.addSubview(navigation)
-
+        let sidebar = buildSidebar()
         let separator = NSBox()
         separator.boxType = .separator
         separator.translatesAutoresizingMaskIntoConstraints = false
 
+        sidebar.translatesAutoresizingMaskIntoConstraints = false
         pageHost.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(header)
+        addSubview(sidebar)
         addSubview(separator)
         addSubview(pageHost)
 
         NSLayoutConstraint.activate([
-            header.topAnchor.constraint(equalTo: topAnchor),
-            header.leadingAnchor.constraint(equalTo: leadingAnchor),
-            header.trailingAnchor.constraint(equalTo: trailingAnchor),
-            header.heightAnchor.constraint(equalToConstant: 68),
-            navigation.centerXAnchor.constraint(equalTo: header.centerXAnchor),
-            navigation.centerYAnchor.constraint(equalTo: header.centerYAnchor),
-            navigation.heightAnchor.constraint(equalToConstant: 34),
-            separator.topAnchor.constraint(equalTo: header.bottomAnchor),
-            separator.leadingAnchor.constraint(equalTo: leadingAnchor),
-            separator.trailingAnchor.constraint(equalTo: trailingAnchor),
-            pageHost.topAnchor.constraint(equalTo: separator.bottomAnchor),
-            pageHost.leadingAnchor.constraint(equalTo: leadingAnchor),
+            sidebar.topAnchor.constraint(equalTo: topAnchor),
+            sidebar.leadingAnchor.constraint(equalTo: leadingAnchor),
+            sidebar.bottomAnchor.constraint(equalTo: bottomAnchor),
+            sidebar.widthAnchor.constraint(equalToConstant: 184),
+            separator.topAnchor.constraint(equalTo: topAnchor),
+            separator.leadingAnchor.constraint(equalTo: sidebar.trailingAnchor),
+            separator.bottomAnchor.constraint(equalTo: bottomAnchor),
+            pageHost.topAnchor.constraint(equalTo: topAnchor),
+            pageHost.leadingAnchor.constraint(equalTo: separator.trailingAnchor),
             pageHost.trailingAnchor.constraint(equalTo: trailingAnchor),
             pageHost.bottomAnchor.constraint(equalTo: bottomAnchor),
         ])
@@ -157,12 +162,78 @@ final class SettingsContentView: NSVisualEffectView {
             pageHost.addSubview(view)
             NSLayoutConstraint.activate([
                 view.topAnchor.constraint(equalTo: pageHost.topAnchor),
-                view.centerXAnchor.constraint(equalTo: pageHost.centerXAnchor),
-                view.widthAnchor.constraint(equalTo: pageHost.widthAnchor),
+                view.leadingAnchor.constraint(equalTo: pageHost.leadingAnchor),
+                view.trailingAnchor.constraint(equalTo: pageHost.trailingAnchor),
                 view.bottomAnchor.constraint(equalTo: pageHost.bottomAnchor),
             ])
         }
         show(.general)
+    }
+
+    private func buildSidebar() -> NSView {
+        let sidebar = NSVisualEffectView()
+        sidebar.material = .sidebar
+        sidebar.blendingMode = .withinWindow
+        sidebar.state = .active
+
+        let appIcon = NSImageView(image: BetterTotAppIcon.make())
+        appIcon.imageScaling = .scaleProportionallyUpOrDown
+        appIcon.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            appIcon.widthAnchor.constraint(equalToConstant: 34),
+            appIcon.heightAnchor.constraint(equalToConstant: 34),
+        ])
+
+        let appTitle = Self.textLabel("BetterTot", size: 15, weight: .semibold)
+        let settingsTitle = Self.textLabel("Settings", size: 11, weight: .regular)
+        settingsTitle.textColor = .secondaryLabelColor
+        let titleStack = NSStackView(views: [appTitle, settingsTitle])
+        titleStack.orientation = .vertical
+        titleStack.alignment = .leading
+        titleStack.spacing = 1
+
+        let brand = NSStackView(views: [appIcon, titleStack])
+        brand.orientation = .horizontal
+        brand.alignment = .centerY
+        brand.spacing = 10
+
+        let navButtons = Page.allCases.map { page in
+            let button = SettingsSidebarButton(
+                title: page.title,
+                symbol: page.symbol,
+                page: page
+            )
+            button.target = self
+            button.action = #selector(navigationPressed(_:))
+            navigationButtons[page] = button
+            return button
+        }
+        let navigation = NSStackView(views: navButtons)
+        navigation.identifier = NSUserInterfaceItemIdentifier("settings-navigation")
+        navigation.orientation = .vertical
+        navigation.alignment = .width
+        navigation.spacing = 4
+        navigation.setAccessibilityElement(true)
+        navigation.setAccessibilityRole(.radioGroup)
+        navigation.setAccessibilityLabel("Settings sections")
+        for button in navButtons {
+            button.widthAnchor.constraint(equalTo: navigation.widthAnchor).isActive = true
+        }
+
+        let stack = NSStackView(views: [brand, navigation, Self.flexibleSpacer()])
+        stack.orientation = .vertical
+        stack.alignment = .width
+        stack.spacing = 22
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        sidebar.addSubview(stack)
+
+        NSLayoutConstraint.activate([
+            stack.topAnchor.constraint(equalTo: sidebar.topAnchor, constant: 24),
+            stack.leadingAnchor.constraint(equalTo: sidebar.leadingAnchor, constant: 14),
+            stack.trailingAnchor.constraint(equalTo: sidebar.trailingAnchor, constant: -14),
+            stack.bottomAnchor.constraint(equalTo: sidebar.bottomAnchor, constant: -16),
+        ])
+        return sidebar
     }
 
     private func buildGeneralPage() -> NSView {
@@ -175,13 +246,25 @@ final class SettingsContentView: NSVisualEffectView {
         shortcutButton.setContentHuggingPriority(.required, for: .horizontal)
 
         return page(
-            title: "General",
+            .general,
             sections: [
-                section(title: "STARTUP", rows: [
-                    settingRow(title: "Launch at Login", control: launchAtLogin),
+                section(title: "Application", rows: [
+                    settingRow(
+                        title: "Launch at Login",
+                        detail: "Open BetterTot when you sign in.",
+                        symbol: "power",
+                        tint: .systemGreen,
+                        control: launchAtLogin
+                    ),
                 ]),
-                section(title: "KEYBOARD", rows: [
-                    settingRow(title: "Global Shortcut", control: shortcutButton),
+                section(title: "Keyboard", rows: [
+                    settingRow(
+                        title: "Global Shortcut",
+                        detail: "Show or hide the scratchpad.",
+                        symbol: "keyboard",
+                        tint: .systemBlue,
+                        control: shortcutButton
+                    ),
                 ]),
             ]
         )
@@ -201,29 +284,103 @@ final class SettingsContentView: NSVisualEffectView {
         fontControls.spacing = 10
 
         return page(
-            title: "Editor",
+            .editor,
             sections: [
-                section(title: "TYPOGRAPHY", rows: [
-                    settingRow(title: "Font", control: fontControls),
+                section(title: "Typography", rows: [
+                    settingRow(
+                        title: "Editor Font",
+                        detail: "Applied consistently across every pad.",
+                        symbol: "textformat.size",
+                        tint: .systemPurple,
+                        control: fontControls
+                    ),
                 ]),
-                section(title: "WRITING", rows: [
-                    settingRow(title: "Check Spelling", control: spellChecking),
-                    settingRow(title: "Smart Quotes", control: smartQuotes),
-                    settingRow(title: "Smart Dashes", control: smartDashes),
+                section(title: "Writing", rows: [
+                    settingRow(
+                        title: "Check Spelling",
+                        detail: "Mark possible misspellings as you type.",
+                        symbol: "checkmark.circle",
+                        tint: .systemGreen,
+                        control: spellChecking
+                    ),
+                    settingRow(
+                        title: "Smart Quotes",
+                        detail: "Use typographic quotation marks.",
+                        symbol: "quote.opening",
+                        tint: .systemOrange,
+                        control: smartQuotes
+                    ),
+                    settingRow(
+                        title: "Smart Dashes",
+                        detail: "Use typographic dashes while writing.",
+                        symbol: "minus",
+                        tint: .systemPink,
+                        control: smartDashes
+                    ),
                 ]),
             ]
         )
     }
 
     private func buildStoragePage() -> NSView {
-        backupSummary.identifier = NSUserInterfaceItemIdentifier("backup-summary")
-        backupSummary.textColor = .secondaryLabelColor
-        backupSummary.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
-        backupSummary.maximumNumberOfLines = 2
-        backupSummary.lineBreakMode = .byWordWrapping
+        backupSummary.identifier = NSUserInterfaceItemIdentifier("backup-total")
+        backupSummary.font = .systemFont(ofSize: 15, weight: .medium)
+        backupSummary.maximumNumberOfLines = 1
+
+        let summaryIcon = Self.iconWell(
+            symbol: "externaldrive.badge.timemachine",
+            label: "Backups",
+            tint: .systemYellow,
+            size: 34
+        )
+        let summaryRow = NSStackView(views: [summaryIcon, backupSummary])
+        summaryRow.orientation = .horizontal
+        summaryRow.alignment = .centerY
+        summaryRow.spacing = 12
+
+        let hourly = backupMetric(
+            title: "Hourly",
+            detail: "Keeps 24",
+            symbol: "clock",
+            tint: .systemBlue,
+            count: hourlyBackupCount
+        )
+        let daily = backupMetric(
+            title: "Daily",
+            detail: "Keeps 14",
+            symbol: "calendar",
+            tint: .systemPurple,
+            count: dailyBackupCount
+        )
+        let manual = backupMetric(
+            title: "Manual",
+            detail: "Kept until removed",
+            symbol: "archivebox",
+            tint: .systemOrange,
+            count: manualBackupCount
+        )
+        let metrics = NSStackView(views: [
+            hourly,
+            verticalSeparator(),
+            daily,
+            verticalSeparator(),
+            manual,
+        ])
+        metrics.orientation = .horizontal
+        metrics.alignment = .centerY
+        metrics.spacing = 14
+        NSLayoutConstraint.activate([
+            hourly.widthAnchor.constraint(equalTo: daily.widthAnchor),
+            daily.widthAnchor.constraint(equalTo: manual.widthAnchor),
+        ])
+
+        let overview = NSStackView(views: [summaryRow, metrics])
+        overview.orientation = .vertical
+        overview.alignment = .width
+        overview.spacing = 18
 
         let openButton = Self.actionButton(
-            title: "Open Backup Folder",
+            title: "Open Folder",
             symbol: "folder",
             identifier: "open-backup-folder"
         )
@@ -231,11 +388,17 @@ final class SettingsContentView: NSVisualEffectView {
         openButton.action = #selector(openBackupFolderPressed)
 
         return page(
-            title: "Storage",
+            .storage,
             sections: [
-                section(title: "BACKUPS", rows: [
-                    leadingBlock(backupSummary),
-                    settingRow(title: "Backup Location", control: openButton),
+                section(title: "Backups", rows: [leadingBlock(overview)]),
+                section(title: "Location", rows: [
+                    settingRow(
+                        title: "Backup Folder",
+                        detail: "Hourly, daily, and manual snapshots.",
+                        symbol: "folder",
+                        tint: .systemTeal,
+                        control: openButton
+                    ),
                 ]),
             ]
         )
@@ -243,7 +406,8 @@ final class SettingsContentView: NSVisualEffectView {
 
     private func buildUpdatesPage() -> NSView {
         currentVersionLabel.identifier = NSUserInterfaceItemIdentifier("current-version")
-        currentVersionLabel.font = .systemFont(ofSize: 15, weight: .medium)
+        currentVersionLabel.font = .systemFont(ofSize: 13, weight: .regular)
+        currentVersionLabel.textColor = .secondaryLabelColor
 
         updateStatus.identifier = NSUserInterfaceItemIdentifier("update-status")
         updateStatus.textColor = .secondaryLabelColor
@@ -255,6 +419,7 @@ final class SettingsContentView: NSVisualEffectView {
         updateProgress.controlSize = .small
         updateProgress.isDisplayedWhenStopped = false
 
+        checkUpdatesButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 146).isActive = true
         viewUpdateButton.isHidden = true
         let actionRow = NSStackView(views: [
             checkUpdatesButton,
@@ -265,19 +430,18 @@ final class SettingsContentView: NSVisualEffectView {
         actionRow.alignment = .centerY
         actionRow.spacing = 10
 
-        let appIcon = BetterTotAppIcon.make()
-        let icon = NSImageView(image: appIcon)
+        let icon = NSImageView(image: BetterTotAppIcon.make())
         icon.identifier = NSUserInterfaceItemIdentifier("bettertot-app-icon")
         icon.setAccessibilityLabel("BetterTot app icon")
         icon.imageScaling = .scaleProportionallyUpOrDown
         icon.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            icon.widthAnchor.constraint(equalToConstant: 54),
-            icon.heightAnchor.constraint(equalToConstant: 54),
+            icon.widthAnchor.constraint(equalToConstant: 62),
+            icon.heightAnchor.constraint(equalToConstant: 62),
         ])
 
         let versionStack = NSStackView(views: [
-            Self.textLabel("BetterTot", size: 22, weight: .semibold),
+            Self.textLabel("BetterTot", size: 20, weight: .semibold),
             currentVersionLabel,
         ])
         versionStack.orientation = .vertical
@@ -289,40 +453,47 @@ final class SettingsContentView: NSVisualEffectView {
         productRow.alignment = .centerY
         productRow.spacing = 16
 
-        let content = NSStackView(views: [productRow, updateStatus, actionRow])
-        content.orientation = .vertical
-        content.alignment = .leading
-        content.spacing = 18
         return page(
-            title: "Updates",
+            .updates,
             sections: [
-                section(title: "VERSION", rows: [leadingBlock(content)]),
+                section(title: "Version", rows: [leadingBlock(productRow)]),
+                section(title: "Software Update", rows: [
+                    settingRow(
+                        title: "Update Status",
+                        detailView: updateStatus,
+                        symbol: "arrow.triangle.2.circlepath",
+                        tint: .systemBlue,
+                        control: actionRow
+                    ),
+                ]),
             ]
         )
     }
 
-    private func leadingBlock(_ content: NSView) -> NSView {
-        let wrapper = NSView()
-        content.translatesAutoresizingMaskIntoConstraints = false
-        wrapper.addSubview(content)
+    private func page(_ page: Page, sections: [NSView]) -> NSView {
+        let headerIcon = NSImageView(image: Self.symbol(page.symbol, label: page.title))
+        headerIcon.contentTintColor = .controlAccentColor
+        headerIcon.symbolConfiguration = NSImage.SymbolConfiguration(
+            pointSize: 22,
+            weight: .medium
+        )
+        headerIcon.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            content.topAnchor.constraint(equalTo: wrapper.topAnchor, constant: 12),
-            content.leadingAnchor.constraint(equalTo: wrapper.leadingAnchor),
-            content.trailingAnchor.constraint(lessThanOrEqualTo: wrapper.trailingAnchor),
-            content.bottomAnchor.constraint(equalTo: wrapper.bottomAnchor, constant: -12),
+            headerIcon.widthAnchor.constraint(equalToConstant: 28),
+            headerIcon.heightAnchor.constraint(equalToConstant: 28),
         ])
-        return wrapper
-    }
+        let title = Self.textLabel(page.title, size: 24, weight: .semibold)
+        let header = NSStackView(views: [headerIcon, title])
+        header.orientation = .horizontal
+        header.alignment = .centerY
+        header.spacing = 10
 
-    private func page(title: String, sections: [NSView]) -> NSView {
-        let titleLabel = Self.textLabel(title, size: 24, weight: .semibold)
-        let stack = NSStackView(views: [titleLabel] + sections)
+        let stack = NSStackView(views: [header] + sections)
         stack.orientation = .vertical
         stack.alignment = .leading
-        stack.distribution = .fill
-        stack.spacing = 26
+        stack.spacing = 24
+        stack.setCustomSpacing(28, after: header)
         stack.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        stack.setCustomSpacing(30, after: titleLabel)
         stack.translatesAutoresizingMaskIntoConstraints = false
         for section in sections {
             section.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
@@ -332,54 +503,142 @@ final class SettingsContentView: NSVisualEffectView {
         let container = NSView()
         container.addSubview(stack)
         NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: container.topAnchor, constant: 28),
-            stack.centerXAnchor.constraint(equalTo: container.centerXAnchor),
-            stack.widthAnchor.constraint(equalTo: container.widthAnchor, constant: -68),
+            stack.topAnchor.constraint(equalTo: container.topAnchor, constant: 32),
+            stack.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 38),
+            stack.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -38),
             stack.bottomAnchor.constraint(lessThanOrEqualTo: container.bottomAnchor, constant: -30),
         ])
         return container
     }
 
     private func section(title: String, rows: [NSView]) -> NSView {
-        let heading = Self.textLabel(title, size: 11, weight: .semibold)
+        let heading = Self.textLabel(title, size: 12, weight: .semibold)
         heading.textColor = .secondaryLabelColor
 
         var arranged: [NSView] = []
         for (index, row) in rows.enumerated() {
             if index > 0 {
-                let separator = NSBox()
-                separator.boxType = .separator
-                arranged.append(separator)
+                arranged.append(horizontalSeparator())
             }
             arranged.append(row)
         }
         let rowsStack = NSStackView(views: arranged)
         rowsStack.orientation = .vertical
         rowsStack.alignment = .width
-        rowsStack.distribution = .fill
         rowsStack.spacing = 0
-        rowsStack.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
         let stack = NSStackView(views: [heading, rowsStack])
         stack.orientation = .vertical
         stack.alignment = .leading
-        stack.distribution = .fill
         stack.spacing = 8
-        stack.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         rowsStack.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         return stack
     }
 
-    private func settingRow(title: String, control: NSView) -> NSView {
-        let titleLabel = Self.textLabel(title, size: 14, weight: .regular)
-        let spacer = Self.flexibleSpacer()
-        let row = NSStackView(views: [titleLabel, spacer, control])
+    private func settingRow(
+        title: String,
+        detail: String,
+        symbol: String,
+        tint: NSColor,
+        control: NSView
+    ) -> NSView {
+        settingRow(
+            title: title,
+            detailView: Self.detailLabel(detail),
+            symbol: symbol,
+            tint: tint,
+            control: control
+        )
+    }
+
+    private func settingRow(
+        title: String,
+        detailView: NSView,
+        symbol: String,
+        tint: NSColor,
+        control: NSView
+    ) -> NSView {
+        let icon = Self.iconWell(symbol: symbol, label: title, tint: tint, size: 30)
+        let titleLabel = Self.textLabel(title, size: 14, weight: .medium)
+        let labelStack = NSStackView(views: [titleLabel, detailView])
+        labelStack.orientation = .vertical
+        labelStack.alignment = .leading
+        labelStack.spacing = 2
+        labelStack.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+
+        let row = NSStackView(views: [icon, labelStack, Self.flexibleSpacer(), control])
         row.orientation = .horizontal
         row.alignment = .centerY
-        row.spacing = 14
-        row.edgeInsets = NSEdgeInsets(top: 11, left: 0, bottom: 11, right: 0)
-        row.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
+        row.spacing = 12
+        row.edgeInsets = NSEdgeInsets(top: 9, left: 0, bottom: 9, right: 0)
+        row.heightAnchor.constraint(greaterThanOrEqualToConstant: 56).isActive = true
         return row
+    }
+
+    private func backupMetric(
+        title: String,
+        detail: String,
+        symbol: String,
+        tint: NSColor,
+        count: NSTextField
+    ) -> NSView {
+        let icon = NSImageView(image: Self.symbol(symbol, label: title))
+        icon.contentTintColor = tint
+        icon.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 15, weight: .medium)
+
+        let titleLabel = Self.textLabel(title, size: 13, weight: .medium)
+        let detailLabel = Self.detailLabel(detail)
+        let labels = NSStackView(views: [titleLabel, detailLabel])
+        labels.orientation = .vertical
+        labels.alignment = .leading
+        labels.spacing = 1
+
+        let text = NSStackView(views: [count, labels])
+        text.orientation = .horizontal
+        text.alignment = .centerY
+        text.spacing = 9
+
+        let metric = NSStackView(views: [icon, text])
+        metric.orientation = .horizontal
+        metric.alignment = .centerY
+        metric.spacing = 8
+        return metric
+    }
+
+    private func leadingBlock(_ content: NSView) -> NSView {
+        let wrapper = NSView()
+        content.translatesAutoresizingMaskIntoConstraints = false
+        wrapper.addSubview(content)
+        NSLayoutConstraint.activate([
+            content.topAnchor.constraint(equalTo: wrapper.topAnchor, constant: 10),
+            content.leadingAnchor.constraint(equalTo: wrapper.leadingAnchor),
+            content.trailingAnchor.constraint(equalTo: wrapper.trailingAnchor),
+            content.bottomAnchor.constraint(equalTo: wrapper.bottomAnchor, constant: -10),
+        ])
+        return wrapper
+    }
+
+    private func horizontalSeparator() -> NSView {
+        let wrapper = NSView()
+        let separator = NSBox()
+        separator.boxType = .separator
+        separator.translatesAutoresizingMaskIntoConstraints = false
+        wrapper.addSubview(separator)
+        NSLayoutConstraint.activate([
+            separator.topAnchor.constraint(equalTo: wrapper.topAnchor),
+            separator.leadingAnchor.constraint(equalTo: wrapper.leadingAnchor, constant: 42),
+            separator.trailingAnchor.constraint(equalTo: wrapper.trailingAnchor),
+            separator.bottomAnchor.constraint(equalTo: wrapper.bottomAnchor),
+        ])
+        return wrapper
+    }
+
+    private func verticalSeparator() -> NSView {
+        let separator = NSBox()
+        separator.boxType = .separator
+        separator.translatesAutoresizingMaskIntoConstraints = false
+        separator.heightAnchor.constraint(equalToConstant: 42).isActive = true
+        return separator
     }
 
     private func configureSwitch(_ control: NSSwitch, identifier: String, label: String) {
@@ -395,11 +654,57 @@ final class SettingsContentView: NSVisualEffectView {
         let button = NSButton(title: title, target: nil, action: nil)
         button.identifier = NSUserInterfaceItemIdentifier(identifier)
         button.bezelStyle = .rounded
-        button.image = Self.symbol(symbol, label: title)
+        button.image = symbolImage(symbol, label: title, pointSize: 13)
         button.imagePosition = .imageLeading
         button.imageHugsTitle = true
         button.setAccessibilityLabel(title)
         return button
+    }
+
+    private static func iconWell(
+        symbol: String,
+        label: String,
+        tint: NSColor,
+        size: CGFloat
+    ) -> NSView {
+        let container = NSView()
+        container.wantsLayer = true
+        container.layer?.cornerRadius = 7
+        container.layer?.backgroundColor = tint.withAlphaComponent(0.15).cgColor
+        container.translatesAutoresizingMaskIntoConstraints = false
+
+        let image = NSImageView(image: symbolImage(symbol, label: label, pointSize: 14))
+        image.contentTintColor = tint
+        image.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(image)
+        NSLayoutConstraint.activate([
+            container.widthAnchor.constraint(equalToConstant: size),
+            container.heightAnchor.constraint(equalToConstant: size),
+            image.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+            image.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            image.widthAnchor.constraint(equalToConstant: 17),
+            image.heightAnchor.constraint(equalToConstant: 17),
+        ])
+        return container
+    }
+
+    private static func metricCountLabel(
+        identifier: String,
+        accessibilityLabel: String
+    ) -> NSTextField {
+        let label = textLabel("0", size: 23, weight: .semibold)
+        label.identifier = NSUserInterfaceItemIdentifier(identifier)
+        label.alignment = .right
+        label.setAccessibilityLabel(accessibilityLabel)
+        label.widthAnchor.constraint(greaterThanOrEqualToConstant: 24).isActive = true
+        return label
+    }
+
+    private static func detailLabel(_ text: String) -> NSTextField {
+        let label = textLabel(text, size: 11, weight: .regular)
+        label.textColor = .secondaryLabelColor
+        label.lineBreakMode = .byTruncatingTail
+        return label
     }
 
     private static func textLabel(
@@ -419,6 +724,16 @@ final class SettingsContentView: NSVisualEffectView {
         ) ?? NSImage()
     }
 
+    private static func symbolImage(
+        _ name: String,
+        label: String,
+        pointSize: CGFloat
+    ) -> NSImage {
+        symbol(name, label: label).withSymbolConfiguration(
+            NSImage.SymbolConfiguration(pointSize: pointSize, weight: .medium)
+        ) ?? NSImage()
+    }
+
     private static func flexibleSpacer() -> NSView {
         let spacer = NSView()
         spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
@@ -426,10 +741,10 @@ final class SettingsContentView: NSVisualEffectView {
         return spacer
     }
 
-    @objc private func navigationChanged() {
-        guard let page = Page(rawValue: navigation.selectedSegment) else { return }
-        show(page)
-        onNavigate?(page)
+    @objc private func navigationPressed(_ sender: SettingsSidebarButton) {
+        show(sender.page)
+        window?.makeFirstResponder(sender)
+        onNavigate?(sender.page)
     }
 
     @objc private func openBackupFolderPressed() {

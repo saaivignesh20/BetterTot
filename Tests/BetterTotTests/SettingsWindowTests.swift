@@ -34,6 +34,68 @@ final class SettingsWindowTests: XCTestCase {
         XCTAssertEqual(SettingsKeys.editorFont(in: defaults).fontName, "AmericanTypewriter")
     }
 
+    func testSettingsContentViewBuildsFourSidebarPages() throws {
+        let view = SettingsContentView()
+        let subviews = allSubviews(of: view)
+
+        XCTAssertEqual(
+            subviews.filter {
+                $0.identifier?.rawValue.hasPrefix("settings-page-") == true
+            }.count,
+            4
+        )
+        XCTAssertEqual(
+            subviews.compactMap { $0 as? NSButton }.filter {
+                $0.identifier?.rawValue.hasPrefix("settings-navigation-") == true
+            }.count,
+            4
+        )
+    }
+
+    func testSettingsPagesRenderAtWindowSize() throws {
+        let windowSize = NSSize(width: 760, height: 500)
+        let window = NSWindow(
+            contentRect: NSRect(origin: .zero, size: windowSize),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        let view = SettingsContentView(frame: NSRect(origin: .zero, size: windowSize))
+        view.appearance = NSAppearance(named: .darkAqua)
+        window.contentView = view
+
+        let snapshotDirectory = ProcessInfo.processInfo.environment[
+            "BETTERTOT_SETTINGS_SNAPSHOT_DIR"
+        ].map { URL(fileURLWithPath: $0, isDirectory: true) }
+        if let snapshotDirectory {
+            try FileManager.default.createDirectory(
+                at: snapshotDirectory,
+                withIntermediateDirectories: true
+            )
+        }
+
+        for page in SettingsContentView.Page.allCases {
+            view.show(page)
+            view.layoutSubtreeIfNeeded()
+            window.displayIfNeeded()
+
+            let representation = try XCTUnwrap(
+                view.bitmapImageRepForCachingDisplay(in: view.bounds)
+            )
+            view.cacheDisplay(in: view.bounds, to: representation)
+            let png = try XCTUnwrap(
+                representation.representation(using: .png, properties: [:])
+            )
+            XCTAssertGreaterThan(png.count, 10_000, "\(page.title) rendered blank")
+
+            if let snapshotDirectory {
+                try png.write(
+                    to: snapshotDirectory.appendingPathComponent("\(page.identifier).png")
+                )
+            }
+        }
+    }
+
     func testFontSaveAndLoadRoundTripWithFallbackForUnknownFont() throws {
         defaults.register(defaults: SettingsKeys.defaults)
         let font = try XCTUnwrap(NSFont(name: "Menlo", size: 18))
@@ -118,7 +180,7 @@ final class SettingsWindowTests: XCTestCase {
         XCTAssertTrue(labels.contains { $0.stringValue.contains("17") && $0.stringValue.contains("Menlo") })
     }
 
-    func testTopNavigationSwitchesBetweenFourSettingsPages() async throws {
+    func testVerticalSidebarSwitchesBetweenFourSettingsPages() async throws {
         defaults.register(defaults: SettingsKeys.defaults)
         let controller = try await makeController(
             shortcutService: ShortcutServiceStub(currentShortcut: .defaultShortcut)
@@ -126,19 +188,53 @@ final class SettingsWindowTests: XCTestCase {
         controller.present()
         defer { controller.close() }
 
-        let views = allSubviews(of: try XCTUnwrap(controller.window?.contentView))
-        let navigation = try XCTUnwrap(views.compactMap { $0 as? NSSegmentedControl }
-            .first { $0.identifier?.rawValue == "settings-navigation" })
-        XCTAssertEqual(navigation.segmentCount, 4)
-        XCTAssertEqual(navigation.selectedSegment, 0)
+        let buttons = try SettingsContentView.Page.allCases.map {
+            try settingsNavigationButton($0, in: controller)
+        }
+        let navigation = try XCTUnwrap(
+            allSubviews(of: try XCTUnwrap(controller.window?.contentView))
+                .compactMap { $0 as? NSStackView }
+                .first { $0.identifier?.rawValue == "settings-navigation" }
+        )
+        XCTAssertEqual(buttons.count, 4)
+        XCTAssertEqual(navigation.accessibilityRole(), .radioGroup)
         XCTAssertEqual(
-            (0..<navigation.segmentCount).compactMap { navigation.label(forSegment: $0) },
+            buttons.map(\.title),
             ["General", "Editor", "Storage", "Updates"]
         )
+        XCTAssertTrue(buttons.allSatisfy { $0.image != nil })
+        XCTAssertTrue(buttons.allSatisfy { $0.accessibilityRole() == .radioButton })
+        XCTAssertEqual(buttons.map(\.state), [.on, .off, .off, .off])
+        XCTAssertTrue(buttons.allSatisfy { $0.frame.width > $0.frame.height })
+        XCTAssertLessThan(
+            buttons.map(\.frame.midX).max()! - buttons.map(\.frame.midX).min()!,
+            1
+        )
 
-        for index in 0..<navigation.segmentCount {
-            navigation.selectedSegment = index
-            XCTAssertTrue(navigation.sendAction(navigation.action, to: navigation.target))
+        let downArrow = try XCTUnwrap(NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: try XCTUnwrap(controller.window).windowNumber,
+            context: nil,
+            characters: "",
+            charactersIgnoringModifiers: "",
+            isARepeat: false,
+            keyCode: 125
+        ))
+        buttons[0].keyDown(with: downArrow)
+        XCTAssertEqual(buttons.map(\.state), [.off, .on, .off, .off])
+        XCTAssertTrue(buttons[1].acceptsFirstResponder)
+        XCTAssertFalse(buttons[0].acceptsFirstResponder)
+
+        for (index, button) in buttons.enumerated() {
+            button.performClick(nil)
+            XCTAssertTrue(controller.window?.firstResponder === button)
+            XCTAssertEqual(
+                buttons.map(\.state),
+                buttons.indices.map { $0 == index ? .on : .off }
+            )
             let visiblePages = allSubviews(of: try XCTUnwrap(controller.window?.contentView))
                 .filter {
                     $0.identifier?.rawValue.hasPrefix("settings-page-") == true && !$0.isHidden
@@ -149,6 +245,12 @@ final class SettingsWindowTests: XCTestCase {
                 "settings-page-\(["general", "editor", "storage", "updates"][index])"
             )
         }
+
+        buttons[2].performClick(nil)
+        XCTAssertTrue(controller.window?.firstResponder === buttons[2])
+        buttons[2].keyDown(with: downArrow)
+        XCTAssertEqual(buttons.map(\.state), [.off, .off, .off, .on])
+        XCTAssertTrue(controller.window?.firstResponder === buttons[3])
     }
 
     func testUpdatesPageChecksOnDemandAndOpensValidatedReleasePage() async throws {
@@ -178,9 +280,7 @@ final class SettingsWindowTests: XCTestCase {
         controller.present()
         defer { controller.close() }
 
-        let navigation = try settingsNavigation(in: controller)
-        navigation.selectedSegment = 3
-        XCTAssertTrue(navigation.sendAction(navigation.action, to: navigation.target))
+        try settingsNavigationButton(.updates, in: controller).performClick(nil)
         let checkButton = try settingsButton(identifier: "check-for-updates", in: controller)
         let status = try settingsLabel(identifier: "update-status", in: controller)
         let version = try settingsLabel(identifier: "current-version", in: controller)
@@ -225,6 +325,7 @@ final class SettingsWindowTests: XCTestCase {
         controller.present()
         defer { controller.close() }
 
+        try settingsNavigationButton(.updates, in: controller).performClick(nil)
         let checkButton = try settingsButton(identifier: "check-for-updates", in: controller)
         let status = try settingsLabel(identifier: "update-status", in: controller)
         checkButton.performClick(nil)
@@ -263,6 +364,7 @@ final class SettingsWindowTests: XCTestCase {
         )
         controller.present()
 
+        try settingsNavigationButton(.updates, in: controller).performClick(nil)
         let checkButton = try settingsButton(identifier: "check-for-updates", in: controller)
         let status = try settingsLabel(identifier: "update-status", in: controller)
         checkButton.performClick(nil)
@@ -301,12 +403,37 @@ final class SettingsWindowTests: XCTestCase {
         XCTAssertFalse(launch.isEnabled)
         XCTAssertNotNil(launch.toolTip)
 
-        let summary = try XCTUnwrap(views.compactMap { $0 as? NSTextField }
-            .first { $0.stringValue.hasPrefix("Backups:") })
         await controller.refreshBackupSummary()
-        XCTAssertTrue(summary.stringValue.contains("Hourly: 0 (keeps 24)"))
-        XCTAssertTrue(summary.stringValue.contains("Daily: 0 (keeps 14)"))
-        XCTAssertTrue(summary.stringValue.contains("Manual: 0"))
+        XCTAssertEqual(
+            try settingsLabel(identifier: "backup-total", in: controller).stringValue,
+            "No backups yet"
+        )
+        XCTAssertEqual(
+            try settingsLabel(identifier: "backup-hourly-count", in: controller).stringValue,
+            "0"
+        )
+        XCTAssertEqual(
+            try settingsLabel(
+                identifier: "backup-hourly-count",
+                in: controller
+            ).accessibilityLabel(),
+            "Hourly backups"
+        )
+        XCTAssertEqual(
+            try settingsLabel(
+                identifier: "backup-hourly-count",
+                in: controller
+            ).accessibilityValue(),
+            "0"
+        )
+        XCTAssertEqual(
+            try settingsLabel(identifier: "backup-daily-count", in: controller).stringValue,
+            "0"
+        )
+        XCTAssertEqual(
+            try settingsLabel(identifier: "backup-manual-count", in: controller).stringValue,
+            "0"
+        )
     }
 
     func testLaunchAtLoginActionsUseInjectedBoundaryAndRevertOnFailure() async throws {
@@ -468,12 +595,15 @@ final class SettingsWindowTests: XCTestCase {
             .first { $0.accessibilityLabel() == "Global shortcut" })
     }
 
-    private func settingsNavigation(
+    private func settingsNavigationButton(
+        _ page: SettingsContentView.Page,
         in controller: SettingsWindowController
-    ) throws -> NSSegmentedControl {
+    ) throws -> NSButton {
         try XCTUnwrap(allSubviews(of: try XCTUnwrap(controller.window?.contentView))
-            .compactMap { $0 as? NSSegmentedControl }
-            .first { $0.identifier?.rawValue == "settings-navigation" })
+            .compactMap { $0 as? NSButton }
+            .first {
+                $0.identifier?.rawValue == "settings-navigation-\(page.identifier)"
+            })
     }
 
     private func settingsButton(

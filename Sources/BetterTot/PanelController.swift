@@ -306,7 +306,7 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate {
         textView.setAccessibilityLabel("Scratchpad \(pad.position + 1)")
         let projection = checkboxEditor.setSourceText(
             storedText,
-            baseFont: textView.font ?? SettingsKeys.editorFont(in: defaults),
+            baseFont: SettingsKeys.editorFont(in: defaults),
             tintColor: PanelContentView.padColor(for: pad)
         )
         content.updateTextStatistics(checkboxEditor.plainText)

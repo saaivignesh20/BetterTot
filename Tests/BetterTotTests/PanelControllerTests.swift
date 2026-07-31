@@ -711,6 +711,42 @@ final class PanelControllerTests: XCTestCase {
         injected.dismiss(reason: .explicitClose)
     }
 
+    func testPadSwitchReloadsConfiguredFontInsteadOfContextualTextViewFont() throws {
+        let suiteName = "bettertot-pad-font-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.register(defaults: SettingsKeys.defaults)
+        defaults.set("AmericanTypewriter", forKey: SettingsKeys.fontName)
+        defaults.set(18.0, forKey: SettingsKeys.fontSize)
+
+        let injected = PanelController(
+            statusItem: statusItem,
+            store: store,
+            snapshot: snapshot,
+            defaults: defaults
+        )
+        injected.selectPad(at: 1)
+        injected.applyToCurrentPad("- [ ] destination", replacing: true)
+        injected.selectPad(at: 0)
+
+        injected.textView.font = .systemFont(ofSize: 18)
+        injected.selectPad(at: 1)
+
+        let displayedText = injected.textView.attributedString()
+        let destinationRange = (displayedText.string as NSString).range(of: "destination")
+        XCTAssertNotEqual(destinationRange.location, NSNotFound)
+        let displayedFont = try XCTUnwrap(
+            displayedText.attribute(
+                .font,
+                at: destinationRange.location,
+                effectiveRange: nil
+            ) as? NSFont
+        )
+        XCTAssertEqual(displayedFont.fontName, "AmericanTypewriter")
+        XCTAssertEqual(displayedFont.pointSize, 18)
+        injected.dismiss(reason: .explicitClose)
+    }
+
     func testEditingIsSuspendedOnlyForSnapshotOperation() async throws {
         XCTAssertTrue(controller.textView.isEditable)
 

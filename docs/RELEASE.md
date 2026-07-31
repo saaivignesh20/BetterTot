@@ -1,18 +1,20 @@
 # BetterTot Release Runbook
 
-BetterTot currently ships only as an ad-hoc-signed macOS application in a ZIP
-or unsigned installer package. Tagged builds are stored as repository-scoped
-GitHub Actions artifacts; the workflow does not use Apple credentials,
+BetterTot ships as an ad-hoc-signed macOS application in a ZIP and an unsigned
+installer package. Tagged builds are stored as repository-scoped GitHub
+Actions artifacts. A maintainer may also publish the locally verified files to
+GitHub Releases. The automated workflow does not use Apple credentials,
 notarize either artifact, create a GitHub Release, or publish a Homebrew Cask.
 
 ## Release Scope
 
-- `v0.1.0` is a source milestone and tagged development build.
+- Releases remain development builds until Developer ID signing and
+  notarization are available.
 - The application is universal (`arm64` and `x86_64`) and ad-hoc signed.
 - The ZIP, installer package, and SHA-256 checksum are retained by GitHub
   Actions for 90 days.
 - Apple Developer Program access and App Store access are not required.
-- The artifact is not a public, notarized macOS release.
+- Public GitHub Release assets are not notarized macOS distributions.
 
 ## Prerequisites
 
@@ -77,10 +79,30 @@ TAGGED-BUILD-NOTICE.txt
 The workflow has read-only repository permissions and receives no Apple
 credentials. It intentionally does not create a GitHub Release.
 
+## Publish the GitHub Release
+
+After the annotated tag is pushed and the tagged workflow succeeds, publish
+the same locally verified ZIP, installer, and checksum with the curated notes:
+
+```sh
+version="$(tr -d '[:space:]' < VERSION)"
+gh release create "v$version" \
+  "dist/release/BetterTot-$version.zip" \
+  "dist/release/BetterTot-$version.pkg" \
+  "dist/release/BetterTot-$version.sha256" \
+  --title "BetterTot $version" \
+  --notes-file "docs/releases/$version.md" \
+  --verify-tag
+```
+
+Do not publish artifacts built from a different commit than the release tag.
+Keep the ad-hoc signing and notarization limitations visible in the release
+notes.
+
 ## Installation
 
-Download the tagged artifact from its GitHub Actions run and verify both
-distributables:
+Download the assets from the GitHub Release or the tagged artifact from its
+GitHub Actions run and verify both distributables:
 
 ```sh
 shasum -a 256 -c BetterTot-<version>.sha256
@@ -116,7 +138,7 @@ Deleting Application Support permanently removes pads, journals, and backups.
 
 ## Future Public Distribution
 
-Developer ID signing, Apple notarization, a public GitHub Release, clean-Mac
-acceptance, and Homebrew publishing require a separate explicit release
-decision. Add those controls as a protected workflow rather than expanding the
-current ad-hoc tag job.
+Developer ID signing, Apple notarization, clean-Mac Gatekeeper acceptance, and
+Homebrew publishing require a separate explicit release decision. Add those
+controls as a protected workflow rather than expanding the current ad-hoc tag
+job.

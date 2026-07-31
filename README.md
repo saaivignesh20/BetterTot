@@ -12,7 +12,7 @@
   <a href="https://github.com/saaivignesh20/BetterTot/actions/workflows/ci.yml"><img alt="CI status" src="https://github.com/saaivignesh20/BetterTot/actions/workflows/ci.yml/badge.svg"></a>
   <a href="./LICENSE"><img alt="Apache 2.0 license" src="https://img.shields.io/badge/license-Apache%202.0-blue.svg"></a>
   <img alt="macOS 13 or later" src="https://img.shields.io/badge/macOS-13%2B-black?logo=apple">
-  <img alt="development preview" src="https://img.shields.io/badge/status-development%20preview-orange">
+  <a href="https://github.com/saaivignesh20/BetterTot/releases/latest"><img alt="latest release" src="https://img.shields.io/github/v/release/saaivignesh20/BetterTot"></a>
 </p>
 
 <p align="center">
@@ -23,10 +23,18 @@ BetterTot keeps seven lightweight text pads one shortcut away. It is a native
 AppKit application with no account, analytics, or cloud storage.
 
 > [!IMPORTANT]
-> BetterTot currently provides repository-scoped, ad-hoc-signed development
-> builds. There is no public download or notarized release yet.
+> BetterTot releases are ad-hoc signed and are not notarized by Apple. macOS
+> may require explicit approval in Privacy & Security before first launch.
 
-## Quick Start
+## Install
+
+Download the ZIP or installer package from the
+[latest GitHub release](https://github.com/saaivignesh20/BetterTot/releases/latest),
+then verify it with the published SHA-256 checksum. The package installs
+BetterTot in `/Applications`; the ZIP can be extracted and moved there
+manually.
+
+## Build from Source
 
 Requires macOS 13 or later and a compatible Xcode toolchain.
 

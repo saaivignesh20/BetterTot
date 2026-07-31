@@ -76,13 +76,15 @@ jobs:
           mkdir -p dist/tagged
           cp \
             "dist/release/BetterTot-$VERSION.zip" \
+            "dist/release/BetterTot-$VERSION.pkg" \
             "dist/release/BetterTot-$VERSION.sha256" \
             dist/tagged/
           cp "docs/releases/$VERSION.md" dist/tagged/release-notes.md
           printf '%s\n' \
             'UNNOTARIZED AD-HOC BUILD' \
             '' \
-            'This BetterTot build is ad-hoc signed and has not been notarized by Apple.' \
+            'The app is ad-hoc signed; the installer is unsigned.' \
+            'Neither artifact has been notarized by Apple.' \
             'It is a repository-scoped tagged artifact, not a public GitHub Release.' \
             'An explicit local Gatekeeper override may be required.' \
             "Source tag: $GITHUB_REF_NAME" \

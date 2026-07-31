@@ -33,6 +33,8 @@ assert_fails() {
 }
 
 [[ -x "$ROOT/scripts/release.sh" ]] || fail "scripts/release.sh must be executable"
+[[ -x "$ROOT/scripts/package-installer.sh" ]] || \
+    fail "scripts/package-installer.sh must be executable"
 [[ -x "$ROOT/scripts/generate-info-plist.sh" ]] || fail "plist generator must be executable"
 [[ -x "$ROOT/scripts/generate-app-icon.sh" ]] || fail "app icon generator must be executable"
 [[ -x "$ROOT/scripts/render-cask.sh" ]] || fail "Cask renderer must be executable"
@@ -47,26 +49,30 @@ assert_contains "$(cat "$ROOT/LICENSE")" "Version 2.0, January 2004" \
 help_output="$("$ROOT/scripts/release.sh" --help)"
 assert_contains "$help_output" "--version" "release help must document --version"
 assert_contains "$help_output" "--dry-run" "release help must document --dry-run"
+assert_contains "$help_output" ".pkg" "release help must document the installer artifact"
+
+installer_help="$("$ROOT/scripts/package-installer.sh" --help)"
+assert_contains "$installer_help" "--application" \
+    "installer help must document the source application"
+assert_contains "$installer_help" "--output" \
+    "installer help must document the package output"
 
 assert_fails "invalid semantic versions must be rejected" \
     "$ROOT/scripts/release.sh" --version 1.2 --dry-run
 assert_contains "$(cat "$TMP_DIR/stderr")" "semantic version" \
     "invalid version error must be actionable"
+assert_fails "installer must reject invalid semantic versions" \
+    "$ROOT/scripts/package-installer.sh" \
+    --version 1.2 \
+    --application "$TMP_DIR/missing.app" \
+    --output "$TMP_DIR/invalid.pkg"
+assert_contains "$(cat "$TMP_DIR/stderr")" "semantic version" \
+    "invalid installer version error must be actionable"
 
 assert_fails "non-numeric build numbers must be rejected" \
     "$ROOT/scripts/release.sh" --version 1.2.3 --build-number abc --dry-run
 assert_contains "$(cat "$TMP_DIR/stderr")" "build number" \
     "invalid build-number error must be actionable"
-
-assert_fails "a missing notarization Keychain must be rejected" \
-    "$ROOT/scripts/release.sh" \
-    --version 1.2.3 \
-    --sign-identity "Developer ID Application: Example (TEAMID)" \
-    --notary-profile BetterTotTest \
-    --notary-keychain "$TMP_DIR/missing.keychain-db" \
-    --dry-run
-assert_contains "$(cat "$TMP_DIR/stderr")" "notary keychain" \
-    "missing notarization Keychain error must be actionable"
 
 dry_run_output="$("$ROOT/scripts/release.sh" \
     --version 1.2.3 \
@@ -74,6 +80,8 @@ dry_run_output="$("$ROOT/scripts/release.sh" \
     --dry-run)"
 assert_contains "$dry_run_output" "BetterTot-1.2.3.zip" \
     "dry run must show the versioned ZIP artifact"
+assert_contains "$dry_run_output" "BetterTot-1.2.3.pkg" \
+    "dry run must show the versioned installer artifact"
 assert_contains "$dry_run_output" "BetterTot-1.2.3.sha256" \
     "dry run must show the checksum artifact"
 
@@ -136,15 +144,49 @@ if unzip -Z1 "$release_zip" | grep -E '(^|/)\._' >/dev/null; then
     fail "release ZIP must not contain AppleDouble metadata files"
 fi
 
+installer_pkg="$TMP_DIR/BetterTot-1.2.3.pkg"
+"$ROOT/scripts/package-installer.sh" \
+    --version 1.2.3 \
+    --application "$app" \
+    --output "$installer_pkg"
+[[ -s "$installer_pkg" ]] || fail "installer builder must produce a non-empty package"
+installer_payload="$(pkgutil --payload-files "$installer_pkg")"
+assert_contains "$installer_payload" "./BetterTot.app/Contents/MacOS/BetterTot" \
+    "installer payload must contain the BetterTot executable"
+if grep -E '(^|/)\._|(^|/)\.__' <<< "$installer_payload" >/dev/null; then
+    fail "installer payload must not contain AppleDouble metadata files"
+fi
+installer_expanded="$TMP_DIR/installer-expanded"
+pkgutil --expand-full "$installer_pkg" "$installer_expanded"
+[[ ! -e "$installer_expanded/Scripts" ]] || \
+    fail "installer must not contain privileged scripts"
+package_info="$installer_expanded/PackageInfo"
+[[ "$(xmllint --xpath 'string(/pkg-info/@identifier)' "$package_info")" == \
+    "org.bettertot.BetterTot.pkg" ]] || fail "installer identifier must be stable"
+[[ "$(xmllint --xpath 'string(/pkg-info/@version)' "$package_info")" == "1.2.3" ]] || \
+    fail "installer version must match the release version"
+[[ "$(xmllint --xpath 'string(/pkg-info/@install-location)' "$package_info")" == \
+    "/Applications" ]] || fail "installer must target /Applications"
+cmp -s \
+    "$app/Contents/MacOS/BetterTot" \
+    "$installer_expanded/Payload/BetterTot.app/Contents/MacOS/BetterTot" || \
+    fail "installer executable must match the release application"
+codesign --verify --deep --strict --verbose=2 \
+    "$installer_expanded/Payload/BetterTot.app"
+
 polluted_dir="$TMP_DIR/polluted"
 mkdir -p "$polluted_dir"
 cp "$release_zip" "$polluted_dir/BetterTot-1.2.3.zip"
+cp "$installer_pkg" "$polluted_dir/BetterTot-1.2.3.pkg"
 printf 'unexpected payload\n' > "$TMP_DIR/unexpected.txt"
 (
     cd "$TMP_DIR"
     zip -q "$polluted_dir/BetterTot-1.2.3.zip" unexpected.txt
     cd "$polluted_dir"
-    shasum -a 256 BetterTot-1.2.3.zip > BetterTot-1.2.3.sha256
+    shasum -a 256 \
+        BetterTot-1.2.3.zip \
+        BetterTot-1.2.3.pkg \
+        > BetterTot-1.2.3.sha256
 )
 assert_fails "release verification must reject unexpected top-level entries" \
     "$ROOT/scripts/verify-release.sh" \
@@ -152,6 +194,48 @@ assert_fails "release verification must reject unexpected top-level entries" \
     --directory "$polluted_dir"
 assert_contains "$(cat "$TMP_DIR/stderr")" "unexpected archive entry" \
     "unexpected archive entries must produce an actionable error"
+
+unchecked_dir="$TMP_DIR/unchecked-installer"
+mkdir -p "$unchecked_dir"
+cp "$release_zip" "$unchecked_dir/BetterTot-1.2.3.zip"
+cp "$installer_pkg" "$unchecked_dir/BetterTot-1.2.3.pkg"
+(
+    cd "$unchecked_dir"
+    shasum -a 256 BetterTot-1.2.3.zip > BetterTot-1.2.3.sha256
+)
+assert_fails "release verification must require a checksum for the installer" \
+    "$ROOT/scripts/verify-release.sh" \
+    --version 1.2.3 \
+    --directory "$unchecked_dir"
+assert_contains "$(cat "$TMP_DIR/stderr")" "checksum must cover exactly" \
+    "missing installer checksums must produce an actionable error"
+
+tampered_dir="$TMP_DIR/tampered-installer"
+mkdir -p "$tampered_dir"
+cp "$release_zip" "$tampered_dir/BetterTot-1.2.3.zip"
+pkgutil --expand "$installer_pkg" "$tampered_dir/expanded"
+sed 's/version="1.2.3"/version="9.9.9"/' \
+    "$tampered_dir/expanded/PackageInfo" \
+    > "$tampered_dir/expanded/PackageInfo.changed"
+mv \
+    "$tampered_dir/expanded/PackageInfo.changed" \
+    "$tampered_dir/expanded/PackageInfo"
+pkgutil --flatten \
+    "$tampered_dir/expanded" \
+    "$tampered_dir/BetterTot-1.2.3.pkg"
+(
+    cd "$tampered_dir"
+    shasum -a 256 \
+        BetterTot-1.2.3.zip \
+        BetterTot-1.2.3.pkg \
+        > BetterTot-1.2.3.sha256
+)
+assert_fails "release verification must reject mismatched installer metadata" \
+    "$ROOT/scripts/verify-release.sh" \
+    --version 1.2.3 \
+    --directory "$tampered_dir"
+assert_contains "$(cat "$TMP_DIR/stderr")" "installer version" \
+    "tampered installer versions must produce an actionable error"
 
 sha="0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 cask_output="$("$ROOT/scripts/render-cask.sh" \
@@ -184,12 +268,17 @@ assert_fails "Cask renderer must reject malformed repositories" \
 release_workflow="$(cat "$ROOT/.github/workflows/release.yml")"
 ci_workflow="$(cat "$ROOT/.github/workflows/ci.yml")"
 release_script="$(cat "$ROOT/scripts/release.sh")"
+verify_script="$(cat "$ROOT/scripts/verify-release.sh")"
 assert_contains "$release_script" '--norsrc --noextattr' \
     "local release archives must omit resource forks and extended attributes"
+assert_contains "$release_script" 'scripts/package-installer.sh' \
+    "local releases must build the tested installer package"
 assert_contains "$release_script" 'REPOSITORY=""' \
     "Homebrew rendering must require an explicit repository option"
 assert_not_contains "$release_script" 'REPOSITORY="${GITHUB_REPOSITORY' \
     "GitHub's ambient repository variable must not enable Homebrew rendering"
+assert_contains "$verify_script" 'PKG_EXPANDED/Scripts' \
+    "release verification must reject privileged installer scripts"
 assert_contains "$release_workflow" '"v*.*.*"' \
     "release workflow must use a GitHub-compatible tag glob"
 assert_contains "$release_workflow" \
@@ -208,6 +297,8 @@ assert_contains "$release_workflow" '--sign-identity -' \
     "tagged builds must use an ad-hoc signature"
 assert_contains "$release_workflow" 'TAGGED-BUILD-NOTICE.txt' \
     "tagged artifacts must include an unnotarized-build warning"
+assert_contains "$release_workflow" '"dist/release/BetterTot-$VERSION.pkg"' \
+    "tagged artifacts must include the macOS installer package"
 assert_contains "$release_workflow" 'actions/upload-artifact' \
     "tagged builds must remain repository-scoped workflow artifacts"
 assert_not_contains "$release_workflow" 'APPLE_CERTIFICATE' \

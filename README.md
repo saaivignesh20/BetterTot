@@ -42,17 +42,18 @@ reliably.
 
 ## Features
 
-- Seven color-coded scratchpads available from the menu bar
-- Global, configurable keyboard shortcut
-- Pinning by dragging, with position restored between launches
-- Per-pad undo history, selection, and scroll position
-- Footer controls for bulleted, numbered, and checkbox lists
-- Native inline checkboxes backed by portable Markdown task-list text
-- Crash recovery through an append-only journal
-- Atomic saves and rolling hourly, daily, and manual backups
-- Plain-text import and export
-- Native settings for behavior, editing, storage, and updates
-- Explicit, manual-only checks for GitHub release metadata
+- [x] Seven color-coded scratchpads available from the menu bar
+- [x] Global, configurable keyboard shortcut
+- [x] Pinning by dragging, with position restored between launches
+- [x] Per-pad undo history, selection, and scroll position
+- [x] Footer controls for bulleted, numbered, and checkbox lists
+- [x] Native inline checkboxes backed by portable Markdown task-list text
+- [x] Crash recovery through an append-only journal
+- [x] Atomic saves and rolling hourly, daily, and manual backups
+- [x] Plain-text import and export
+- [x] Native settings for behavior, editing, storage, and updates
+- [x] Explicit, manual-only checks for GitHub release metadata
+- [x] Versioned ZIP and macOS installer artifacts for tagged builds
 
 ## Keyboard Shortcuts
 
@@ -94,7 +95,7 @@ text, settings, paths, and backup data are never sent. See the complete
 swift run                  # run from source
 scripts/test.sh            # tests and the enforced 80% coverage gate
 scripts/bundle.sh          # build an ad-hoc-signed app bundle
-scripts/release.sh         # build and verify the local release ZIP
+scripts/release.sh         # build and verify the release ZIP, PKG, and checksum
 ```
 
 The test suite covers persistence, recovery, backups, imports, shortcuts,

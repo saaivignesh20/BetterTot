@@ -1,15 +1,16 @@
 # BetterTot Release Runbook
 
-BetterTot currently ships only as an ad-hoc-signed macOS application. Tagged
-builds are stored as repository-scoped GitHub Actions artifacts; the workflow
-does not use Apple credentials, notarize the app, create a GitHub Release, or
-publish a Homebrew Cask.
+BetterTot currently ships only as an ad-hoc-signed macOS application in a ZIP
+or unsigned installer package. Tagged builds are stored as repository-scoped
+GitHub Actions artifacts; the workflow does not use Apple credentials,
+notarize either artifact, create a GitHub Release, or publish a Homebrew Cask.
 
 ## Release Scope
 
 - `v0.1.0` is a source milestone and tagged development build.
 - The application is universal (`arm64` and `x86_64`) and ad-hoc signed.
-- The ZIP and SHA-256 checksum are retained by GitHub Actions for 90 days.
+- The ZIP, installer package, and SHA-256 checksum are retained by GitHub
+  Actions for 90 days.
 - Apple Developer Program access and App Store access are not required.
 - The artifact is not a public, notarized macOS release.
 
@@ -36,6 +37,7 @@ The command runs the complete test suite and creates:
 
 ```text
 dist/release/BetterTot-<version>.zip
+dist/release/BetterTot-<version>.pkg
 dist/release/BetterTot-<version>.sha256
 ```
 
@@ -62,10 +64,11 @@ git push origin "v$version"
 
 The `Tagged Build` workflow rejects a mismatched version, missing legal files,
 missing release notes, or a tag outside `main` history. It then runs the full
-suite, builds and verifies the ad-hoc ZIP, and uploads these files:
+suite, builds and verifies the ZIP and installer, and uploads these files:
 
 ```text
 BetterTot-<version>.zip
+BetterTot-<version>.pkg
 BetterTot-<version>.sha256
 release-notes.md
 TAGGED-BUILD-NOTICE.txt
@@ -76,20 +79,24 @@ credentials. It intentionally does not create a GitHub Release.
 
 ## Installation
 
-Download the tagged artifact from its GitHub Actions run, verify the checksum,
-extract it, and move `BetterTot.app` to `/Applications`:
+Download the tagged artifact from its GitHub Actions run and verify both
+distributables:
 
 ```sh
 shasum -a 256 -c BetterTot-<version>.sha256
 ```
 
+Open `BetterTot-<version>.pkg` for the standard Installer flow, or extract the
+ZIP and move `BetterTot.app` to `/Applications` manually. Both install the same
+verified application bundle.
+
 The bundled checksum detects transfer or storage corruption. Artifact
 authenticity depends on downloading it from the expected tagged workflow run;
 the ad-hoc signature does not establish a developer identity.
 
-Because the app is ad-hoc signed and unnotarized, macOS may require an explicit
-local approval through Privacy & Security settings. Never disable Gatekeeper
-globally.
+Because the app is ad-hoc signed and the installer is unsigned, with neither
+artifact notarized, macOS may require an explicit local approval through
+Privacy & Security settings. Never disable Gatekeeper globally.
 
 To upgrade, quit BetterTot and replace the application in `/Applications`.
 Pads remain under `~/Library/Application Support/BetterTot/` and are not part

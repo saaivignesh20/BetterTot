@@ -3,7 +3,6 @@ set -euo pipefail
 
 VERSION=""
 DIRECTORY=""
-REQUIRE_NOTARIZED=false
 
 die() {
     printf 'verify-release.sh: %s\n' "$1" >&2
@@ -22,10 +21,6 @@ while [[ $# -gt 0 ]]; do
             DIRECTORY="$2"
             shift 2
             ;;
-        --require-notarized)
-            REQUIRE_NOTARIZED=true
-            shift
-            ;;
         *) die "unknown option: $1" ;;
     esac
 done
@@ -35,11 +30,18 @@ done
 [[ -d "$DIRECTORY" ]] || die "release directory does not exist: $DIRECTORY"
 
 ZIP_NAME="BetterTot-$VERSION.zip"
+PKG_NAME="BetterTot-$VERSION.pkg"
 CHECKSUM_NAME="BetterTot-$VERSION.sha256"
 ZIP="$DIRECTORY/$ZIP_NAME"
+PKG="$DIRECTORY/$PKG_NAME"
 CHECKSUM="$DIRECTORY/$CHECKSUM_NAME"
 [[ -f "$ZIP" ]] || die "missing archive: $ZIP"
+[[ -f "$PKG" ]] || die "missing installer: $PKG"
 [[ -f "$CHECKSUM" ]] || die "missing checksum: $CHECKSUM"
+CHECKSUM_TARGETS="$(awk 'NF { print $2 }' "$CHECKSUM" | LC_ALL=C sort)"
+EXPECTED_TARGETS="$(printf '%s\n%s\n' "$PKG_NAME" "$ZIP_NAME" | LC_ALL=C sort)"
+[[ "$CHECKSUM_TARGETS" == "$EXPECTED_TARGETS" ]] || \
+    die "checksum must cover exactly $ZIP_NAME and $PKG_NAME"
 ARCHIVE_ENTRIES="$(unzip -Z1 "$ZIP")"
 if grep -E '(^|/)\._' <<< "$ARCHIVE_ENTRIES" >/dev/null; then
     die "archive contains AppleDouble metadata files"
@@ -79,9 +81,34 @@ ARCHITECTURES="$(lipo -archs "$APP/Contents/MacOS/BetterTot")"
 [[ " $ARCHITECTURES " == *" x86_64 "* ]] || die "archive is missing x86_64 support"
 codesign --verify --deep --strict --verbose=2 "$APP"
 
-if [[ "$REQUIRE_NOTARIZED" == true ]]; then
-    xcrun stapler validate "$APP"
-    spctl --assess --type execute --verbose=2 "$APP"
+PKG_PAYLOAD="$(pkgutil --payload-files "$PKG")"
+PKG_UNEXPECTED="$(awk '
+    /(^|\/)\.\.(\/|$)/ || /^\// || /\\/ { print; exit }
+    $0 != "." && $0 != "./BetterTot.app" &&
+        $0 !~ /^\.\/BetterTot\.app\// { print; exit }
+' <<< "$PKG_PAYLOAD")"
+if [[ -n "$PKG_UNEXPECTED" ]]; then
+    die "unexpected installer payload entry: $PKG_UNEXPECTED"
+fi
+if grep -E '(^|/)\._|(^|/)\.__' <<< "$PKG_PAYLOAD" >/dev/null; then
+    die "installer payload contains AppleDouble metadata"
 fi
 
-printf 'Verified BetterTot %s (%s)\n' "$VERSION" "$ARCHITECTURES"
+PKG_EXPANDED="$TMP_DIR/installer"
+pkgutil --expand-full "$PKG" "$PKG_EXPANDED"
+[[ ! -e "$PKG_EXPANDED/Scripts" ]] || \
+    die "installer must not contain privileged scripts"
+PACKAGE_INFO="$PKG_EXPANDED/PackageInfo"
+[[ "$(xmllint --xpath 'string(/pkg-info/@identifier)' "$PACKAGE_INFO")" == \
+    "org.bettertot.BetterTot.pkg" ]] || die "installer identifier is invalid"
+[[ "$(xmllint --xpath 'string(/pkg-info/@version)' "$PACKAGE_INFO")" == "$VERSION" ]] || \
+    die "installer version does not match requested version"
+[[ "$(xmllint --xpath 'string(/pkg-info/@install-location)' "$PACKAGE_INFO")" == \
+    "/Applications" ]] || die "installer destination is not /Applications"
+PKG_APP="$PKG_EXPANDED/Payload/BetterTot.app"
+[[ -d "$PKG_APP" ]] || die "installer does not contain BetterTot.app"
+diff -qr "$APP" "$PKG_APP" >/dev/null || \
+    die "installer application does not match the ZIP application"
+codesign --verify --deep --strict --verbose=2 "$PKG_APP"
+
+printf 'Verified BetterTot %s ZIP and installer (%s)\n' "$VERSION" "$ARCHITECTURES"

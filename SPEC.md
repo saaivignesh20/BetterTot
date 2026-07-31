@@ -58,12 +58,13 @@ local use; a Developer ID identity enables Hardened Runtime and timestamped
 signing. Launch-at-login support is only enabled when BetterTot is running from
 an app bundle.
 
-`scripts/release.sh` runs the tests, creates a versioned ZIP and SHA-256
-checksum, and produces an ad-hoc-signed local artifact by default. This is the
-completed path for the current private/local scope. A matching version tag runs
-the same ad-hoc build in CI and stores it as a repository-scoped Actions
-artifact. The tag workflow does not use Apple credentials, notarize the app,
-create a GitHub Release, or publish a Homebrew Cask.
+`scripts/release.sh` runs the tests and creates a versioned ZIP, unsigned macOS
+installer package, and shared SHA-256 checksum. The app inside both artifacts
+is ad-hoc signed. This is the completed path for the current private/local
+scope. A matching version tag runs the same build in CI and stores it as a
+repository-scoped Actions artifact. The tag workflow does not use Apple
+credentials, notarize the app or installer, create a GitHub Release, or publish
+a Homebrew Cask.
 
 ## Repository Layout
 
@@ -80,7 +81,8 @@ docs/MANUAL_TESTING.md                Manual app acceptance checklist
 docs/PRIVACY.md                       Privacy and local-storage notes
 docs/RELEASE.md                       Local and tagged-build release runbook
 scripts/bundle.sh                     Universal app bundle builder
-scripts/release.sh                    Local ad-hoc packaging and verification
+scripts/package-installer.sh          Unsigned /Applications installer builder
+scripts/release.sh                    ZIP, installer, checksum, and verification
 scripts/verify-release.sh             Artifact integrity and signature checks
 .github/workflows/*.yml               CI and read-only tagged-build automation
 Sources/BetterTot/App.swift           App entry point

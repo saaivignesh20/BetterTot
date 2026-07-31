@@ -14,6 +14,8 @@ fail() {
     fail "release workflow must select notes matching VERSION"
 [[ "$WORKFLOW" == *'dist/tagged/release-notes.md'* ]] || \
     fail "tagged artifact must include the curated release notes"
+[[ "$(cat "$ROOT/docs/releases/0.1.0.md")" == *'BetterTot-0.1.0.pkg'* ]] || \
+    fail "release notes must document the installer package"
 [[ "$WORKFLOW" != *'gh release create'* ]] || \
     fail "tagged builds must not create a public GitHub Release"
 

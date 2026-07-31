@@ -357,6 +357,7 @@ final class PanelControllerTests: XCTestCase {
                 .description
         })
         XCTAssertEqual(colors.count, WorkspaceMetadata.padCount)
+        XCTAssertTrue(buttons.allSatisfy { !$0.isBordered })
     }
 
     func testPadDotSelectionRestoresEditorFocusAndRejectsInvalidPads() {
@@ -460,6 +461,12 @@ final class PanelControllerTests: XCTestCase {
         try await Task.sleep(for: .milliseconds(350))
         XCTAssertEqual(saveStatus.accessibilityValue() as? String, "Saved")
         XCTAssertTrue(spinner.isHidden)
+    }
+
+    func testPanelUsesFlatSurfaceWithoutWindowShadow() {
+        XCTAssertFalse(panel.contentView is NSVisualEffectView)
+        XCTAssertTrue(panel.contentView?.layer?.masksToBounds == true)
+        XCTAssertFalse(panel.hasShadow)
     }
 
     func testFooterListButtonsToggleSelectedLinesAndReturnFocusToEditor() throws {

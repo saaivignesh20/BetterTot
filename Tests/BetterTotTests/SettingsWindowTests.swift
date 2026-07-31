@@ -53,7 +53,7 @@ final class SettingsWindowTests: XCTestCase {
     }
 
     func testSettingsPagesRenderAtWindowSize() throws {
-        let windowSize = NSSize(width: 760, height: 500)
+        let windowSize = NSSize(width: 680, height: 460)
         let window = NSWindow(
             contentRect: NSRect(origin: .zero, size: windowSize),
             styleMask: [.titled, .closable],
@@ -203,6 +203,12 @@ final class SettingsWindowTests: XCTestCase {
             ["General", "Editor", "Storage", "Updates"]
         )
         XCTAssertTrue(buttons.allSatisfy { $0.image != nil })
+        XCTAssertTrue(buttons.allSatisfy { button in
+            button.subviews.compactMap { $0 as? NSImageView }.count == 1
+        })
+        XCTAssertTrue(buttons.allSatisfy { button in
+            button.subviews.compactMap { $0 as? NSTextField }.count == 1
+        })
         XCTAssertTrue(buttons.allSatisfy { $0.accessibilityRole() == .radioButton })
         XCTAssertEqual(buttons.map(\.state), [.on, .off, .off, .off])
         XCTAssertTrue(buttons.allSatisfy { $0.frame.width > $0.frame.height })

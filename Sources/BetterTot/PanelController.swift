@@ -168,7 +168,7 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate {
         panel.isFloatingPanel = true
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
-        panel.hasShadow = true
+        panel.hasShadow = false
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.level = .floating

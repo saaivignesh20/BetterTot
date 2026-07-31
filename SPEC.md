@@ -102,7 +102,7 @@ Sources/BetterTot/Shortcuts.swift     Shortcut model and Carbon hotkeys
 Sources/BetterTot/SettingsWindow.swift
                                       Settings UI and UserDefaults bindings
 Sources/BetterTot/SettingsContentView.swift
-                                      Top navigation and settings page layout
+                                      Vertical navigation and settings page layout
 Sources/BetterTot/MenuBarIcon.swift    Template status-item icon
 Sources/BetterTot/UpdateChecker.swift Version parsing and manual release check
 Tests/BetterTotTests/*.swift          XCTest coverage
@@ -256,9 +256,10 @@ shadows the normal line-start and line-end caret navigation in the editor.
 
 Settings are stored in standard app `UserDefaults`.
 
-The settings window uses a fixed-size top navigation with four pages:
-`General`, `Editor`, `Storage`, and `Updates`. Switching pages does not resize
-the window or interrupt the scratchpad panel.
+The settings window uses a fixed-size vertical sidebar with four pages:
+`General`, `Editor`, `Storage`, and `Updates`. The selected row remains visibly
+active. Switching pages does not resize the window or interrupt the scratchpad
+panel.
 
 Supported settings:
 

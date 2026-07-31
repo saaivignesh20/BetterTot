@@ -68,7 +68,7 @@ final class PadDotButton: NSButton {
     }
 }
 
-final class PanelContentView: NSVisualEffectView {
+final class PanelContentView: NSView {
     let closeButton: NSButton
     let padButtons: [PadDotButton]
     let pinButton: NSButton
@@ -129,12 +129,11 @@ final class PanelContentView: NSVisualEffectView {
         )
 
         super.init(frame: .zero)
-
-        material = .popover
-        state = .active
         wantsLayer = true
         layer?.cornerRadius = 14
+        layer?.cornerCurve = .continuous
         layer?.masksToBounds = true
+        updateBackground()
 
         closeButton.target = self
         closeButton.action = #selector(closePressed)
@@ -241,7 +240,6 @@ final class PanelContentView: NSVisualEffectView {
         footer.alignment = .centerY
         footer.spacing = 6
         footer.edgeInsets = NSEdgeInsets(top: 6, left: 12, bottom: 6, right: 12)
-
         let topSeparator = Self.separator()
         let bottomSeparator = Self.separator()
         let root = NSStackView(views: [
@@ -255,8 +253,8 @@ final class PanelContentView: NSVisualEffectView {
         root.alignment = .width
         root.spacing = 0
         root.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(root)
 
+        addSubview(root)
         NSLayoutConstraint.activate([
             root.topAnchor.constraint(equalTo: topAnchor),
             root.leadingAnchor.constraint(equalTo: leadingAnchor),
@@ -275,6 +273,11 @@ final class PanelContentView: NSVisualEffectView {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        updateBackground()
+    }
 
     func updateSelection(index: Int) {
         for button in padButtons {
@@ -409,6 +412,12 @@ final class PanelContentView: NSVisualEffectView {
         let separator = NSBox()
         separator.boxType = .separator
         return separator
+    }
+
+    private func updateBackground() {
+        layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+        layer?.borderColor = NSColor.separatorColor.cgColor
+        layer?.borderWidth = 1
     }
 
     static func padColor(for pad: PadMetadata) -> NSColor {

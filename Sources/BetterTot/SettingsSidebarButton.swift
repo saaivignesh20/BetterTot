@@ -1,8 +1,11 @@
 import AppKit
+import QuartzCore
 
 final class SettingsSidebarButton: NSButton {
     let page: SettingsContentView.Page
 
+    private let iconView = NSImageView()
+    private let titleLabel = NSTextField(labelWithString: "")
     private var isHovering = false
     private var trackingAreaReference: NSTrackingArea?
 
@@ -13,20 +16,41 @@ final class SettingsSidebarButton: NSButton {
         identifier = NSUserInterfaceItemIdentifier("settings-navigation-\(page.identifier)")
         setButtonType(.toggle)
         isBordered = false
-        alignment = .left
+        isTransparent = true
         image = NSImage(
             systemSymbolName: symbol,
             accessibilityDescription: title
         )?.withSymbolConfiguration(
             NSImage.SymbolConfiguration(pointSize: 14, weight: .medium)
         )
-        imagePosition = .imageLeading
-        imageHugsTitle = true
+
+        iconView.image = image
+        iconView.imageScaling = .scaleProportionallyDown
+        iconView.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(iconView)
+
+        titleLabel.stringValue = title
+        titleLabel.lineBreakMode = .byTruncatingTail
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+        titleLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        addSubview(titleLabel)
+
         wantsLayer = true
-        layer?.cornerRadius = 7
+        layer?.cornerRadius = 6
+        layer?.cornerCurve = .continuous
         setAccessibilityRole(.radioButton)
         setAccessibilityLabel(title)
-        heightAnchor.constraint(equalToConstant: 36).isActive = true
+        toolTip = title
+        NSLayoutConstraint.activate([
+            heightAnchor.constraint(equalToConstant: 34),
+            iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
+            iconView.centerYAnchor.constraint(equalTo: centerYAnchor),
+            iconView.widthAnchor.constraint(equalToConstant: 18),
+            iconView.heightAnchor.constraint(equalToConstant: 18),
+            titleLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 8),
+            titleLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
+            titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -10),
+        ])
         updateAppearance()
     }
 
@@ -35,6 +59,10 @@ final class SettingsSidebarButton: NSButton {
 
     override var acceptsFirstResponder: Bool {
         state == .on
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        // The row's explicit icon and label avoid NSButtonCell redraw artifacts on glass.
     }
 
     override var state: NSControl.StateValue {
@@ -101,28 +129,33 @@ final class SettingsSidebarButton: NSButton {
 
     private func updateAppearance() {
         let selected = state == .on
-        let foreground = selected ? NSColor.controlAccentColor : NSColor.labelColor
+        let titleColor: NSColor
+        let iconColor: NSColor
         let background: NSColor
         if selected {
-            background = NSColor.controlAccentColor.withAlphaComponent(0.17)
+            titleColor = .labelColor
+            iconColor = .controlAccentColor
+            background = NSColor.controlAccentColor.withAlphaComponent(0.18)
         } else if isHovering {
+            titleColor = .labelColor
+            iconColor = .labelColor
             background = NSColor.labelColor.withAlphaComponent(0.07)
         } else {
+            titleColor = .secondaryLabelColor
+            iconColor = .secondaryLabelColor
             background = .clear
         }
 
-        contentTintColor = foreground
-        setAccessibilityValue(selected ? 1 : 0)
-        attributedTitle = NSAttributedString(
-            string: title,
-            attributes: [
-                .font: NSFont.systemFont(
-                    ofSize: 13,
-                    weight: selected ? .semibold : .medium
-                ),
-                .foregroundColor: foreground,
-            ]
+        iconView.contentTintColor = iconColor
+        titleLabel.font = .systemFont(
+            ofSize: 13,
+            weight: selected ? .semibold : .medium
         )
+        titleLabel.textColor = titleColor
+        setAccessibilityValue(selected ? 1 : 0)
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
         layer?.backgroundColor = background.cgColor
+        CATransaction.commit()
     }
 }

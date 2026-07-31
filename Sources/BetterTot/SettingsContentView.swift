@@ -22,10 +22,10 @@ final class SettingsContentView: NSVisualEffectView {
 
         var symbol: String {
             switch self {
-            case .general: "slider.horizontal.3"
-            case .editor: "square.and.pencil"
+            case .general: "gearshape"
+            case .editor: "pencil"
             case .storage: "internaldrive"
-            case .updates: "arrow.triangle.2.circlepath"
+            case .updates: "arrow.clockwise"
             }
         }
     }
@@ -126,26 +126,19 @@ final class SettingsContentView: NSVisualEffectView {
         state = .active
 
         let sidebar = buildSidebar()
-        let separator = NSBox()
-        separator.boxType = .separator
-        separator.translatesAutoresizingMaskIntoConstraints = false
 
         sidebar.translatesAutoresizingMaskIntoConstraints = false
         pageHost.translatesAutoresizingMaskIntoConstraints = false
         addSubview(sidebar)
-        addSubview(separator)
         addSubview(pageHost)
 
         NSLayoutConstraint.activate([
-            sidebar.topAnchor.constraint(equalTo: topAnchor),
-            sidebar.leadingAnchor.constraint(equalTo: leadingAnchor),
-            sidebar.bottomAnchor.constraint(equalTo: bottomAnchor),
-            sidebar.widthAnchor.constraint(equalToConstant: 184),
-            separator.topAnchor.constraint(equalTo: topAnchor),
-            separator.leadingAnchor.constraint(equalTo: sidebar.trailingAnchor),
-            separator.bottomAnchor.constraint(equalTo: bottomAnchor),
+            sidebar.topAnchor.constraint(equalTo: topAnchor, constant: 10),
+            sidebar.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
+            sidebar.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -10),
+            sidebar.widthAnchor.constraint(equalToConstant: 176),
             pageHost.topAnchor.constraint(equalTo: topAnchor),
-            pageHost.leadingAnchor.constraint(equalTo: separator.trailingAnchor),
+            pageHost.leadingAnchor.constraint(equalTo: sidebar.trailingAnchor, constant: 8),
             pageHost.trailingAnchor.constraint(equalTo: trailingAnchor),
             pageHost.bottomAnchor.constraint(equalTo: bottomAnchor),
         ])
@@ -171,10 +164,7 @@ final class SettingsContentView: NSVisualEffectView {
     }
 
     private func buildSidebar() -> NSView {
-        let sidebar = NSVisualEffectView()
-        sidebar.material = .sidebar
-        sidebar.blendingMode = .withinWindow
-        sidebar.state = .active
+        let content = NSView()
 
         let appIcon = NSImageView(image: BetterTotAppIcon.make())
         appIcon.imageScaling = .scaleProportionallyUpOrDown
@@ -211,8 +201,8 @@ final class SettingsContentView: NSVisualEffectView {
         let navigation = NSStackView(views: navButtons)
         navigation.identifier = NSUserInterfaceItemIdentifier("settings-navigation")
         navigation.orientation = .vertical
-        navigation.alignment = .width
-        navigation.spacing = 4
+        navigation.alignment = .leading
+        navigation.spacing = 3
         navigation.setAccessibilityElement(true)
         navigation.setAccessibilityRole(.radioGroup)
         navigation.setAccessibilityLabel("Settings sections")
@@ -220,20 +210,46 @@ final class SettingsContentView: NSVisualEffectView {
             button.widthAnchor.constraint(equalTo: navigation.widthAnchor).isActive = true
         }
 
-        let stack = NSStackView(views: [brand, navigation, Self.flexibleSpacer()])
+        let spacer = Self.flexibleSpacer()
+        let stack = NSStackView(views: [brand, navigation, spacer])
         stack.orientation = .vertical
-        stack.alignment = .width
-        stack.spacing = 22
+        stack.alignment = .leading
+        stack.spacing = 20
         stack.translatesAutoresizingMaskIntoConstraints = false
-        sidebar.addSubview(stack)
+        content.addSubview(stack)
 
         NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: sidebar.topAnchor, constant: 24),
-            stack.leadingAnchor.constraint(equalTo: sidebar.leadingAnchor, constant: 14),
-            stack.trailingAnchor.constraint(equalTo: sidebar.trailingAnchor, constant: -14),
-            stack.bottomAnchor.constraint(equalTo: sidebar.bottomAnchor, constant: -16),
+            stack.topAnchor.constraint(equalTo: content.topAnchor, constant: 20),
+            stack.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 12),
+            stack.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -12),
+            stack.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -14),
+            brand.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            navigation.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            spacer.widthAnchor.constraint(equalTo: stack.widthAnchor),
         ])
-        return sidebar
+
+        #if compiler(>=6.2)
+            if #available(macOS 26.0, *) {
+                return BetterTotGlassEffectView(content: content, cornerRadius: 16)
+            }
+        #endif
+
+        let material = NSVisualEffectView()
+        material.material = .sidebar
+        material.blendingMode = .withinWindow
+        material.state = .active
+        material.wantsLayer = true
+        material.layer?.cornerRadius = 16
+        material.layer?.masksToBounds = true
+        content.translatesAutoresizingMaskIntoConstraints = false
+        material.addSubview(content)
+        NSLayoutConstraint.activate([
+            content.topAnchor.constraint(equalTo: material.topAnchor),
+            content.leadingAnchor.constraint(equalTo: material.leadingAnchor),
+            content.trailingAnchor.constraint(equalTo: material.trailingAnchor),
+            content.bottomAnchor.constraint(equalTo: material.bottomAnchor),
+        ])
+        return material
     }
 
     private func buildGeneralPage() -> NSView {
@@ -390,7 +406,7 @@ final class SettingsContentView: NSVisualEffectView {
         return page(
             .storage,
             sections: [
-                section(title: "Backups", rows: [leadingBlock(overview)]),
+                section(title: "Backups", rows: [leadingBlock(overview, fillWidth: true)]),
                 section(title: "Location", rows: [
                     settingRow(
                         title: "Backup Folder",
@@ -482,7 +498,7 @@ final class SettingsContentView: NSVisualEffectView {
             headerIcon.widthAnchor.constraint(equalToConstant: 28),
             headerIcon.heightAnchor.constraint(equalToConstant: 28),
         ])
-        let title = Self.textLabel(page.title, size: 24, weight: .semibold)
+        let title = Self.textLabel(page.title, size: 22, weight: .semibold)
         let header = NSStackView(views: [headerIcon, title])
         header.orientation = .horizontal
         header.alignment = .centerY
@@ -491,8 +507,8 @@ final class SettingsContentView: NSVisualEffectView {
         let stack = NSStackView(views: [header] + sections)
         stack.orientation = .vertical
         stack.alignment = .leading
-        stack.spacing = 24
-        stack.setCustomSpacing(28, after: header)
+        stack.spacing = 20
+        stack.setCustomSpacing(24, after: header)
         stack.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         stack.translatesAutoresizingMaskIntoConstraints = false
         for section in sections {
@@ -503,10 +519,10 @@ final class SettingsContentView: NSVisualEffectView {
         let container = NSView()
         container.addSubview(stack)
         NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: container.topAnchor, constant: 32),
-            stack.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 38),
-            stack.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -38),
-            stack.bottomAnchor.constraint(lessThanOrEqualTo: container.bottomAnchor, constant: -30),
+            stack.topAnchor.constraint(equalTo: container.topAnchor, constant: 28),
+            stack.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 32),
+            stack.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -32),
+            stack.bottomAnchor.constraint(lessThanOrEqualTo: container.bottomAnchor, constant: -24),
         ])
         return container
     }
@@ -605,16 +621,20 @@ final class SettingsContentView: NSVisualEffectView {
         return metric
     }
 
-    private func leadingBlock(_ content: NSView) -> NSView {
+    private func leadingBlock(_ content: NSView, fillWidth: Bool = false) -> NSView {
         let wrapper = NSView()
         content.translatesAutoresizingMaskIntoConstraints = false
         wrapper.addSubview(content)
-        NSLayoutConstraint.activate([
+        var constraints = [
             content.topAnchor.constraint(equalTo: wrapper.topAnchor, constant: 10),
             content.leadingAnchor.constraint(equalTo: wrapper.leadingAnchor),
-            content.trailingAnchor.constraint(equalTo: wrapper.trailingAnchor),
             content.bottomAnchor.constraint(equalTo: wrapper.bottomAnchor, constant: -10),
-        ])
+            content.trailingAnchor.constraint(lessThanOrEqualTo: wrapper.trailingAnchor),
+        ]
+        if fillWidth {
+            constraints.append(content.trailingAnchor.constraint(equalTo: wrapper.trailingAnchor))
+        }
+        NSLayoutConstraint.activate(constraints)
         return wrapper
     }
 

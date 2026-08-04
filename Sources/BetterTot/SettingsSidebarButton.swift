@@ -13,12 +13,12 @@ final class SettingsSidebarButton: NSButton {
     init(title: String, symbol: String, page: SettingsContentView.Page) {
         self.page = page
         super.init(frame: .zero)
-        self.title = title
+        self.title = ""
         identifier = NSUserInterfaceItemIdentifier("settings-navigation-\(page.identifier)")
         setButtonType(.toggle)
         isBordered = false
         isTransparent = true
-        image = NSImage(
+        let symbolImage = NSImage(
             systemSymbolName: symbol,
             accessibilityDescription: title
         )?.withSymbolConfiguration(
@@ -39,7 +39,7 @@ final class SettingsSidebarButton: NSButton {
         iconMaterial.setAccessibilityElement(false)
         addSubview(iconMaterial)
 
-        iconView.image = image
+        iconView.image = symbolImage
         iconView.imageScaling = .scaleProportionallyDown
         iconView.translatesAutoresizingMaskIntoConstraints = false
         iconView.setAccessibilityElement(false)

@@ -5,6 +5,7 @@ enum SettingsKeys {
     static let spellChecking = "spellChecking"
     static let smartQuotes = "smartQuotes"
     static let smartDashes = "smartDashes"
+    static let writingTools = "writingTools"
     static let fontName = "editorFontName"
     static let fontSize = "editorFontSize"
     static let globalShortcut = "globalShortcut"
@@ -36,6 +37,7 @@ enum SettingsKeys {
         spellChecking: true,
         smartQuotes: false,
         smartDashes: false,
+        writingTools: false,
         fontName: "AmericanTypewriter",
         fontSize: 14.0,
     ]
@@ -203,6 +205,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
             (settingsView.spellChecking, SettingsKeys.spellChecking),
             (settingsView.smartQuotes, SettingsKeys.smartQuotes),
             (settingsView.smartDashes, SettingsKeys.smartDashes),
+            (settingsView.writingTools, SettingsKeys.writingTools),
         ]
     }
 
@@ -232,6 +235,15 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         if AppVersion(currentVersion) == nil {
             settingsView.checkUpdatesButton.isEnabled = false
             settingsView.updateStatus.stringValue = "Update checks require a bundled build."
+        }
+
+        if #available(macOS 15.1, *) {
+            settingsView.writingTools.isEnabled = true
+            settingsView.writingTools.toolTip = nil
+        } else {
+            settingsView.writingTools.isEnabled = false
+            settingsView.writingTools.state = .off
+            settingsView.writingTools.toolTip = "Requires macOS 15.1 or later"
         }
 
 

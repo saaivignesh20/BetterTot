@@ -118,6 +118,7 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate, Pad
     private var pendingSave: DispatchWorkItem?
     private var mouseMonitors: [Any] = []
     private var editingSuspensionCount = 0
+    private var isWritingToolsSessionActive = false
     private var editableBeforeSuspension = true
     var onOpenSettings: (() -> Void)?
     private var checkboxEditor: CheckboxTextView {
@@ -146,9 +147,6 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate, Pad
         textView = editor.textView
         textView.isRichText = false
         textView.allowsUndo = true
-        if #available(macOS 15.0, *) {
-            textView.writingToolsBehavior = .none
-        }
         textView.textContainerInset = NSSize(width: 12, height: 12)
         textView.drawsBackground = false
         textView.textColor = .labelColor
@@ -239,6 +237,13 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate, Pad
         textView.isContinuousSpellCheckingEnabled = defaults.bool(forKey: SettingsKeys.spellChecking)
         textView.isAutomaticQuoteSubstitutionEnabled = defaults.bool(forKey: SettingsKeys.smartQuotes)
         textView.isAutomaticDashSubstitutionEnabled = defaults.bool(forKey: SettingsKeys.smartDashes)
+        if #available(macOS 15.1, *) {
+            textView.writingToolsBehavior = defaults.bool(forKey: SettingsKeys.writingTools)
+                ? .default
+                : .none
+        } else if #available(macOS 15.0, *) {
+            textView.writingToolsBehavior = .none
+        }
     }
 
     @discardableResult
@@ -276,6 +281,7 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate, Pad
     }
 
     @objc private func openSettings() {
+        guard !writingToolsInteractionIsActive else { return }
         if !isPinned {
             dismiss(reason: .explicitClose)
         }
@@ -302,6 +308,10 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate, Pad
     }
 
     private func switchToPad(at index: Int) {
+        guard !writingToolsInteractionIsActive else {
+            content.updateSelection(index: selectedIndex)
+            return
+        }
         guard pads.indices.contains(index), index != selectedIndex else {
             content.updateSelection(index: selectedIndex)
             return
@@ -400,6 +410,7 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate, Pad
 
     // Undoable clear (plan §4.3: clearing needs confirmation or immediate undo).
     private func clearCurrentPad() {
+        guard !writingToolsInteractionIsActive else { return }
         let full = NSRange(location: 0, length: textView.attributedString().length)
         guard full.length > 0, textView.shouldChangeText(in: full, replacementString: "") else { return }
         textView.textStorage?.replaceCharacters(in: full, with: "")
@@ -553,6 +564,39 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate, Pad
     // MARK: - Persistence (journal per change, 200 ms debounced commit)
 
     func textDidChange(_ notification: Notification) {
+        if writingToolsInteractionIsActive {
+            content.updateTextStatistics(currentPlainText)
+            return
+        }
+        recordCurrentEditorChange()
+    }
+
+    @available(macOS 15.0, *)
+    func textViewWritingToolsWillBegin(_ textView: NSTextView) {
+        guard textView === self.textView else { return }
+        commitCurrentPadNow()
+        isWritingToolsSessionActive = true
+    }
+
+    @available(macOS 15.0, *)
+    func textViewWritingToolsDidEnd(_ textView: NSTextView) {
+        guard textView === self.textView else { return }
+        isWritingToolsSessionActive = false
+        recordCurrentEditorChange()
+    }
+
+    private var systemWritingToolsAreActive: Bool {
+        if #available(macOS 15.0, *) {
+            return textView.isWritingToolsActive
+        }
+        return false
+    }
+
+    private var writingToolsInteractionIsActive: Bool {
+        isWritingToolsSessionActive || systemWritingToolsAreActive
+    }
+
+    private func recordCurrentEditorChange() {
         let id = pads[selectedIndex].id
         let text = currentSourceText
         texts[id] = text
@@ -791,7 +835,9 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate, Pad
     // MARK: - Editor commands
 
     private func toggleList(_ style: EditorListStyle) {
-        guard textView.isEditable, !textView.hasMarkedText() else { return }
+        guard textView.isEditable,
+              !textView.hasMarkedText(),
+              !writingToolsInteractionIsActive else { return }
         let result = ListFormatter.toggle(
             in: currentPlainText,
             selection: textView.selectedRange(),
@@ -831,6 +877,7 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate, Pad
 
     @discardableResult
     private func toggleCheckbox(atUTF16Location location: Int, markerHitOnly: Bool = false) -> Bool {
+        guard !writingToolsInteractionIsActive else { return false }
         let source = currentPlainText as NSString
         guard let located = automaticListLine(atUTF16Location: location, in: source),
               let replacement = located.list.toggledMarker else { return false }

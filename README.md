@@ -57,6 +57,7 @@ reliably.
 - [x] Per-pad undo history, selection, and scroll position
 - [x] Footer controls for bulleted, numbered, and checkbox lists
 - [x] Native inline checkboxes backed by portable Markdown task-list text
+- [x] Optional Apple Writing Tools and Siri support on compatible Macs running macOS 15.1 or later
 - [x] Crash recovery through an append-only journal
 - [x] Atomic saves and rolling hourly, daily, and manual backups
 - [x] Plain-text import and export

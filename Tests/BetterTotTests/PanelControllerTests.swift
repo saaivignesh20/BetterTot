@@ -714,6 +714,12 @@ final class PanelControllerTests: XCTestCase {
         XCTAssertTrue(injected.textView.isAutomaticQuoteSubstitutionEnabled)
         XCTAssertTrue(injected.textView.isAutomaticDashSubstitutionEnabled)
         XCTAssertEqual(injected.textView.font?.pointSize, 19)
+        if #available(macOS 15.1, *) {
+            XCTAssertEqual(injected.textView.writingToolsBehavior, .none)
+            defaults.set(true, forKey: SettingsKeys.writingTools)
+            injected.applySettings()
+            XCTAssertEqual(injected.textView.writingToolsBehavior, .default)
+        }
 
         injected.applyToCurrentPad("- [ ] existing text", replacing: true)
         defaults.set(24.0, forKey: SettingsKeys.fontSize)
@@ -745,6 +751,28 @@ final class PanelControllerTests: XCTestCase {
         XCTAssertGreaterThan(paragraphStyle.headIndent, checkbox.cellSize.width)
         XCTAssertEqual(paragraphStyle.firstLineHeadIndent, 0)
         injected.dismiss(reason: .explicitClose)
+    }
+
+    @available(macOS 15.0, *)
+    func testWritingToolsDefersPersistenceUntilSessionEnds() async throws {
+        controller.textViewWritingToolsWillBegin(controller.textView)
+        controller.applyToCurrentPad("intermediate suggestion", replacing: true)
+        controller.selectPad(at: 1)
+        XCTAssertEqual(controller.currentPadPosition, 0)
+        try await Task.sleep(for: .milliseconds(350))
+
+        var reloaded = try await WorkspaceStore(root: root).load()
+        var pad = try XCTUnwrap(reloaded.metadata.pads.sorted { $0.position < $1.position }.first)
+        XCTAssertEqual(reloaded.texts[pad.id], "")
+
+        controller.applyToCurrentPad("accepted result", replacing: true)
+        controller.textViewWritingToolsDidEnd(controller.textView)
+        let flushResult = await controller.flushAll()
+        XCTAssertEqual(flushResult, .committed)
+
+        reloaded = try await WorkspaceStore(root: root).load()
+        pad = try XCTUnwrap(reloaded.metadata.pads.sorted { $0.position < $1.position }.first)
+        XCTAssertEqual(reloaded.texts[pad.id], "accepted result")
     }
 
     func testPadSwitchReloadsConfiguredFontInsteadOfContextualTextViewFont() throws {

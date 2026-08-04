@@ -29,6 +29,7 @@ final class SettingsWindowTests: XCTestCase {
         XCTAssertTrue(defaults.bool(forKey: SettingsKeys.spellChecking))
         XCTAssertFalse(defaults.bool(forKey: SettingsKeys.smartQuotes))
         XCTAssertFalse(defaults.bool(forKey: SettingsKeys.smartDashes))
+        XCTAssertFalse(defaults.bool(forKey: SettingsKeys.writingTools))
         XCTAssertEqual(defaults.string(forKey: SettingsKeys.fontName), "AmericanTypewriter")
         XCTAssertEqual(defaults.double(forKey: SettingsKeys.fontSize), 14)
         XCTAssertEqual(SettingsKeys.editorFont(in: defaults).fontName, "AmericanTypewriter")
@@ -178,14 +179,22 @@ final class SettingsWindowTests: XCTestCase {
         let dashes = try XCTUnwrap(switches.first {
             $0.identifier?.rawValue == SettingsKeys.smartDashes
         })
+        let writingTools = try XCTUnwrap(switches.first {
+            $0.identifier?.rawValue == SettingsKeys.writingTools
+        })
         XCTAssertEqual(spell.state, .off)
         XCTAssertEqual(quotes.state, .on)
         XCTAssertEqual(dashes.state, .on)
+        XCTAssertEqual(writingTools.state, .off)
         XCTAssertEqual(buttons.first { $0.accessibilityLabel() == "Global shortcut" }?.title, "⌥⌘F13")
 
         quotes.state = .off
         XCTAssertTrue(quotes.sendAction(quotes.action, to: quotes.target))
         XCTAssertFalse(defaults.bool(forKey: SettingsKeys.smartQuotes))
+
+        writingTools.state = .on
+        XCTAssertTrue(writingTools.sendAction(writingTools.action, to: writingTools.target))
+        XCTAssertTrue(defaults.bool(forKey: SettingsKeys.writingTools))
 
         let labels = allSubviews(of: try XCTUnwrap(controller.window?.contentView))
             .compactMap { $0 as? NSTextField }
@@ -211,10 +220,10 @@ final class SettingsWindowTests: XCTestCase {
         XCTAssertEqual(buttons.count, 5)
         XCTAssertEqual(navigation.accessibilityRole(), .radioGroup)
         XCTAssertEqual(
-            buttons.map(\.title),
+            buttons.map { $0.accessibilityLabel() ?? "" },
             ["General", "Pads", "Editor", "Storage", "Updates"]
         )
-        XCTAssertTrue(buttons.allSatisfy { $0.image != nil })
+        XCTAssertTrue(buttons.allSatisfy { $0.title.isEmpty && $0.image == nil })
         let iconMaterials = try buttons.map { button in
             try XCTUnwrap(
                 button.subviews.compactMap { $0 as? NSVisualEffectView }.first
@@ -225,6 +234,7 @@ final class SettingsWindowTests: XCTestCase {
                 allSubviews(of: button).compactMap { $0 as? NSImageView }.first
             )
         }
+        XCTAssertTrue(iconViews.allSatisfy { $0.image != nil })
         XCTAssertTrue(iconMaterials.allSatisfy { $0.material == .selection })
         XCTAssertTrue(iconMaterials.allSatisfy { $0.frame.width == $0.frame.height })
         XCTAssertTrue(iconMaterials.allSatisfy { $0.layer?.cornerRadius == 14 })

@@ -20,6 +20,14 @@ identifier, analytics identifier, or backup data. It does not check at launch,
 download an update, or install anything. When a newer release exists, BetterTot
 can open its validated `https://github.com/` release page in your browser.
 
+## Writing Tools and Siri
+
+Apple Writing Tools and Siri integration is disabled by default. When you
+enable it in Editor settings, the scratchpad participates in the writing-tools
+service provided by macOS. BetterTot does not make that service request or add
+its own network transmission; any processing and network use are controlled by
+macOS, your Apple settings, and Apple's applicable privacy terms.
+
 ## Where your data lives
 
 Everything is plain files on your Mac, readable without BetterTot:

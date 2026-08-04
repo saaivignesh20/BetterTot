@@ -183,8 +183,12 @@ Panel behavior:
   does not dismiss the scratchpad.
 - Escape is ignored by BetterTot while the text view has marked text, allowing
   input methods to handle IME composition cancellation.
-- AppKit Writing Tools are disabled for the scratchpad editor, preventing the
-  macOS 27 Write with Siri cursor accessory from covering compact pad content.
+- AppKit Writing Tools are disabled by default, preventing the Write with Siri
+  cursor accessory from covering compact pad content. On Apple
+  Intelligence-compatible Macs running macOS 15.1 or later, users can opt in
+  from Editor settings and restore the system-defined Writing Tools and Siri
+  behavior. Intermediate Writing Tools suggestions remain in the editor only;
+  BetterTot persists the accepted text when the system session ends.
 - Return continues plain `- ` lines without changing their marker.
 - Typing `* ` starts bullet mode: the editor renders `• ` while persistence,
   copying, and export retain the portable Markdown `* ` marker.
@@ -286,6 +290,8 @@ Supported settings:
 - Check spelling while typing.
 - Smart quotes.
 - Smart dashes.
+- Apple Writing Tools and Siri, disabled by default and available on compatible
+  Macs running macOS 15.1 or later.
 - Editor font name and size.
 
 The settings window also displays backup counts for hourly, daily, and manual
@@ -627,15 +633,15 @@ Verification performed while writing this spec:
 
 ```text
 swift test
-Executed 141 tests, with 0 failures.
-Line coverage: 88.55% (4580/5172), minimum 80.00%.
+Executed 142 tests, with 0 failures.
+Line coverage: 88.56% (4637/5236), minimum 80.00%.
 ```
 
 ## Current Gaps and Risks
 
 - `scripts/test.sh` enforces at least 80% aggregate source line coverage and a
   30% floor for every non-entry source file. The current instrumented result is
-  88.55% across 141 passing tests.
+  88.56% across 142 passing tests.
 - VoiceOver, IME, multi-display positioning, and launch-at-login remain manual
   acceptance checks. The local checklist passed on 2026-07-27 and must be
   repeated for a future public-distribution candidate if scope changes.

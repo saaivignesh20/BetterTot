@@ -37,6 +37,7 @@ final class SettingsContentView: NSVisualEffectView {
     let spellChecking = NSSwitch()
     let smartQuotes = NSSwitch()
     let smartDashes = NSSwitch()
+    let writingTools = NSSwitch()
     let shortcutButton = NSButton(title: "", target: nil, action: nil)
     let fontLabel = NSTextField(labelWithString: "")
     let fontButton = SettingsContentView.actionButton(
@@ -295,6 +296,11 @@ final class SettingsContentView: NSVisualEffectView {
         configureSwitch(spellChecking, identifier: SettingsKeys.spellChecking, label: "Check spelling")
         configureSwitch(smartQuotes, identifier: SettingsKeys.smartQuotes, label: "Smart quotes")
         configureSwitch(smartDashes, identifier: SettingsKeys.smartDashes, label: "Smart dashes")
+        configureSwitch(
+            writingTools,
+            identifier: SettingsKeys.writingTools,
+            label: "Writing Tools and Siri"
+        )
 
         fontLabel.textColor = .secondaryLabelColor
         fontLabel.alignment = .right
@@ -337,6 +343,13 @@ final class SettingsContentView: NSVisualEffectView {
                         symbol: "minus",
                         tint: .systemPink,
                         control: smartDashes
+                    ),
+                    settingRow(
+                        title: "Writing Tools & Siri",
+                        detail: "Use Apple Intelligence writing assistance on supported Macs.",
+                        symbol: "wand.and.stars",
+                        tint: .systemBlue,
+                        control: writingTools
                     ),
                 ]),
             ]

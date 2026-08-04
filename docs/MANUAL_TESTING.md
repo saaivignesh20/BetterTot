@@ -61,6 +61,11 @@ Run `scripts/test.sh` before this checklist. Test an app bundle built with
 - [ ] A shortcut already owned by another app produces an actionable alert and
       leaves the previous shortcut active.
 - [ ] Font and text-substitution settings apply and survive relaunch.
+- [ ] On an Apple Intelligence-compatible Mac running macOS 15.1 or later,
+      Writing Tools & Siri is off by default; enabling it restores the system
+      writing-tools cursor affordance, and disabling it removes that affordance.
+- [ ] While a Writing Tools session is active, intermediate suggestions are not
+      written to the pad file; ending the session saves the accepted text.
 - [ ] Open Backup Folder reveals the expected local directory.
 - [ ] Check for Updates runs only after clicking the button, reports a useful
       result, and never downloads or installs software.

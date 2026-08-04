@@ -61,7 +61,6 @@ final class SettingsWindowTests: XCTestCase {
             defer: false
         )
         let view = SettingsContentView(frame: NSRect(origin: .zero, size: windowSize))
-        view.appearance = NSAppearance(named: .darkAqua)
         window.contentView = view
 
         let snapshotDirectory = ProcessInfo.processInfo.environment[
@@ -74,24 +73,37 @@ final class SettingsWindowTests: XCTestCase {
             )
         }
 
-        for page in SettingsContentView.Page.allCases {
-            view.show(page)
-            view.layoutSubtreeIfNeeded()
-            window.displayIfNeeded()
+        let appearances: [(name: String, value: NSAppearance.Name)] = [
+            ("light", .aqua),
+            ("dark", .darkAqua),
+            ("high-contrast-light", .accessibilityHighContrastAqua),
+            ("high-contrast-dark", .accessibilityHighContrastDarkAqua),
+        ]
+        for appearance in appearances {
+            view.appearance = NSAppearance(named: appearance.value)
+            for page in SettingsContentView.Page.allCases {
+                view.show(page)
+                view.layoutSubtreeIfNeeded()
+                window.displayIfNeeded()
 
-            let representation = try XCTUnwrap(
-                view.bitmapImageRepForCachingDisplay(in: view.bounds)
-            )
-            view.cacheDisplay(in: view.bounds, to: representation)
-            let png = try XCTUnwrap(
-                representation.representation(using: .png, properties: [:])
-            )
-            XCTAssertGreaterThan(png.count, 10_000, "\(page.title) rendered blank")
-
-            if let snapshotDirectory {
-                try png.write(
-                    to: snapshotDirectory.appendingPathComponent("\(page.identifier).png")
+                let representation = try XCTUnwrap(
+                    view.bitmapImageRepForCachingDisplay(in: view.bounds)
                 )
+                view.cacheDisplay(in: view.bounds, to: representation)
+                let png = try XCTUnwrap(
+                    representation.representation(using: .png, properties: [:])
+                )
+                XCTAssertGreaterThan(
+                    png.count,
+                    10_000,
+                    "\(page.title) rendered blank in \(appearance.name)"
+                )
+
+                if let snapshotDirectory {
+                    try png.write(to: snapshotDirectory.appendingPathComponent(
+                        "\(appearance.name)-\(page.identifier).png"
+                    ))
+                }
             }
         }
     }
@@ -203,12 +215,31 @@ final class SettingsWindowTests: XCTestCase {
             ["General", "Editor", "Storage", "Updates"]
         )
         XCTAssertTrue(buttons.allSatisfy { $0.image != nil })
-        XCTAssertTrue(buttons.allSatisfy { button in
-            button.subviews.compactMap { $0 as? NSImageView }.count == 1
-        })
+        let iconMaterials = try buttons.map { button in
+            try XCTUnwrap(
+                button.subviews.compactMap { $0 as? NSVisualEffectView }.first
+            )
+        }
+        let iconViews = try buttons.map { button in
+            try XCTUnwrap(
+                allSubviews(of: button).compactMap { $0 as? NSImageView }.first
+            )
+        }
+        XCTAssertTrue(iconMaterials.allSatisfy { $0.material == .selection })
+        XCTAssertTrue(iconMaterials.allSatisfy { $0.frame.width == $0.frame.height })
+        XCTAssertTrue(iconMaterials.allSatisfy { $0.layer?.cornerRadius == 14 })
+        XCTAssertTrue(buttons.allSatisfy { $0.layer?.backgroundColor == nil })
+        for (button, material) in zip(buttons, iconMaterials) {
+            let buttonSuperview = try XCTUnwrap(button.superview)
+            let materialCenter = NSPoint(x: material.bounds.midX, y: material.bounds.midY)
+            let hitPoint = material.convert(materialCenter, to: buttonSuperview)
+            XCTAssertTrue(button.hitTest(hitPoint) === button)
+        }
         XCTAssertTrue(buttons.allSatisfy { button in
             button.subviews.compactMap { $0 as? NSTextField }.count == 1
         })
+        XCTAssertEqual(iconViews[0].contentTintColor, .controlAccentColor)
+        XCTAssertEqual(iconViews[1].contentTintColor, .secondaryLabelColor)
         XCTAssertTrue(buttons.allSatisfy { $0.accessibilityRole() == .radioButton })
         XCTAssertEqual(buttons.map(\.state), [.on, .off, .off, .off])
         XCTAssertTrue(buttons.allSatisfy { $0.frame.width > $0.frame.height })
@@ -231,6 +262,8 @@ final class SettingsWindowTests: XCTestCase {
         ))
         buttons[0].keyDown(with: downArrow)
         XCTAssertEqual(buttons.map(\.state), [.off, .on, .off, .off])
+        XCTAssertEqual(iconViews[0].contentTintColor, .secondaryLabelColor)
+        XCTAssertEqual(iconViews[1].contentTintColor, .controlAccentColor)
         XCTAssertTrue(buttons[1].acceptsFirstResponder)
         XCTAssertFalse(buttons[0].acceptsFirstResponder)
 

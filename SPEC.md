@@ -151,7 +151,7 @@ The editor is a borderless, floating, nonactivating `NSPanel` containing:
   Settings. Pin is immediately beside Settings.
 - A scrollable plain-text `NSTextView`.
 - A status footer with text statistics and local-save state.
-- A `NSVisualEffectView` popover-style background.
+- A flat semantic background clipped to a continuous rounded silhouette.
 
 Panel behavior:
 
@@ -171,8 +171,8 @@ Panel behavior:
   and Settings. Inactive selectors are rings and the active selector is filled.
 - A footer shows live line, word, and character counts together with the
   current local-save state (`Saving`, `Saved`, recovery pending, or failure).
-- The panel uses system materials and semantic colors so its appearance follows
-  the active macOS light or dark appearance.
+- The panel uses semantic colors so its flat appearance follows the active
+  macOS light or dark appearance without showing the desktop through it.
 - Clicking the status item is excluded from outside-click handling so one click
   closes an open, unpinned panel without dismissing and reopening it.
 - Clicking AppKit auxiliary panels such as spelling and correction suggestions
@@ -257,9 +257,10 @@ shadows the normal line-start and line-end caret navigation in the editor.
 Settings are stored in standard app `UserDefaults`.
 
 The settings window uses a fixed-size vertical sidebar with four pages:
-`General`, `Editor`, `Storage`, and `Updates`. The selected row remains visibly
-active. Switching pages does not resize the window or interrupt the scratchpad
-panel.
+`General`, `Editor`, `Storage`, and `Updates`. Each page icon sits in a circular
+material container. The selected icon uses the system accent color while
+inactive icons remain gray; the row itself stays transparent. Switching pages
+does not resize the window or interrupt the scratchpad panel.
 
 Supported settings:
 

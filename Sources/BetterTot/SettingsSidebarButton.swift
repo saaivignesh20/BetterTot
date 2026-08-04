@@ -4,6 +4,7 @@ import QuartzCore
 final class SettingsSidebarButton: NSButton {
     let page: SettingsContentView.Page
 
+    private let iconMaterial = SettingsSidebarIconMaterialView()
     private let iconView = NSImageView()
     private let titleLabel = NSTextField(labelWithString: "")
     private var isHovering = false
@@ -24,10 +25,25 @@ final class SettingsSidebarButton: NSButton {
             NSImage.SymbolConfiguration(pointSize: 14, weight: .medium)
         )
 
+        iconMaterial.identifier = NSUserInterfaceItemIdentifier(
+            "settings-navigation-icon-material-\(page.identifier)"
+        )
+        iconMaterial.material = .selection
+        iconMaterial.blendingMode = .withinWindow
+        iconMaterial.state = .active
+        iconMaterial.wantsLayer = true
+        iconMaterial.layer?.cornerRadius = 14
+        iconMaterial.layer?.cornerCurve = .continuous
+        iconMaterial.layer?.masksToBounds = true
+        iconMaterial.translatesAutoresizingMaskIntoConstraints = false
+        iconMaterial.setAccessibilityElement(false)
+        addSubview(iconMaterial)
+
         iconView.image = image
         iconView.imageScaling = .scaleProportionallyDown
         iconView.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(iconView)
+        iconView.setAccessibilityElement(false)
+        iconMaterial.addSubview(iconView)
 
         titleLabel.stringValue = title
         titleLabel.lineBreakMode = .byTruncatingTail
@@ -35,19 +51,20 @@ final class SettingsSidebarButton: NSButton {
         titleLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         addSubview(titleLabel)
 
-        wantsLayer = true
-        layer?.cornerRadius = 6
-        layer?.cornerCurve = .continuous
         setAccessibilityRole(.radioButton)
         setAccessibilityLabel(title)
         toolTip = title
         NSLayoutConstraint.activate([
             heightAnchor.constraint(equalToConstant: 34),
-            iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
-            iconView.centerYAnchor.constraint(equalTo: centerYAnchor),
-            iconView.widthAnchor.constraint(equalToConstant: 18),
-            iconView.heightAnchor.constraint(equalToConstant: 18),
-            titleLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 8),
+            iconMaterial.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 4),
+            iconMaterial.centerYAnchor.constraint(equalTo: centerYAnchor),
+            iconMaterial.widthAnchor.constraint(equalToConstant: 28),
+            iconMaterial.heightAnchor.constraint(equalToConstant: 28),
+            iconView.centerXAnchor.constraint(equalTo: iconMaterial.centerXAnchor),
+            iconView.centerYAnchor.constraint(equalTo: iconMaterial.centerYAnchor),
+            iconView.widthAnchor.constraint(equalToConstant: 16),
+            iconView.heightAnchor.constraint(equalToConstant: 16),
+            titleLabel.leadingAnchor.constraint(equalTo: iconMaterial.trailingAnchor, constant: 10),
             titleLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
             titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -10),
         ])
@@ -131,19 +148,19 @@ final class SettingsSidebarButton: NSButton {
         let selected = state == .on
         let titleColor: NSColor
         let iconColor: NSColor
-        let background: NSColor
+        let materialTint: NSColor
         if selected {
             titleColor = .labelColor
             iconColor = .controlAccentColor
-            background = NSColor.controlAccentColor.withAlphaComponent(0.18)
+            materialTint = NSColor.controlAccentColor.withAlphaComponent(0.18)
         } else if isHovering {
             titleColor = .labelColor
             iconColor = .labelColor
-            background = NSColor.labelColor.withAlphaComponent(0.07)
+            materialTint = NSColor.labelColor.withAlphaComponent(0.08)
         } else {
             titleColor = .secondaryLabelColor
             iconColor = .secondaryLabelColor
-            background = .clear
+            materialTint = NSColor.labelColor.withAlphaComponent(0.04)
         }
 
         iconView.contentTintColor = iconColor
@@ -155,7 +172,13 @@ final class SettingsSidebarButton: NSButton {
         setAccessibilityValue(selected ? 1 : 0)
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        layer?.backgroundColor = background.cgColor
+        iconMaterial.layer?.backgroundColor = materialTint.cgColor
         CATransaction.commit()
+    }
+}
+
+private final class SettingsSidebarIconMaterialView: NSVisualEffectView {
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        nil
     }
 }

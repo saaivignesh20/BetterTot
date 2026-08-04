@@ -45,8 +45,10 @@ Run `scripts/test.sh` before this checklist. Test an app bundle built with
 
 ## Settings
 
-- [ ] General, Editor, Storage, and Updates are reachable from the top
+- [ ] General, Editor, Storage, and Updates are reachable from the vertical
       navigation and fit in both light and dark appearances.
+- [ ] Each settings icon remains inside one circular material container; the
+      selected icon uses the accent color and inactive icons remain gray.
 - [ ] A changed global shortcut works outside BetterTot and survives relaunch.
 - [ ] Plain letters are rejected while recording a shortcut.
 - [ ] Starting shortcut recording and then focusing a pinned pad ends recording

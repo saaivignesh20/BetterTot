@@ -18,6 +18,10 @@ final class SettingsSidebarButton: NSButton {
         setButtonType(.toggle)
         isBordered = false
         isTransparent = true
+        wantsLayer = true
+        layer?.cornerRadius = 8
+        layer?.cornerCurve = .continuous
+        layer?.masksToBounds = true
         let symbolImage = NSImage(
             systemSymbolName: symbol,
             accessibilityDescription: title
@@ -149,18 +153,22 @@ final class SettingsSidebarButton: NSButton {
         let titleColor: NSColor
         let iconColor: NSColor
         let materialTint: NSColor
+        let rowTint: NSColor?
         if selected {
             titleColor = .labelColor
             iconColor = .controlAccentColor
             materialTint = NSColor.controlAccentColor.withAlphaComponent(0.18)
+            rowTint = NSColor.controlAccentColor.withAlphaComponent(0.12)
         } else if isHovering {
             titleColor = .labelColor
             iconColor = .labelColor
             materialTint = NSColor.labelColor.withAlphaComponent(0.08)
+            rowTint = NSColor.labelColor.withAlphaComponent(0.05)
         } else {
             titleColor = .secondaryLabelColor
             iconColor = .secondaryLabelColor
             materialTint = NSColor.labelColor.withAlphaComponent(0.04)
+            rowTint = nil
         }
 
         iconView.contentTintColor = iconColor
@@ -172,6 +180,7 @@ final class SettingsSidebarButton: NSButton {
         setAccessibilityValue(selected ? 1 : 0)
         CATransaction.begin()
         CATransaction.setDisableActions(true)
+        layer?.backgroundColor = rowTint?.cgColor
         iconMaterial.layer?.backgroundColor = materialTint.cgColor
         CATransaction.commit()
     }

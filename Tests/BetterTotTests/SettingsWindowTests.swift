@@ -238,7 +238,9 @@ final class SettingsWindowTests: XCTestCase {
         XCTAssertTrue(iconMaterials.allSatisfy { $0.material == .selection })
         XCTAssertTrue(iconMaterials.allSatisfy { $0.frame.width == $0.frame.height })
         XCTAssertTrue(iconMaterials.allSatisfy { $0.layer?.cornerRadius == 14 })
-        XCTAssertTrue(buttons.allSatisfy { $0.layer?.backgroundColor == nil })
+        XCTAssertEqual(buttons[0].layer?.cornerRadius, 8)
+        XCTAssertNotNil(buttons[0].layer?.backgroundColor)
+        XCTAssertTrue(buttons.dropFirst().allSatisfy { $0.layer?.backgroundColor == nil })
         for (button, material) in zip(buttons, iconMaterials) {
             let buttonSuperview = try XCTUnwrap(button.superview)
             let materialCenter = NSPoint(x: material.bounds.midX, y: material.bounds.midY)
@@ -258,12 +260,36 @@ final class SettingsWindowTests: XCTestCase {
             1
         )
 
+        let window = try XCTUnwrap(controller.window)
+        let hoverEvent = try XCTUnwrap(NSEvent.mouseEvent(
+            with: .mouseMoved,
+            location: .zero,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 0,
+            pressure: 0
+        ))
+        buttons[1].mouseEntered(with: hoverEvent)
+        XCTAssertNotNil(buttons[1].layer?.backgroundColor)
+        buttons[1].mouseExited(with: hoverEvent)
+        XCTAssertNil(buttons[1].layer?.backgroundColor)
+
+        for appearanceName in [NSAppearance.Name.darkAqua, .aqua] {
+            window.appearance = NSAppearance(named: appearanceName)
+            buttons.forEach { $0.viewDidChangeEffectiveAppearance() }
+            XCTAssertNotNil(buttons[0].layer?.backgroundColor)
+            XCTAssertTrue(buttons.dropFirst().allSatisfy { $0.layer?.backgroundColor == nil })
+        }
+
         let downArrow = try XCTUnwrap(NSEvent.keyEvent(
             with: .keyDown,
             location: .zero,
             modifierFlags: [],
             timestamp: 0,
-            windowNumber: try XCTUnwrap(controller.window).windowNumber,
+            windowNumber: window.windowNumber,
             context: nil,
             characters: "",
             charactersIgnoringModifiers: "",
@@ -274,6 +300,8 @@ final class SettingsWindowTests: XCTestCase {
         XCTAssertEqual(buttons.map(\.state), [.off, .on, .off, .off, .off])
         XCTAssertEqual(iconViews[0].contentTintColor, .secondaryLabelColor)
         XCTAssertEqual(iconViews[1].contentTintColor, .controlAccentColor)
+        XCTAssertNil(buttons[0].layer?.backgroundColor)
+        XCTAssertNotNil(buttons[1].layer?.backgroundColor)
         XCTAssertTrue(buttons[1].acceptsFirstResponder)
         XCTAssertFalse(buttons[0].acceptsFirstResponder)
 

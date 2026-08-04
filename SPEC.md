@@ -634,14 +634,14 @@ Verification performed while writing this spec:
 ```text
 swift test
 Executed 142 tests, with 0 failures.
-Line coverage: 88.56% (4637/5236), minimum 80.00%.
+Line coverage: 88.79% (4657/5245), minimum 80.00%.
 ```
 
 ## Current Gaps and Risks
 
 - `scripts/test.sh` enforces at least 80% aggregate source line coverage and a
   30% floor for every non-entry source file. The current instrumented result is
-  88.56% across 142 passing tests.
+  88.79% across 142 passing tests.
 - VoiceOver, IME, multi-display positioning, and launch-at-login remain manual
   acceptance checks. The local checklist passed on 2026-07-27 and must be
   repeated for a future public-distribution candidate if scope changes.

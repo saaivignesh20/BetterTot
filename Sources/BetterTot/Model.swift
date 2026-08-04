@@ -21,6 +21,52 @@ struct StoredSelection: Codable, Equatable {
     }
 }
 
+enum PadColorIdentifier: String, CaseIterable, Codable {
+    case red
+    case orange
+    case yellow
+    case green
+    case teal
+    case blue
+    case purple
+
+    static let fallbackPalette: [PadColorIdentifier] = [
+        .yellow,
+        .orange,
+        .red,
+        .purple,
+        .blue,
+        .teal,
+        .green,
+    ]
+}
+
+enum PadCustomizationError: LocalizedError, Equatable {
+    case workspaceUnavailable
+    case unknownPad
+    case invalidName
+    case nameTooLong
+    case invalidColor
+    case metadataWriteFailed
+
+    var errorDescription: String? {
+        switch self {
+        case .workspaceUnavailable:
+            "The workspace is not available."
+        case .unknownPad:
+            "That scratchpad no longer exists."
+        case .invalidName:
+            "Pad names cannot contain line breaks, tabs, or control characters."
+        case .nameTooLong:
+            "Pad names can contain at most \(PadMetadata.maximumNameLength) characters."
+        case .invalidColor:
+            "That pad color is not supported."
+        case .metadataWriteFailed:
+            "The pad settings could not be saved."
+        }
+    }
+}
+
 struct PadMetadata: Codable, Equatable {
     let id: PadID
     var position: Int
@@ -30,6 +76,50 @@ struct PadMetadata: Codable, Equatable {
     var scrollOffset: Double
     var contentRevision: UInt64
     var updatedAt: Date
+
+    static let maximumNameLength = 24
+
+    var defaultName: String {
+        "Scratchpad \(position + 1)"
+    }
+
+    var displayName: String {
+        Self.normalizedName(name) ?? defaultName
+    }
+
+    var accessibilityName: String {
+        guard let name = Self.normalizedName(name) else { return defaultName }
+        return "\(defaultName), \(name)"
+    }
+
+    var resolvedColorIdentifier: PadColorIdentifier {
+        if let colorIdentifier,
+           let color = PadColorIdentifier(rawValue: colorIdentifier.lowercased()) {
+            return color
+        }
+        return PadColorIdentifier.fallbackPalette[
+            position % PadColorIdentifier.fallbackPalette.count
+        ]
+    }
+
+    static func normalizedName(_ candidate: String?) -> String? {
+        guard let candidate else { return nil }
+        let trimmed = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    static func validatedName(_ candidate: String?) throws -> String? {
+        let forbiddenScalars = CharacterSet.controlCharacters.union(.newlines)
+        if let candidate,
+           candidate.unicodeScalars.contains(where: forbiddenScalars.contains) {
+            throw PadCustomizationError.invalidName
+        }
+        guard let normalized = normalizedName(candidate) else { return nil }
+        guard normalized.count <= maximumNameLength else {
+            throw PadCustomizationError.nameTooLong
+        }
+        return normalized
+    }
 
     static func empty(position: Int, id: PadID = PadID(), now: Date = Date()) -> PadMetadata {
         PadMetadata(

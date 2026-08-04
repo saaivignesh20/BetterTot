@@ -181,6 +181,7 @@ final class AppDelegateTests: XCTestCase {
         XCTAssertEqual(factoryCalls, 1)
         XCTAssertEqual(settings.presentationCount, 2)
         XCTAssertTrue(delegate?.settingsController === settings)
+        XCTAssertTrue(settings.padCustomizationManager === delegate?.panelController)
     }
 
     func testTerminationWithoutSetupIsImmediate() {
@@ -368,8 +369,13 @@ private final class ShortcutServiceSpy: GlobalShortcutService {
 @MainActor
 private final class SettingsPresenterSpy: SettingsPresenting {
     private(set) var presentationCount = 0
+    private(set) weak var padCustomizationManager: (any PadCustomizationManaging)?
 
     func present() {
         presentationCount += 1
+    }
+
+    func connectPadCustomizationManager(_ manager: any PadCustomizationManaging) {
+        padCustomizationManager = manager
     }
 }

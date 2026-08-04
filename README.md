@@ -51,6 +51,7 @@ reliably.
 ## Features
 
 - [x] Seven color-coded scratchpads available from the menu bar
+- [x] Custom pad names and colors with immediate panel updates
 - [x] Global, configurable keyboard shortcut
 - [x] Pinning by dragging, with position restored between launches
 - [x] Per-pad undo history, selection, and scroll position
@@ -59,7 +60,7 @@ reliably.
 - [x] Crash recovery through an append-only journal
 - [x] Atomic saves and rolling hourly, daily, and manual backups
 - [x] Plain-text import and export
-- [x] Native settings for behavior, editing, storage, and updates
+- [x] Native settings for behavior, pads, editing, storage, and updates
 - [x] Explicit, manual-only checks for GitHub release metadata
 - [x] Versioned ZIP and macOS installer artifacts for tagged builds
 

@@ -3,6 +3,11 @@ import AppKit
 @MainActor
 protocol SettingsPresenting: AnyObject {
     func present()
+    func connectPadCustomizationManager(_ manager: any PadCustomizationManaging)
+}
+
+extension SettingsPresenting {
+    func connectPadCustomizationManager(_ manager: any PadCustomizationManaging) {}
 }
 
 extension SettingsWindowController: SettingsPresenting {}
@@ -230,9 +235,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func openSettings(_ sender: Any?) {
-        guard let store, let shortcutService else { return }
+        guard let store, let shortcutService, let panelController else { return }
         if settingsController == nil {
-            settingsController = dependencies.makeSettingsController(store, shortcutService)
+            let controller = dependencies.makeSettingsController(store, shortcutService)
+            controller.connectPadCustomizationManager(panelController)
+            settingsController = controller
         }
         settingsController?.present()
     }

@@ -45,11 +45,16 @@ Run `scripts/test.sh` before this checklist. Test an app bundle built with
 
 ## Settings
 
-- [ ] General, Editor, Storage, and Updates are reachable from the vertical
+- [ ] General, Pads, Editor, Storage, and Updates are reachable from the vertical
       navigation and fit in both light and dark appearances.
 - [ ] Each settings icon remains inside one circular material container; the
       selected icon uses the accent color and inactive icons remain gray.
 - [ ] A changed global shortcut works outside BetterTot and survives relaunch.
+- [ ] Select each pad on the Pads page, assign a name and color, and confirm its
+      panel dot, tooltip, and editor accessibility label update immediately.
+- [ ] Relaunch BetterTot and confirm custom pad names and colors persist.
+- [ ] Clearing a custom name restores `Scratchpad N`; overlong and multiline
+      names show an error without changing the existing customization.
 - [ ] Plain letters are rejected while recording a shortcut.
 - [ ] Starting shortcut recording and then focusing a pinned pad ends recording
       and sends typing to the note.
@@ -62,7 +67,7 @@ Run `scripts/test.sh` before this checklist. Test an app bundle built with
 
 ## Accessibility
 
-- [ ] VoiceOver announces pad changes as `Scratchpad N`, including the empty
-      state when appropriate.
+- [ ] VoiceOver announces pad changes as `Scratchpad N`, includes a custom name
+      when present, and includes the empty state when appropriate.
 - [ ] The editor identifies the selected pad.
 - [ ] Every panel and settings control is keyboard-reachable and labelled.

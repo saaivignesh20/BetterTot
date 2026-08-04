@@ -23,27 +23,27 @@ enum PanelSaveState: Equatable {
 
 final class PadDotButton: NSButton {
     let padIndex: Int
-    let dotColor: NSColor
+    private(set) var dotColor: NSColor
+    private var dotDescription: String
 
     var isSelectedPad = false {
         didSet { updatePresentation() }
     }
 
-    init(index: Int, color: NSColor) {
-        padIndex = index
-        dotColor = color
+    init(pad: PadMetadata) {
+        padIndex = pad.position
+        dotColor = PanelContentView.padColor(for: pad)
+        dotDescription = pad.accessibilityName
         super.init(frame: .zero)
 
-        tag = index
-        identifier = NSUserInterfaceItemIdentifier("pad-dot-\(index + 1)")
+        tag = pad.position
+        identifier = NSUserInterfaceItemIdentifier("pad-dot-\(pad.position + 1)")
         title = ""
         imagePosition = .imageOnly
         imageScaling = .scaleNone
         isBordered = false
         refusesFirstResponder = true
-        toolTip = "Scratchpad \(index + 1)"
-        setAccessibilityLabel("Scratchpad \(index + 1)")
-        contentTintColor = color
+        contentTintColor = dotColor
         translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
             widthAnchor.constraint(equalToConstant: 32),
@@ -55,15 +55,24 @@ final class PadDotButton: NSButton {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
+    func update(with pad: PadMetadata) {
+        guard pad.position == padIndex else { return }
+        dotColor = PanelContentView.padColor(for: pad)
+        dotDescription = pad.accessibilityName
+        contentTintColor = dotColor
+        updatePresentation()
+    }
+
     private func updatePresentation() {
-        let description = "Scratchpad \(padIndex + 1)"
         let symbol = isSelectedPad ? "circle.fill" : "circle"
         let configuration = NSImage.SymbolConfiguration(pointSize: 19, weight: .medium)
         image = NSImage(
             systemSymbolName: symbol,
-            accessibilityDescription: description
+            accessibilityDescription: dotDescription
         )?.withSymbolConfiguration(configuration)
-        image?.accessibilityDescription = description
+        image?.accessibilityDescription = dotDescription
+        toolTip = dotDescription
+        setAccessibilityLabel(dotDescription)
         setAccessibilityValue(isSelectedPad ? "Selected" : "Not selected")
     }
 }
@@ -99,9 +108,7 @@ final class PanelContentView: NSView {
             label: "Close",
             identifier: "panel-close"
         )
-        padButtons = pads.map {
-            PadDotButton(index: $0.position, color: Self.padColor(for: $0))
-        }
+        padButtons = pads.map { PadDotButton(pad: $0) }
         pinButton = Self.toolbarButton(
             symbol: "pin",
             label: "Pin",
@@ -285,6 +292,15 @@ final class PanelContentView: NSView {
         }
     }
 
+    func updatePads(_ pads: [PadMetadata]) {
+        let padsByPosition = Dictionary(uniqueKeysWithValues: pads.map { ($0.position, $0) })
+        for button in padButtons {
+            if let pad = padsByPosition[button.padIndex] {
+                button.update(with: pad)
+            }
+        }
+    }
+
     func updatePinned(_ pinned: Bool) {
         let label = pinned ? "Unpin" : "Pin"
         let symbol = pinned ? "pin.fill" : "pin"
@@ -421,28 +437,6 @@ final class PanelContentView: NSView {
     }
 
     static func padColor(for pad: PadMetadata) -> NSColor {
-        let named: [String: NSColor] = [
-            "red": .systemRed,
-            "orange": .systemOrange,
-            "yellow": .systemYellow,
-            "green": .systemGreen,
-            "teal": .systemTeal,
-            "blue": .systemBlue,
-            "purple": .systemPurple,
-        ]
-        if let identifier = pad.colorIdentifier?.lowercased(),
-           let color = named[identifier] {
-            return color
-        }
-        let palette: [NSColor] = [
-            .systemYellow,
-            .systemOrange,
-            .systemRed,
-            .systemPurple,
-            .systemBlue,
-            .systemTeal,
-            .systemGreen,
-        ]
-        return palette[pad.position % palette.count]
+        pad.resolvedColorIdentifier.color
     }
 }

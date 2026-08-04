@@ -34,7 +34,7 @@ final class SettingsWindowTests: XCTestCase {
         XCTAssertEqual(SettingsKeys.editorFont(in: defaults).fontName, "AmericanTypewriter")
     }
 
-    func testSettingsContentViewBuildsFourSidebarPages() throws {
+    func testSettingsContentViewBuildsFiveSidebarPages() throws {
         let view = SettingsContentView()
         let subviews = allSubviews(of: view)
 
@@ -42,13 +42,13 @@ final class SettingsWindowTests: XCTestCase {
             subviews.filter {
                 $0.identifier?.rawValue.hasPrefix("settings-page-") == true
             }.count,
-            4
+            5
         )
         XCTAssertEqual(
             subviews.compactMap { $0 as? NSButton }.filter {
                 $0.identifier?.rawValue.hasPrefix("settings-navigation-") == true
             }.count,
-            4
+            5
         )
     }
 
@@ -192,7 +192,7 @@ final class SettingsWindowTests: XCTestCase {
         XCTAssertTrue(labels.contains { $0.stringValue.contains("17") && $0.stringValue.contains("Menlo") })
     }
 
-    func testVerticalSidebarSwitchesBetweenFourSettingsPages() async throws {
+    func testVerticalSidebarSwitchesBetweenFiveSettingsPages() async throws {
         defaults.register(defaults: SettingsKeys.defaults)
         let controller = try await makeController(
             shortcutService: ShortcutServiceStub(currentShortcut: .defaultShortcut)
@@ -208,11 +208,11 @@ final class SettingsWindowTests: XCTestCase {
                 .compactMap { $0 as? NSStackView }
                 .first { $0.identifier?.rawValue == "settings-navigation" }
         )
-        XCTAssertEqual(buttons.count, 4)
+        XCTAssertEqual(buttons.count, 5)
         XCTAssertEqual(navigation.accessibilityRole(), .radioGroup)
         XCTAssertEqual(
             buttons.map(\.title),
-            ["General", "Editor", "Storage", "Updates"]
+            ["General", "Pads", "Editor", "Storage", "Updates"]
         )
         XCTAssertTrue(buttons.allSatisfy { $0.image != nil })
         let iconMaterials = try buttons.map { button in
@@ -241,7 +241,7 @@ final class SettingsWindowTests: XCTestCase {
         XCTAssertEqual(iconViews[0].contentTintColor, .controlAccentColor)
         XCTAssertEqual(iconViews[1].contentTintColor, .secondaryLabelColor)
         XCTAssertTrue(buttons.allSatisfy { $0.accessibilityRole() == .radioButton })
-        XCTAssertEqual(buttons.map(\.state), [.on, .off, .off, .off])
+        XCTAssertEqual(buttons.map(\.state), [.on, .off, .off, .off, .off])
         XCTAssertTrue(buttons.allSatisfy { $0.frame.width > $0.frame.height })
         XCTAssertLessThan(
             buttons.map(\.frame.midX).max()! - buttons.map(\.frame.midX).min()!,
@@ -261,7 +261,7 @@ final class SettingsWindowTests: XCTestCase {
             keyCode: 125
         ))
         buttons[0].keyDown(with: downArrow)
-        XCTAssertEqual(buttons.map(\.state), [.off, .on, .off, .off])
+        XCTAssertEqual(buttons.map(\.state), [.off, .on, .off, .off, .off])
         XCTAssertEqual(iconViews[0].contentTintColor, .secondaryLabelColor)
         XCTAssertEqual(iconViews[1].contentTintColor, .controlAccentColor)
         XCTAssertTrue(buttons[1].acceptsFirstResponder)
@@ -281,15 +281,152 @@ final class SettingsWindowTests: XCTestCase {
             XCTAssertEqual(visiblePages.count, 1)
             XCTAssertEqual(
                 visiblePages.first?.identifier?.rawValue,
-                "settings-page-\(["general", "editor", "storage", "updates"][index])"
+                "settings-page-\(["general", "pads", "editor", "storage", "updates"][index])"
             )
         }
 
-        buttons[2].performClick(nil)
-        XCTAssertTrue(controller.window?.firstResponder === buttons[2])
-        buttons[2].keyDown(with: downArrow)
-        XCTAssertEqual(buttons.map(\.state), [.off, .off, .off, .on])
+        buttons[3].performClick(nil)
         XCTAssertTrue(controller.window?.firstResponder === buttons[3])
+        buttons[3].keyDown(with: downArrow)
+        XCTAssertEqual(buttons.map(\.state), [.off, .off, .off, .off, .on])
+        XCTAssertTrue(controller.window?.firstResponder === buttons[4])
+    }
+
+    func testPadsPageEditsSelectedPadNameAndColorThroughManager() async throws {
+        defaults.register(defaults: SettingsKeys.defaults)
+        let controller = try await makeController(
+            shortcutService: ShortcutServiceStub(currentShortcut: .defaultShortcut)
+        )
+        let manager = PadCustomizationManagerStub()
+        controller.connectPadCustomizationManager(manager)
+        controller.present()
+        defer { controller.close() }
+
+        try settingsNavigationButton(.pads, in: controller).performClick(nil)
+        let secondPad = try settingsButton(identifier: "settings-pad-selector-2", in: controller)
+        secondPad.performClick(nil)
+
+        let nameField = try settingsLabel(identifier: "settings-pad-name", in: controller)
+        XCTAssertTrue(nameField.isEditable)
+        XCTAssertEqual(nameField.stringValue, "")
+        XCTAssertEqual(nameField.placeholderString, "Scratchpad 2")
+
+        let nameSaved = expectation(description: "pad name saved")
+        manager.updateExpectation = nameSaved
+        nameField.stringValue = "Research"
+        XCTAssertTrue(nameField.sendAction(nameField.action, to: nameField.target))
+        await fulfillment(of: [nameSaved], timeout: 1)
+        await Task.yield()
+
+        XCTAssertEqual(manager.updates.last?.id, manager.padMetadata[1].id)
+        XCTAssertEqual(manager.updates.last?.name, "Research")
+        XCTAssertNil(manager.updates.last?.colorIdentifier)
+
+        let colorSaved = expectation(description: "pad color saved")
+        manager.updateExpectation = colorSaved
+        let blue = try settingsButton(identifier: "settings-pad-color-blue", in: controller)
+        blue.performClick(nil)
+        await fulfillment(of: [colorSaved], timeout: 1)
+        await Task.yield()
+
+        XCTAssertEqual(manager.updates.last?.name, "Research")
+        XCTAssertEqual(manager.updates.last?.colorIdentifier, PadColorIdentifier.blue.rawValue)
+        XCTAssertEqual(blue.state, .on)
+    }
+
+    func testPadsPageRevertsAndReportsPersistenceFailure() async throws {
+        defaults.register(defaults: SettingsKeys.defaults)
+        var errors: [(String, String)] = []
+        let controller = try await makeController(
+            shortcutService: ShortcutServiceStub(currentShortcut: .defaultShortcut),
+            showError: { errors.append(($0, $1)) }
+        )
+        let manager = PadCustomizationManagerStub()
+        manager.error = PadCustomizationError.metadataWriteFailed
+        controller.connectPadCustomizationManager(manager)
+        controller.present()
+        defer { controller.close() }
+
+        try settingsNavigationButton(.pads, in: controller).performClick(nil)
+        let attempted = expectation(description: "pad update attempted")
+        manager.updateExpectation = attempted
+        let nameField = try settingsLabel(identifier: "settings-pad-name", in: controller)
+        nameField.stringValue = "Research"
+        XCTAssertTrue(nameField.sendAction(nameField.action, to: nameField.target))
+        await fulfillment(of: [attempted], timeout: 1)
+        await Task.yield()
+
+        XCTAssertEqual(errors.first?.0, "Could not update the scratchpad.")
+        XCTAssertEqual(errors.first?.1, PadCustomizationError.metadataWriteFailed.localizedDescription)
+        XCTAssertEqual(nameField.stringValue, "")
+        XCTAssertTrue(nameField.isEnabled)
+        XCTAssertTrue(manager.updates.isEmpty)
+    }
+
+    func testPadSwitchDuringNameSaveRemainsOnRequestedPad() async throws {
+        defaults.register(defaults: SettingsKeys.defaults)
+        let controller = try await makeController(
+            shortcutService: ShortcutServiceStub(currentShortcut: .defaultShortcut)
+        )
+        let manager = PadCustomizationManagerStub()
+        manager.suspendUpdates = true
+        controller.connectPadCustomizationManager(manager)
+        controller.present()
+        defer { controller.close() }
+
+        try settingsNavigationButton(.pads, in: controller).performClick(nil)
+        let started = expectation(description: "pad update started")
+        let completed = expectation(description: "pad update completed")
+        manager.updateExpectation = started
+        manager.updateCompletedExpectation = completed
+        let nameField = try settingsLabel(identifier: "settings-pad-name", in: controller)
+        nameField.stringValue = "Research"
+        XCTAssertTrue(nameField.sendAction(nameField.action, to: nameField.target))
+        await fulfillment(of: [started], timeout: 1)
+
+        let secondPad = try settingsButton(identifier: "settings-pad-selector-2", in: controller)
+        secondPad.performClick(nil)
+        XCTAssertEqual(nameField.placeholderString, "Scratchpad 2")
+
+        manager.resumeUpdate()
+        await fulfillment(of: [completed], timeout: 1)
+        await Task.yield()
+
+        XCTAssertEqual(nameField.placeholderString, "Scratchpad 2")
+        XCTAssertEqual(nameField.stringValue, "")
+        XCTAssertEqual(manager.padMetadata[0].name, "Research")
+    }
+
+    func testClosingDuringFailedPadSaveStillReportsFailure() async throws {
+        defaults.register(defaults: SettingsKeys.defaults)
+        var errors: [(String, String)] = []
+        let controller = try await makeController(
+            shortcutService: ShortcutServiceStub(currentShortcut: .defaultShortcut),
+            showError: { errors.append(($0, $1)) }
+        )
+        let manager = PadCustomizationManagerStub()
+        manager.suspendUpdates = true
+        manager.error = PadCustomizationError.metadataWriteFailed
+        controller.connectPadCustomizationManager(manager)
+        controller.present()
+
+        try settingsNavigationButton(.pads, in: controller).performClick(nil)
+        let started = expectation(description: "pad update started")
+        let completed = expectation(description: "pad update completed")
+        manager.updateExpectation = started
+        manager.updateCompletedExpectation = completed
+        let nameField = try settingsLabel(identifier: "settings-pad-name", in: controller)
+        nameField.stringValue = "Research"
+        XCTAssertTrue(nameField.sendAction(nameField.action, to: nameField.target))
+        await fulfillment(of: [started], timeout: 1)
+
+        controller.close()
+        manager.resumeUpdate()
+        await fulfillment(of: [completed], timeout: 1)
+        await Task.yield()
+
+        XCTAssertEqual(errors.first?.0, "Could not update the scratchpad.")
+        XCTAssertEqual(errors.first?.1, PadCustomizationError.metadataWriteFailed.localizedDescription)
     }
 
     func testUpdatesPageChecksOnDemandAndOpensValidatedReleasePage() async throws {
@@ -707,6 +844,56 @@ private final class ShortcutServiceStub: GlobalShortcutService {
 
     func unregister() {
         currentShortcut = nil
+    }
+}
+
+@MainActor
+private final class PadCustomizationManagerStub: PadCustomizationManaging {
+    struct Update {
+        let id: PadID
+        let name: String?
+        let colorIdentifier: String?
+    }
+
+    private(set) var padMetadata = WorkspaceMetadata.fresh().pads
+        .sorted { $0.position < $1.position }
+    private(set) var updates: [Update] = []
+    var updateExpectation: XCTestExpectation?
+    var updateCompletedExpectation: XCTestExpectation?
+    var error: Error?
+    var suspendUpdates = false
+    private var updateContinuation: CheckedContinuation<Void, Never>?
+
+    func updatePadAppearance(
+        _ id: PadID,
+        name: String?,
+        colorIdentifier: String?
+    ) async throws -> PadMetadata {
+        updateExpectation?.fulfill()
+        if suspendUpdates {
+            await withCheckedContinuation { updateContinuation = $0 }
+        }
+        if let error {
+            updateCompletedExpectation?.fulfill()
+            throw error
+        }
+        guard let index = padMetadata.firstIndex(where: { $0.id == id }) else {
+            throw PadCustomizationError.unknownPad
+        }
+        var pad = padMetadata[index]
+        pad.name = PadMetadata.normalizedName(name)
+        pad.colorIdentifier = colorIdentifier
+        var updatedPads = padMetadata
+        updatedPads[index] = pad
+        padMetadata = updatedPads
+        updates.append(Update(id: id, name: pad.name, colorIdentifier: colorIdentifier))
+        updateCompletedExpectation?.fulfill()
+        return pad
+    }
+
+    func resumeUpdate() {
+        updateContinuation?.resume()
+        updateContinuation = nil
     }
 }
 

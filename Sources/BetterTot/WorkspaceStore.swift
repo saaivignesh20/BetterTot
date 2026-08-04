@@ -216,6 +216,47 @@ actor WorkspaceStore {
         saveMetadata()
     }
 
+    func updatePadAppearance(
+        _ id: PadID,
+        name: String?,
+        colorIdentifier: String?
+    ) throws -> PadMetadata {
+        guard let current = metadata else {
+            throw PadCustomizationError.workspaceUnavailable
+        }
+        guard let index = current.pads.firstIndex(where: { $0.id == id }) else {
+            throw PadCustomizationError.unknownPad
+        }
+        let validatedName = try PadMetadata.validatedName(name)
+        let validatedColor: String?
+        if let colorIdentifier {
+            guard let color = PadColorIdentifier(rawValue: colorIdentifier.lowercased()) else {
+                throw PadCustomizationError.invalidColor
+            }
+            validatedColor = color.rawValue
+        } else {
+            validatedColor = nil
+        }
+
+        var updatedPad = current.pads[index]
+        updatedPad.name = validatedName
+        updatedPad.colorIdentifier = validatedColor
+        updatedPad.updatedAt = Date()
+
+        var candidate = current
+        candidate.pads[index] = updatedPad
+        do {
+            try writeMetadata(candidate)
+        } catch {
+            let diagnostic = error as NSError
+            NSLog("BetterTot: metadata save failed (%@:%ld)",
+                  diagnostic.domain, diagnostic.code)
+            throw PadCustomizationError.metadataWriteFailed
+        }
+        metadata = candidate
+        return updatedPad
+    }
+
     func markCleanShutdown() {
         guard metadata != nil else { return }
         metadata!.lastCleanShutdown = true
@@ -253,13 +294,17 @@ actor WorkspaceStore {
     private func saveMetadata() {
         guard let metadata else { return }
         do {
-            let data = try Self.encoder.encode(metadata)
-            try data.write(to: metadataURL, options: .atomic)
+            try writeMetadata(metadata)
         } catch {
             let diagnostic = error as NSError
             NSLog("BetterTot: metadata save failed (%@:%ld)",
                   diagnostic.domain, diagnostic.code)
         }
+    }
+
+    private func writeMetadata(_ metadata: WorkspaceMetadata) throws {
+        let data = try Self.encoder.encode(metadata)
+        try data.write(to: metadataURL, options: .atomic)
     }
 
     private static let encoder: JSONEncoder = {

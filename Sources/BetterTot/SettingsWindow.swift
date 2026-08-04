@@ -74,7 +74,9 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
 
     private var recordingMonitor: Any?
     private var updateTask: Task<Void, Never>?
+    private var padUpdateTask: Task<Void, Never>?
     private var availableReleaseURL: URL?
+    private weak var padCustomizationManager: (any PadCustomizationManaging)?
 
     init(
         store: WorkspaceStore,
@@ -150,6 +152,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
 
     deinit {
         updateTask?.cancel()
+        padUpdateTask?.cancel()
         if let recordingMonitor {
             NSEvent.removeMonitor(recordingMonitor)
         }
@@ -161,6 +164,12 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         NSApp.activate(ignoringOtherApps: true)
         window?.center()
         window?.makeKeyAndOrderFront(nil)
+    }
+
+    func connectPadCustomizationManager(_ manager: any PadCustomizationManaging) {
+        padCustomizationManager = manager
+        settingsView.padCustomizationView.updatePads(manager.padMetadata)
+        settingsView.padCustomizationView.setEditingEnabled(true)
     }
 
     private func buildContent() {
@@ -182,6 +191,10 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         settingsView.viewUpdateButton.action = #selector(viewUpdatePressed)
         settingsView.onNavigate = { [weak self] _ in self?.endRecording() }
         settingsView.onOpenBackupFolder = { [weak self] in self?.openBackupFolder() }
+        settingsView.padCustomizationView.onUpdateRequested = {
+            [weak self] id, name, colorIdentifier in
+            self?.updatePadAppearance(id, name: name, colorIdentifier: colorIdentifier)
+        }
         window?.contentView = settingsView
     }
 
@@ -219,6 +232,14 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         if AppVersion(currentVersion) == nil {
             settingsView.checkUpdatesButton.isEnabled = false
             settingsView.updateStatus.stringValue = "Update checks require a bundled build."
+        }
+
+
+        if let padCustomizationManager {
+            settingsView.padCustomizationView.updatePads(padCustomizationManager.padMetadata)
+            settingsView.padCustomizationView.setEditingEnabled(padUpdateTask == nil)
+        } else {
+            settingsView.padCustomizationView.setEditingEnabled(false)
         }
 
         Task { @MainActor [weak self] in
@@ -340,6 +361,33 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
 
     private func openBackupFolder() {
         openURL(store.backupsDirectory)
+    }
+
+    private func updatePadAppearance(
+        _ id: PadID,
+        name: String?,
+        colorIdentifier: String?
+    ) {
+        guard padUpdateTask == nil, let manager = padCustomizationManager else { return }
+        settingsView.padCustomizationView.setEditingEnabled(false)
+        padUpdateTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                _ = try await manager.updatePadAppearance(
+                    id,
+                    name: name,
+                    colorIdentifier: colorIdentifier
+                )
+                guard !Task.isCancelled else { return }
+                settingsView.padCustomizationView.updatePads(manager.padMetadata)
+            } catch {
+                guard !Task.isCancelled else { return }
+                settingsView.padCustomizationView.updatePads(manager.padMetadata)
+                showError("Could not update the scratchpad.", error.localizedDescription)
+            }
+            settingsView.padCustomizationView.setEditingEnabled(true)
+            padUpdateTask = nil
+        }
     }
 
     // MARK: - Updates

@@ -377,6 +377,35 @@ final class PanelControllerTests: XCTestCase {
         XCTAssertEqual(buttons[1].accessibilityValue() as? String, "Selected")
     }
 
+    func testPadAppearanceUpdateRefreshesPanelAndPersists() async throws {
+        let pad = orderedPads[0]
+        controller.applyToCurrentPad("Keep the editor intact", replacing: true)
+        controller.textView.setSelectedRange(NSRange(location: 5, length: 3))
+        let undoManager = controller.undoManager(for: controller.textView)
+
+        let updated = try await controller.updatePadAppearance(
+            pad.id,
+            name: "Research",
+            colorIdentifier: PadColorIdentifier.blue.rawValue
+        )
+
+        XCTAssertEqual(updated.name, "Research")
+        XCTAssertEqual(updated.colorIdentifier, PadColorIdentifier.blue.rawValue)
+        XCTAssertEqual(controller.padMetadata[0], updated)
+        XCTAssertEqual(padButtons[0].toolTip, "Scratchpad 1, Research")
+        XCTAssertEqual(padButtons[0].accessibilityLabel(), "Scratchpad 1, Research")
+        XCTAssertEqual(padButtons[0].contentTintColor, .systemBlue)
+        XCTAssertEqual(controller.textView.accessibilityLabel(), "Scratchpad 1, Research")
+        XCTAssertEqual(controller.currentSourceText, "Keep the editor intact")
+        XCTAssertEqual(controller.textView.selectedRange(), NSRange(location: 5, length: 3))
+        XCTAssertTrue(undoManager === controller.undoManager(for: controller.textView))
+
+        let reloaded = try await WorkspaceStore(root: root).load()
+        let persisted = try XCTUnwrap(reloaded.metadata.pads.first { $0.id == pad.id })
+        XCTAssertEqual(persisted.name, "Research")
+        XCTAssertEqual(persisted.colorIdentifier, PadColorIdentifier.blue.rawValue)
+    }
+
     func testCloseButtonDismissesAttachedAndPinnedPanels() throws {
         let button = try panelButton(identifier: "panel-close")
 

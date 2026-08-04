@@ -75,6 +75,108 @@ final class WorkspaceStoreTests: XCTestCase {
         XCTAssertEqual(reloaded.texts[id], "newer")
     }
 
+    func testPadAppearanceUpdateValidatesNormalizesAndPersists() async throws {
+        let store = makeStore()
+        let snapshot = try await store.load()
+        let pad = snapshot.metadata.pads[0]
+        let selection = StoredSelection(utf16Location: 2, utf16Length: 3)
+        await store.updatePadState(pad.id, selection: selection, scrollOffset: 42)
+        let committed = await store.commit(pad.id, text: "keep this text", revision: 1)
+        XCTAssertTrue(committed)
+
+        let updated = try await store.updatePadAppearance(
+            pad.id,
+            name: "  Research  ",
+            colorIdentifier: PadColorIdentifier.blue.rawValue
+        )
+
+        XCTAssertEqual(updated.name, "Research")
+        XCTAssertEqual(updated.colorIdentifier, PadColorIdentifier.blue.rawValue)
+        XCTAssertEqual(updated.contentRevision, 1)
+        XCTAssertEqual(updated.selection, selection)
+        XCTAssertEqual(updated.scrollOffset, 42)
+
+        let reloaded = try await makeStore().load()
+        let persisted = try XCTUnwrap(reloaded.metadata.pads.first { $0.id == pad.id })
+        XCTAssertEqual(persisted.name, "Research")
+        XCTAssertEqual(persisted.colorIdentifier, PadColorIdentifier.blue.rawValue)
+        XCTAssertEqual(persisted.selection, selection)
+        XCTAssertEqual(persisted.scrollOffset, 42)
+        XCTAssertEqual(reloaded.texts[pad.id], "keep this text")
+
+        let cleared = try await store.updatePadAppearance(
+            pad.id,
+            name: "   ",
+            colorIdentifier: nil
+        )
+        XCTAssertNil(cleared.name)
+        XCTAssertNil(cleared.colorIdentifier)
+    }
+
+    func testPadAppearanceUpdateRejectsInvalidInputWithoutChangingMetadata() async throws {
+        let store = makeStore()
+        let snapshot = try await store.load()
+        let pad = snapshot.metadata.pads[0]
+
+        do {
+            _ = try await store.updatePadAppearance(
+                pad.id,
+                name: String(repeating: "x", count: PadMetadata.maximumNameLength + 1),
+                colorIdentifier: PadColorIdentifier.red.rawValue
+            )
+            XCTFail("oversized names must be rejected")
+        } catch {
+            XCTAssertEqual(error as? PadCustomizationError, .nameTooLong)
+        }
+
+        do {
+            _ = try await store.updatePadAppearance(
+                pad.id,
+                name: "Research\nPrivate",
+                colorIdentifier: PadColorIdentifier.red.rawValue
+            )
+            XCTFail("control characters must be rejected")
+        } catch {
+            XCTAssertEqual(error as? PadCustomizationError, .invalidName)
+        }
+
+        do {
+            _ = try await store.updatePadAppearance(
+                pad.id,
+                name: "Research\u{2028}Private",
+                colorIdentifier: PadColorIdentifier.red.rawValue
+            )
+            XCTFail("Unicode line separators must be rejected")
+        } catch {
+            XCTAssertEqual(error as? PadCustomizationError, .invalidName)
+        }
+
+        do {
+            _ = try await store.updatePadAppearance(
+                pad.id,
+                name: "Research",
+                colorIdentifier: "chartreuse"
+            )
+            XCTFail("unknown colors must be rejected")
+        } catch {
+            XCTAssertEqual(error as? PadCustomizationError, .invalidColor)
+        }
+
+        do {
+            _ = try await store.updatePadAppearance(
+                PadID(),
+                name: "Research",
+                colorIdentifier: PadColorIdentifier.red.rawValue
+            )
+            XCTFail("unknown pads must be rejected")
+        } catch {
+            XCTAssertEqual(error as? PadCustomizationError, .unknownPad)
+        }
+
+        let current = await store.currentMetadata()?.pads.first { $0.id == pad.id }
+        XCTAssertEqual(current, pad)
+    }
+
     // MARK: - Journal recovery
 
     func testJournaledEditWithoutCommitIsRecovered() async throws {

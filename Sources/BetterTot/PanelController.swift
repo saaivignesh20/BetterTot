@@ -94,7 +94,7 @@ final class ScratchpadPanel: NSPanel {
 }
 
 @MainActor
-final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate {
+final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate, PadCustomizationManaging {
     private let statusItem: NSStatusItem
     let store: WorkspaceStore
     private let defaults: UserDefaults
@@ -125,6 +125,7 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate {
     }
     var currentSourceText: String { checkboxEditor.sourceText }
     var currentPlainText: String { checkboxEditor.plainText }
+    var padMetadata: [PadMetadata] { pads }
 
     init(
         statusItem: NSStatusItem,
@@ -240,6 +241,40 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate {
         textView.isAutomaticDashSubstitutionEnabled = defaults.bool(forKey: SettingsKeys.smartDashes)
     }
 
+    @discardableResult
+    func updatePadAppearance(
+        _ id: PadID,
+        name: String?,
+        colorIdentifier: String?
+    ) async throws -> PadMetadata {
+        let persisted = try await store.updatePadAppearance(
+            id,
+            name: name,
+            colorIdentifier: colorIdentifier
+        )
+        guard let index = pads.firstIndex(where: { $0.id == id }) else {
+            throw PadCustomizationError.unknownPad
+        }
+
+        var updatedPad = pads[index]
+        updatedPad.name = persisted.name
+        updatedPad.colorIdentifier = persisted.colorIdentifier
+        updatedPad.updatedAt = persisted.updatedAt
+        var updatedPads = pads
+        updatedPads[index] = updatedPad
+        pads = updatedPads
+        content.updatePads(updatedPads)
+
+        if index == selectedIndex {
+            textView.setAccessibilityLabel(updatedPad.accessibilityName)
+            checkboxEditor.updateCheckboxPresentation(
+                baseFont: SettingsKeys.editorFont(in: defaults),
+                tintColor: PanelContentView.padColor(for: updatedPad)
+            )
+        }
+        return updatedPad
+    }
+
     @objc private func openSettings() {
         if !isPinned {
             dismiss(reason: .explicitClose)
@@ -294,7 +329,7 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate {
             element: panel,
             notification: .announcementRequested,
             userInfo: [
-                .announcement: "Scratchpad \(pad.position + 1)\(suffix)",
+                .announcement: "\(pad.accessibilityName)\(suffix)",
                 .priority: NSAccessibilityPriorityLevel.high.rawValue,
             ]
         )
@@ -303,7 +338,7 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate {
     private func loadSelectedPadIntoEditor() {
         let pad = pads[selectedIndex]
         let storedText = texts[pad.id] ?? ""
-        textView.setAccessibilityLabel("Scratchpad \(pad.position + 1)")
+        textView.setAccessibilityLabel(pad.accessibilityName)
         let projection = checkboxEditor.setSourceText(
             storedText,
             baseFont: SettingsKeys.editorFont(in: defaults),

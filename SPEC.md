@@ -93,6 +93,10 @@ Sources/BetterTot/CheckboxTextView.swift
                                       Markdown projection, native checkbox
                                       attachments, and coordinate mapping
 Sources/BetterTot/PanelView.swift     Panel controls, layout, and status footer
+Sources/BetterTot/PadCustomization.swift
+                                      Shared pad customization contract and colors
+Sources/BetterTot/PadCustomizationView.swift
+                                      Pad selector, name field, and color swatches
 Sources/BetterTot/Model.swift         Codable data model
 Sources/BetterTot/WorkspaceStore.swift
                                       Actor-isolated persistence and recovery
@@ -218,6 +222,18 @@ Panel behavior:
   VoiceOver.
 - The model includes optional `name` and `colorIdentifier` fields. Recognized
   color identifiers override the deterministic seven-color fallback palette.
+- The Pads settings page edits one selected slot at a time using the same seven
+  colored dots shown in the panel, a single-line name field, and fixed color
+  swatches.
+- Pad names are trimmed, limited to 24 user-perceived characters, and cannot
+  contain line breaks, tabs, or control characters. Empty names restore the
+  `Scratchpad N` default. Duplicate names are allowed because numeric positions
+  remain authoritative.
+- Custom names appear alongside the numeric identity in tooltips, editor
+  accessibility labels, and VoiceOver announcements. They do not change pad
+  IDs, keyboard shortcuts, backup/export filenames, or content storage paths.
+- Appearance edits are atomically written to `workspace.json` and then applied
+  to the live panel without reloading text or replacing undo state.
 
 ## Keyboard Behavior
 
@@ -256,16 +272,17 @@ shadows the normal line-start and line-end caret navigation in the editor.
 
 Settings are stored in standard app `UserDefaults`.
 
-The settings window uses a fixed-size vertical sidebar with four pages:
-`General`, `Editor`, `Storage`, and `Updates`. Each page icon sits in a circular
-material container. The selected icon uses the system accent color while
-inactive icons remain gray; the row itself stays transparent. Switching pages
-does not resize the window or interrupt the scratchpad panel.
+The settings window uses a fixed-size vertical sidebar with five pages:
+`General`, `Pads`, `Editor`, `Storage`, and `Updates`. Each page icon sits in a
+circular material container. The selected icon uses the system accent color
+while inactive icons remain gray; the row itself stays transparent. Switching
+pages does not resize the window or interrupt the scratchpad panel.
 
 Supported settings:
 
 - Launch at login, via `SMAppService.mainApp`, enabled only in a bundled app.
 - Global shortcut.
+- Pad name and color.
 - Check spelling while typing.
 - Smart quotes.
 - Smart dashes.
@@ -610,21 +627,19 @@ Verification performed while writing this spec:
 
 ```text
 swift test
-Executed 117 tests, with 0 failures.
-Line coverage: 87.21% (2768/3174), minimum 80.00%.
+Executed 141 tests, with 0 failures.
+Line coverage: 88.55% (4580/5172), minimum 80.00%.
 ```
 
 ## Current Gaps and Risks
 
 - `scripts/test.sh` enforces at least 80% aggregate source line coverage and a
   30% floor for every non-entry source file. The current instrumented result is
-  87.21% across 117 passing tests.
+  88.55% across 141 passing tests.
 - VoiceOver, IME, multi-display positioning, and launch-at-login remain manual
   acceptance checks. The local checklist passed on 2026-07-27 and must be
   repeated for a future public-distribution candidate if scope changes.
 - Launch-at-login can only be exercised meaningfully from `dist/BetterTot.app`.
-- `name` and `colorIdentifier` fields are persisted model fields without active
-  UI affordances.
 - Backups and recovered journals intentionally preserve user text beyond active
   pad deletion; an explicit "erase history" action does not exist.
 - Notarization and clean-Mac Gatekeeper acceptance are intentionally outside

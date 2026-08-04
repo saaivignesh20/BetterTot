@@ -3,6 +3,7 @@ import AppKit
 final class SettingsContentView: NSVisualEffectView {
     enum Page: Int, CaseIterable {
         case general
+        case pads
         case editor
         case storage
         case updates
@@ -10,6 +11,7 @@ final class SettingsContentView: NSVisualEffectView {
         var title: String {
             switch self {
             case .general: "General"
+            case .pads: "Pads"
             case .editor: "Editor"
             case .storage: "Storage"
             case .updates: "Updates"
@@ -23,6 +25,7 @@ final class SettingsContentView: NSVisualEffectView {
         var symbol: String {
             switch self {
             case .general: "gearshape"
+            case .pads: "circle.grid.2x2"
             case .editor: "pencil"
             case .storage: "internaldrive"
             case .updates: "arrow.clockwise"
@@ -54,6 +57,7 @@ final class SettingsContentView: NSVisualEffectView {
     )
     let updateStatus = NSTextField(labelWithString: "Updates are checked only when requested.")
     let currentVersionLabel = NSTextField(labelWithString: "")
+    let padCustomizationView = PadCustomizationView()
 
     var onNavigate: ((Page) -> Void)?
     var onOpenBackupFolder: (() -> Void)?
@@ -145,6 +149,7 @@ final class SettingsContentView: NSVisualEffectView {
 
         pages = [
             .general: buildGeneralPage(),
+            .pads: buildPadsPage(),
             .editor: buildEditorPage(),
             .storage: buildStoragePage(),
             .updates: buildUpdatesPage(),
@@ -333,6 +338,17 @@ final class SettingsContentView: NSVisualEffectView {
                         tint: .systemPink,
                         control: smartDashes
                     ),
+                ]),
+            ]
+        )
+    }
+
+    private func buildPadsPage() -> NSView {
+        page(
+            .pads,
+            sections: [
+                section(title: "Scratchpads", rows: [
+                    leadingBlock(padCustomizationView, fillWidth: true),
                 ]),
             ]
         )

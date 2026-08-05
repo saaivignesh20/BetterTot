@@ -5,6 +5,7 @@ final class SettingsSidebarButton: NSButton {
     let page: SettingsContentView.Page
 
     private let iconMaterial = SettingsSidebarIconMaterialView()
+    private let iconTintView = NSView()
     private let iconView = NSImageView()
     private let titleLabel = NSTextField(labelWithString: "")
     private var isHovering = false
@@ -43,6 +44,17 @@ final class SettingsSidebarButton: NSButton {
         iconMaterial.setAccessibilityElement(false)
         addSubview(iconMaterial)
 
+        iconTintView.identifier = NSUserInterfaceItemIdentifier(
+            "settings-navigation-icon-tint-\(page.identifier)"
+        )
+        iconTintView.wantsLayer = true
+        iconTintView.layer?.cornerRadius = 14
+        iconTintView.layer?.cornerCurve = .continuous
+        iconTintView.layer?.masksToBounds = true
+        iconTintView.translatesAutoresizingMaskIntoConstraints = false
+        iconTintView.setAccessibilityElement(false)
+        iconMaterial.addSubview(iconTintView)
+
         iconView.image = symbolImage
         iconView.imageScaling = .scaleProportionallyDown
         iconView.translatesAutoresizingMaskIntoConstraints = false
@@ -64,6 +76,10 @@ final class SettingsSidebarButton: NSButton {
             iconMaterial.centerYAnchor.constraint(equalTo: centerYAnchor),
             iconMaterial.widthAnchor.constraint(equalToConstant: 28),
             iconMaterial.heightAnchor.constraint(equalToConstant: 28),
+            iconTintView.leadingAnchor.constraint(equalTo: iconMaterial.leadingAnchor),
+            iconTintView.trailingAnchor.constraint(equalTo: iconMaterial.trailingAnchor),
+            iconTintView.topAnchor.constraint(equalTo: iconMaterial.topAnchor),
+            iconTintView.bottomAnchor.constraint(equalTo: iconMaterial.bottomAnchor),
             iconView.centerXAnchor.constraint(equalTo: iconMaterial.centerXAnchor),
             iconView.centerYAnchor.constraint(equalTo: iconMaterial.centerYAnchor),
             iconView.widthAnchor.constraint(equalToConstant: 16),
@@ -152,22 +168,22 @@ final class SettingsSidebarButton: NSButton {
         let selected = state == .on
         let titleColor: NSColor
         let iconColor: NSColor
-        let materialTint: NSColor
+        let iconTint: NSColor
         let rowTint: NSColor?
         if selected {
             titleColor = .labelColor
-            iconColor = .controlAccentColor
-            materialTint = NSColor.controlAccentColor.withAlphaComponent(0.18)
+            iconColor = .systemGreen
+            iconTint = NSColor.systemGreen.withAlphaComponent(0.36)
             rowTint = NSColor.controlAccentColor.withAlphaComponent(0.12)
         } else if isHovering {
             titleColor = .labelColor
             iconColor = .labelColor
-            materialTint = NSColor.labelColor.withAlphaComponent(0.08)
+            iconTint = NSColor.labelColor.withAlphaComponent(0.08)
             rowTint = NSColor.labelColor.withAlphaComponent(0.05)
         } else {
             titleColor = .secondaryLabelColor
             iconColor = .secondaryLabelColor
-            materialTint = NSColor.labelColor.withAlphaComponent(0.04)
+            iconTint = NSColor.labelColor.withAlphaComponent(0.04)
             rowTint = nil
         }
 
@@ -181,7 +197,8 @@ final class SettingsSidebarButton: NSButton {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         layer?.backgroundColor = rowTint?.cgColor
-        iconMaterial.layer?.backgroundColor = materialTint.cgColor
+        iconMaterial.layer?.backgroundColor = nil
+        iconTintView.layer?.backgroundColor = iconTint.cgColor
         CATransaction.commit()
     }
 }

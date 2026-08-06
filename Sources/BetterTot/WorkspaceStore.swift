@@ -15,14 +15,34 @@ actor WorkspaceStore {
     let root: URL
     private var metadata: WorkspaceMetadata?
     private var journaledRevisions: [PadID: UInt64] = [:]
+    let backupMirror: BackupMirrorService
+    var pendingBackupMirrorTasks: [UUID: Task<Void, Never>] = [:]
+    var backupMirrorConfigurationGeneration: UInt64 = 0
+    var backupMirrorReconfigurationGeneration: UInt64?
+    var deferredBackupMirrorJobs: [(BackupKind, URL)] = []
+
+    var backupMirrorReconfigurationInProgress: Bool {
+        backupMirrorReconfigurationGeneration != nil
+    }
 
     private var padsDir: URL { root.appendingPathComponent("Pads", isDirectory: true) }
     private var journalDir: URL { root.appendingPathComponent("Journal", isDirectory: true) }
     private var recoveredDir: URL { journalDir.appendingPathComponent("recovered", isDirectory: true) }
     private var metadataURL: URL { root.appendingPathComponent("workspace.json") }
 
-    init(root: URL) {
+    init(
+        root: URL,
+        backupMirrorDirectory: URL? = nil,
+        backupMirrorCopyItem: @escaping @Sendable (URL, URL) throws -> Void = {
+            try FileManager.default.copyItem(at: $0, to: $1)
+        }
+    ) {
         self.root = root
+        backupMirror = BackupMirrorService(
+            parentDirectory: backupMirrorDirectory,
+            localBackupsDirectory: root.appendingPathComponent("Backups", isDirectory: true),
+            copyItem: backupMirrorCopyItem
+        )
     }
 
     static func defaultRoot() -> URL {

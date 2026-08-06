@@ -295,7 +295,9 @@ Supported settings:
 - Editor font name and size.
 
 The settings window also displays backup counts for hourly, daily, and manual
-backup tiers and provides a button to open the backup folder.
+backup tiers, provides a button to open the local backup folder, and offers an
+optional user-selected iCloud Drive mirror. Local recovery remains active when
+the mirror is enabled or unavailable.
 
 The Updates page displays the installed version/build and performs a check only
 after the user presses `Check for Updates`. It requests the latest public
@@ -498,6 +500,29 @@ Backup rules:
 - Hourly and daily backups are created when the newest backup in that tier is
   older than one hour or one day respectively.
 
+Optional backup mirror rules:
+
+- The user explicitly chooses a filesystem folder, normally in iCloud Drive.
+- BetterTot creates `BetterTot Backups/{hourly,daily,manual}/` inside it.
+- Enabling the mirror copies existing snapshots; completed future snapshots
+  are copied after the local backup succeeds.
+- Copies use a hidden temporary sibling followed by a move into place.
+- Each completed mirror copy carries a hidden BetterTot ownership marker;
+  retention never deletes unmarked user-created folders.
+- Existing destination snapshots are not overwritten.
+- Mirrored hourly and daily tiers use the same 24-snapshot and 14-snapshot
+  retention limits as local storage; manual snapshots are not pruned.
+- Mirror failures are surfaced in Settings and logged without note content.
+- A failed destination change restores the previous working mirror and does
+  not replace its persisted setting.
+- A mirror failure never invalidates a local save or local backup.
+- Root folders, non-file URLs, and destinations resolving inside the local
+  backup directory are rejected.
+- Turning the mirror off or changing its folder cancels queued and active
+  copies before they are published; it does not delete completed mirrored files.
+- This is one-way backup mirroring, not multi-device scratchpad sync or
+  conflict resolution.
+
 ## Import, Export, and Restore
 
 Import current pad:
@@ -601,7 +626,8 @@ Current automated coverage is concentrated in:
   clamping.
 - `BackupTests`: manual backups, hourly/daily pruning, manual retention,
   same-second backup collisions, stray backup folders, commit-triggered
-  auto-backups, and export-all layout.
+  auto-backups, iCloud Drive mirror copying and failure isolation, recursive
+  symlink rejection, and export-all layout.
 - `RestoreTests`: restore-by-position behavior, missing file skips, and
   unreadable existing file reporting.
 - `ShortcutTests`: shortcut validation, display formatting, Codable round trips,
@@ -633,15 +659,15 @@ Verification performed while writing this spec:
 
 ```text
 swift test
-Executed 142 tests, with 0 failures.
-Line coverage: 88.83% (4675/5263), minimum 80.00%.
+Executed 158 tests, with 0 failures.
+Line coverage: 89.13% (5181/5813), minimum 80.00%.
 ```
 
 ## Current Gaps and Risks
 
 - `scripts/test.sh` enforces at least 80% aggregate source line coverage and a
   30% floor for every non-entry source file. The current instrumented result is
-  88.83% across 142 passing tests.
+  89.13% across 158 passing tests.
 - VoiceOver, IME, multi-display positioning, and launch-at-login remain manual
   acceptance checks. The local checklist passed on 2026-07-27 and must be
   repeated for a future public-distribution candidate if scope changes.

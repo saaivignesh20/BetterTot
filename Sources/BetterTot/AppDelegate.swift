@@ -32,7 +32,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         init(
             defaults: UserDefaults = .standard,
             makeStore: @escaping @MainActor () -> WorkspaceStore = {
-                WorkspaceStore(root: WorkspaceStore.defaultRoot())
+                WorkspaceStore(
+                    root: WorkspaceStore.defaultRoot(),
+                    backupMirrorDirectory: SettingsKeys.activeBackupMirrorDirectory()
+                )
             },
             loadStore: @escaping @MainActor (WorkspaceStore) async throws -> WorkspaceSnapshot = {
                 try $0.load()

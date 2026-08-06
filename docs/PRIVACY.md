@@ -7,6 +7,10 @@ BetterTot is local-first and offline by default. The app:
 - Requires **no account**.
 - Does not collect or transmit note content.
 
+These statements describe BetterTot's own networking. If you enable the
+optional iCloud Drive backup mirror, BetterTot writes backup files to the
+folder you select and macOS may upload those files under your iCloud settings.
+
 ## Update checks
 
 BetterTot contacts `api.github.com` only after you press **Check for Updates**
@@ -28,6 +32,21 @@ service provided by macOS. BetterTot does not make that service request or add
 its own network transmission; any processing and network use are controlled by
 macOS, your Apple settings, and Apple's applicable privacy terms.
 
+## iCloud Drive backup mirror
+
+The mirror is off by default and requires an explicit folder selection in
+Settings. BetterTot keeps its local hourly, daily, and manual recovery backups,
+then copies completed backup folders into `BetterTot Backups` inside the
+selected folder. The mirrored files contain note text and workspace metadata
+in the same readable format as local backups. Mirrored hourly and daily
+snapshots follow the same rolling retention limits as their local copies;
+manual snapshots remain until you remove them.
+
+BetterTot does not use CloudKit, create an app-specific iCloud container, or
+receive data from iCloud. macOS and iCloud Drive control upload, retention,
+account access, and network behavior. Turning the mirror off stops future
+copies but does not delete files already present in iCloud Drive.
+
 ## Where your data lives
 
 Everything is plain files on your Mac, readable without BetterTot:
@@ -41,7 +60,8 @@ Everything is plain files on your Mac, readable without BetterTot:
 | `Backups/{hourly,daily,manual}/` | Rolling plain-text backups |
 
 Settings (font, toggles, global shortcut) are stored in the standard
-`UserDefaults` preferences for the app.
+`UserDefaults` preferences for the app. The selected backup-mirror path and its
+enabled state are stored there as well.
 
 ## Logging
 

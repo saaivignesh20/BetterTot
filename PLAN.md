@@ -1266,6 +1266,10 @@ Do not couple the domain model to a particular filesystem path.
 
 Synchronization is not part of version 0.1.
 
+BetterTot now supports a one-way, user-selected iCloud Drive backup mirror.
+That safety copy does not synchronize live pads, merge revisions, or change
+the conflict model described below.
+
 ## Phase-one synchronization option
 
 Start with user-visible files in an iCloud Drive container only after the local storage model is stable.

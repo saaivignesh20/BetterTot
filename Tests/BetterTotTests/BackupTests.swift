@@ -42,6 +42,266 @@ final class BackupTests: XCTestCase {
             atPath: backupDir.appendingPathComponent("workspace.json").path))
     }
 
+    func testBackupMirrorCopiesExistingAndNewSnapshots() async throws {
+        let store = makeStore()
+        let snapshot = try await store.load()
+        await store.commit(snapshot.metadata.pads[0].id, text: "mirrored", revision: 1)
+        let existingResult = await store.createBackup(.manual)
+        let existing = try XCTUnwrap(existingResult)
+        let destination = root.appendingPathComponent("iCloud Drive", isDirectory: true)
+
+        let status = await store.configureBackupMirror(at: destination)
+
+        XCTAssertNil(status.errorDescription)
+        XCTAssertEqual(
+            status.directory,
+            destination.appendingPathComponent("BetterTot Backups", isDirectory: true)
+        )
+        let existingMirror = try XCTUnwrap(status.directory)
+            .appendingPathComponent("manual", isDirectory: true)
+            .appendingPathComponent(existing.lastPathComponent, isDirectory: true)
+        XCTAssertEqual(
+            try String(
+                contentsOf: existingMirror.appendingPathComponent("Pad 1.txt"),
+                encoding: .utf8
+            ),
+            "mirrored"
+        )
+
+        let newBackupResult = await store.createBackup(.manual)
+        let newBackup = try XCTUnwrap(newBackupResult)
+        await store.waitForBackupMirror()
+        let newMirror = try XCTUnwrap(status.directory)
+            .appendingPathComponent("manual", isDirectory: true)
+            .appendingPathComponent(newBackup.lastPathComponent, isDirectory: true)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: newMirror.path))
+    }
+
+    func testBackupMirrorAppliesRollingRetention() async throws {
+        let store = makeStore()
+        _ = try await store.load()
+        let hourly = store.backupsDirectory.appendingPathComponent("hourly", isDirectory: true)
+        for index in 0..<30 {
+            let stamp = String(format: "20250101-%02d%02d00", index / 60, index % 60)
+            try FileManager.default.createDirectory(
+                at: hourly.appendingPathComponent(stamp, isDirectory: true),
+                withIntermediateDirectories: true
+            )
+        }
+        let destination = root.appendingPathComponent("retained-cloud", isDirectory: true)
+        let userFolder = destination.appendingPathComponent(
+            "BetterTot Backups/hourly/20991231-235959",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(at: userFolder, withIntermediateDirectories: true)
+
+        let status = await store.configureBackupMirror(at: destination)
+        let mirroredHourly = try FileManager.default.contentsOfDirectory(
+            at: try XCTUnwrap(status.directory).appendingPathComponent("hourly"),
+            includingPropertiesForKeys: nil
+        ).map(\.lastPathComponent)
+
+        XCTAssertEqual(mirroredHourly.count, 25)
+        XCTAssertTrue(mirroredHourly.contains("20991231-235959"))
+        XCTAssertFalse(mirroredHourly.contains("20250101-000000"))
+        XCTAssertTrue(mirroredHourly.contains("20250101-002900"))
+    }
+
+    func testBackupMirrorFailureNeverInvalidatesLocalBackup() async throws {
+        let blockedDestination = root.appendingPathComponent("not-a-folder")
+        try Data("blocked".utf8).write(to: blockedDestination)
+        let store = makeStore()
+        _ = try await store.load()
+
+        let status = await store.configureBackupMirror(at: blockedDestination)
+        let localBackup = await store.createBackup(.manual)
+        let persistedStatus = await store.backupMirrorStatus()
+
+        XCTAssertNotNil(status.errorDescription)
+        XCTAssertNotNil(localBackup)
+        XCTAssertNotNil(persistedStatus.errorDescription)
+    }
+
+    func testBackupMirrorRejectsSymlinkBackIntoLocalBackups() async throws {
+        let store = makeStore()
+        _ = try await store.load()
+        let backupResult = await store.createBackup(.manual)
+        let backup = try XCTUnwrap(backupResult)
+        let symlink = root.appendingPathComponent("cloud-link", isDirectory: true)
+        try FileManager.default.createSymbolicLink(at: symlink, withDestinationURL: backup)
+
+        let status = await store.configureBackupMirror(at: symlink)
+
+        XCTAssertNil(status.directory)
+        XCTAssertNotNil(status.errorDescription)
+        XCTAssertFalse(FileManager.default.fileExists(
+            atPath: backup.appendingPathComponent("BetterTot Backups").path
+        ))
+    }
+
+    func testCancelledBackupMirrorConfigurationSkipsBackfill() async throws {
+        let store = makeStore()
+        _ = try await store.load()
+        _ = await store.createBackup(.manual)
+        let destination = root.appendingPathComponent("cancelled-cloud", isDirectory: true)
+
+        let task = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return await store.configureBackupMirror(at: destination)
+        }
+        let status = await task.value
+
+        XCTAssertTrue(task.isCancelled)
+        XCTAssertNil(status.errorDescription)
+        XCTAssertNil(status.directory)
+        XCTAssertFalse(FileManager.default.fileExists(
+            atPath: destination.appendingPathComponent("BetterTot Backups").path
+        ))
+    }
+
+    func testCancelledMirrorTaskDoesNotCopySnapshot() async throws {
+        let localBackups = root.appendingPathComponent("local", isDirectory: true)
+        let source = localBackups.appendingPathComponent(
+            "manual/20250101-000000",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
+        try Data("note".utf8).write(to: source.appendingPathComponent("Pad 1.txt"))
+        let destination = root.appendingPathComponent("cloud", isDirectory: true)
+        let service = BackupMirrorService(
+            parentDirectory: destination,
+            localBackupsDirectory: localBackups
+        )
+        _ = await service.configure(at: destination, snapshots: [:])
+
+        let task = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            await service.mirror(.manual, source: source)
+        }
+        await task.value
+
+        XCTAssertTrue(task.isCancelled)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: destination
+            .appendingPathComponent("BetterTot Backups/manual/20250101-000000").path))
+    }
+
+    func testCancellingMirrorDuringCopyDoesNotPublishSnapshot() async throws {
+        let localBackups = root.appendingPathComponent("local", isDirectory: true)
+        let source = localBackups.appendingPathComponent(
+            "manual/20250101-000000",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
+        try Data("note".utf8).write(to: source.appendingPathComponent("Pad 1.txt"))
+        let destination = root.appendingPathComponent("cloud", isDirectory: true)
+        let copyStarted = DispatchSemaphore(value: 0)
+        let allowCopyToFinish = DispatchSemaphore(value: 0)
+        let service = BackupMirrorService(
+            parentDirectory: destination,
+            localBackupsDirectory: localBackups,
+            copyItem: { source, destination in
+                copyStarted.signal()
+                allowCopyToFinish.wait()
+                try FileManager.default.copyItem(at: source, to: destination)
+            }
+        )
+        _ = await service.configure(at: destination, snapshots: [:])
+
+        let task = Task {
+            await service.mirror(.manual, source: source)
+        }
+        XCTAssertEqual(copyStarted.wait(timeout: .now() + 2), .success)
+        task.cancel()
+        allowCopyToFinish.signal()
+        await task.value
+
+        let mirrorParent = destination.appendingPathComponent(
+            "BetterTot Backups/manual",
+            isDirectory: true
+        )
+        XCTAssertFalse(FileManager.default.fileExists(atPath: mirrorParent
+            .appendingPathComponent("20250101-000000").path))
+        let temporaryItems = (try? FileManager.default.contentsOfDirectory(
+            at: mirrorParent,
+            includingPropertiesForKeys: nil
+        )) ?? []
+        XCTAssertTrue(temporaryItems.isEmpty)
+    }
+
+    func testBackupCreatedWhileMirrorIsDisablingDoesNotReachOldDestination() async throws {
+        let copyStarted = DispatchSemaphore(value: 0)
+        let allowCopyToFinish = DispatchSemaphore(value: 0)
+        let store = WorkspaceStore(
+            root: root,
+            backupMirrorCopyItem: { source, destination in
+                copyStarted.signal()
+                allowCopyToFinish.wait()
+                try FileManager.default.copyItem(at: source, to: destination)
+            }
+        )
+        _ = try await store.load()
+        let destination = root.appendingPathComponent("cloud", isDirectory: true)
+        _ = await store.configureBackupMirror(at: destination)
+        _ = await store.createBackup(.manual)
+        XCTAssertEqual(copyStarted.wait(timeout: .now() + 2), .success)
+
+        let disable = Task { await store.configureBackupMirror(at: nil) }
+        while !(await store.backupMirrorReconfigurationInProgress) {
+            await Task.yield()
+        }
+        _ = await store.createBackup(.manual)
+        allowCopyToFinish.signal()
+        _ = await disable.value
+        await store.waitForBackupMirror()
+
+        let mirroredManual = destination.appendingPathComponent(
+            "BetterTot Backups/manual",
+            isDirectory: true
+        )
+        let contents = (try? FileManager.default.contentsOfDirectory(
+            at: mirroredManual,
+            includingPropertiesForKeys: nil
+        )) ?? []
+        XCTAssertTrue(contents.isEmpty)
+    }
+
+    func testBackupDuringFailedReplacementIsBackfilledToRestoredDestination() async throws {
+        let candidateCopyStarted = DispatchSemaphore(value: 0)
+        let allowCandidateFailure = DispatchSemaphore(value: 0)
+        let store = WorkspaceStore(
+            root: root,
+            backupMirrorCopyItem: { source, destination in
+                if destination.path.contains("failed-cloud") {
+                    candidateCopyStarted.signal()
+                    allowCandidateFailure.wait()
+                    throw NSError(domain: "BackupMirrorTest", code: 1)
+                }
+                try FileManager.default.copyItem(at: source, to: destination)
+            }
+        )
+        _ = try await store.load()
+        let working = root.appendingPathComponent("working-cloud", isDirectory: true)
+        let candidate = root.appendingPathComponent("failed-cloud", isDirectory: true)
+        _ = await store.configureBackupMirror(at: working)
+        _ = await store.createBackup(.manual)
+        await store.waitForBackupMirror()
+
+        let replacement = Task { await store.configureBackupMirror(at: candidate) }
+        XCTAssertEqual(candidateCopyStarted.wait(timeout: .now() + 2), .success)
+        let deferredResult = await store.createBackup(.manual)
+        let deferred = try XCTUnwrap(deferredResult)
+        allowCandidateFailure.signal()
+        let failedStatus = await replacement.value
+        XCTAssertNotNil(failedStatus.errorDescription)
+
+        let restoredStatus = await store.configureBackupMirror(at: working)
+        XCTAssertNil(restoredStatus.errorDescription)
+        let restoredSnapshot = working
+            .appendingPathComponent("BetterTot Backups/manual", isDirectory: true)
+            .appendingPathComponent(deferred.lastPathComponent, isDirectory: true)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: restoredSnapshot.path))
+    }
+
     func testHourlyPruningKeepsNewest24ManualKeepsAll() async throws {
         let store = makeStore()
         _ = try await store.load()

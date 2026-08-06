@@ -58,6 +58,15 @@ final class SettingsContentView: NSVisualEffectView {
         symbol: "safari",
         identifier: "view-update"
     )
+    let backupMirrorSwitch = NSSwitch()
+    let backupMirrorButton = SettingsContentView.actionButton(
+        title: "Choose Folder...",
+        symbol: "folder.badge.plus",
+        identifier: "choose-backup-mirror"
+    )
+    let backupMirrorStatus = NSTextField(
+        labelWithString: "Choose a folder in iCloud Drive to keep a second copy."
+    )
     let updateStatus = NSTextField(labelWithString: "Updates are checked only when requested.")
     let currentVersionLabel = NSTextField(labelWithString: "")
     let padCustomizationView = PadCustomizationView()
@@ -128,6 +137,33 @@ final class SettingsContentView: NSVisualEffectView {
         }
     }
 
+    func setBackupMirror(
+        enabled: Bool,
+        selectedDirectory: URL?,
+        status: BackupMirrorStatus?,
+        busy: Bool = false
+    ) {
+        backupMirrorSwitch.state = enabled ? .on : .off
+        backupMirrorSwitch.isEnabled = !busy
+        backupMirrorButton.isEnabled = !busy
+        backupMirrorButton.title = selectedDirectory == nil ? "Choose Folder..." : "Change..."
+
+        let message: String
+        if busy {
+            message = "Copying existing backups to iCloud Drive..."
+        } else if let error = status?.errorDescription {
+            message = "Mirror unavailable: \(error)"
+        } else if enabled, let directory = status?.directory {
+            message = "Mirroring to \(directory.path(percentEncoded: false))."
+        } else if selectedDirectory != nil {
+            message = "Off. Local recovery remains active."
+        } else {
+            message = "Choose a folder in iCloud Drive to keep a second copy."
+        }
+        backupMirrorStatus.stringValue = message
+        backupMirrorStatus.setAccessibilityValue(message)
+    }
+
     private func build() {
         material = .underWindowBackground
         state = .active
@@ -140,14 +176,14 @@ final class SettingsContentView: NSVisualEffectView {
         addSubview(pageHost)
 
         NSLayoutConstraint.activate([
-            sidebar.topAnchor.constraint(equalTo: topAnchor, constant: 10),
+            sidebar.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor, constant: 10),
             sidebar.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
-            sidebar.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -10),
+            sidebar.bottomAnchor.constraint(equalTo: safeAreaLayoutGuide.bottomAnchor, constant: -10),
             sidebar.widthAnchor.constraint(equalToConstant: 176),
-            pageHost.topAnchor.constraint(equalTo: topAnchor),
+            pageHost.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor),
             pageHost.leadingAnchor.constraint(equalTo: sidebar.trailingAnchor, constant: 8),
             pageHost.trailingAnchor.constraint(equalTo: trailingAnchor),
-            pageHost.bottomAnchor.constraint(equalTo: bottomAnchor),
+            pageHost.bottomAnchor.constraint(equalTo: safeAreaLayoutGuide.bottomAnchor),
         ])
 
         pages = [
@@ -265,7 +301,7 @@ final class SettingsContentView: NSVisualEffectView {
         launchAtLogin.setAccessibilityLabel("Launch at login")
 
         shortcutButton.identifier = NSUserInterfaceItemIdentifier("global-shortcut")
-        shortcutButton.bezelStyle = .rounded
+        Self.applyCommandButtonStyle(to: shortcutButton)
         shortcutButton.setAccessibilityLabel("Global shortcut")
         shortcutButton.setContentHuggingPriority(.required, for: .horizontal)
 
@@ -434,11 +470,31 @@ final class SettingsContentView: NSVisualEffectView {
         openButton.target = self
         openButton.action = #selector(openBackupFolderPressed)
 
+        backupMirrorSwitch.identifier = NSUserInterfaceItemIdentifier("backup-mirror-enabled")
+        backupMirrorSwitch.setAccessibilityLabel("Mirror backups to iCloud Drive")
+        backupMirrorStatus.identifier = NSUserInterfaceItemIdentifier("backup-mirror-status")
+        backupMirrorStatus.textColor = .secondaryLabelColor
+        backupMirrorStatus.maximumNumberOfLines = 2
+        backupMirrorStatus.lineBreakMode = .byTruncatingMiddle
+        let mirrorControls = NSStackView(views: [backupMirrorButton, backupMirrorSwitch])
+        mirrorControls.orientation = .horizontal
+        mirrorControls.alignment = .centerY
+        mirrorControls.spacing = 10
+
         return page(
             .storage,
             sections: [
-                section(title: "Backups", rows: [leadingBlock(overview, fillWidth: true)]),
-                section(title: "Location", rows: [
+                section(title: "Local Recovery", rows: [leadingBlock(overview, fillWidth: true)]),
+                section(title: "iCloud Drive", rows: [
+                    settingRow(
+                        title: "Backup Mirror",
+                        detailView: backupMirrorStatus,
+                        symbol: "icloud",
+                        tint: .systemBlue,
+                        control: mirrorControls
+                    ),
+                ]),
+                section(title: "Local Storage", rows: [
                     settingRow(
                         title: "Backup Folder",
                         detail: "Hourly, daily, and manual snapshots.",
@@ -518,17 +574,7 @@ final class SettingsContentView: NSVisualEffectView {
     }
 
     private func page(_ page: Page, sections: [NSView]) -> NSView {
-        let headerIcon = NSImageView(image: Self.symbol(page.symbol, label: page.title))
-        headerIcon.contentTintColor = Self.pageAccentColor
-        headerIcon.symbolConfiguration = NSImage.SymbolConfiguration(
-            pointSize: 22,
-            weight: .medium
-        )
-        headerIcon.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            headerIcon.widthAnchor.constraint(equalToConstant: 28),
-            headerIcon.heightAnchor.constraint(equalToConstant: 28),
-        ])
+        let headerIcon = Self.pageHeaderIcon(for: page)
         let title = Self.textLabel(page.title, size: 22, weight: .semibold)
         let header = NSStackView(views: [headerIcon, title])
         header.orientation = .horizontal
@@ -704,12 +750,51 @@ final class SettingsContentView: NSVisualEffectView {
     ) -> NSButton {
         let button = NSButton(title: title, target: nil, action: nil)
         button.identifier = NSUserInterfaceItemIdentifier(identifier)
-        button.bezelStyle = .rounded
+        applyCommandButtonStyle(to: button)
         button.image = symbolImage(symbol, label: title, pointSize: 13)
         button.imagePosition = .imageLeading
         button.imageHugsTitle = true
         button.setAccessibilityLabel(title)
         return button
+    }
+
+    private static func applyCommandButtonStyle(to button: NSButton) {
+        button.contentTintColor = .labelColor
+        #if compiler(>=6.2)
+            if #available(macOS 26.0, *) {
+                button.bezelStyle = .glass
+                return
+            }
+        #endif
+        button.bezelStyle = .rounded
+    }
+
+    private static func pageHeaderIcon(for page: Page) -> NSView {
+        let container = NSView()
+        container.identifier = NSUserInterfaceItemIdentifier(
+            "settings-header-icon-\(page.identifier)"
+        )
+        container.wantsLayer = true
+        container.layer?.cornerRadius = 16
+        container.layer?.cornerCurve = .continuous
+        container.layer?.backgroundColor = pageAccentColor.withAlphaComponent(0.82).cgColor
+        container.translatesAutoresizingMaskIntoConstraints = false
+        container.setAccessibilityElement(false)
+
+        let image = NSImageView(image: symbolImage(page.symbol, label: page.title, pointSize: 15))
+        image.contentTintColor = .selectedControlTextColor
+        image.translatesAutoresizingMaskIntoConstraints = false
+        image.setAccessibilityElement(false)
+        container.addSubview(image)
+        NSLayoutConstraint.activate([
+            container.widthAnchor.constraint(equalToConstant: 32),
+            container.heightAnchor.constraint(equalToConstant: 32),
+            image.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+            image.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            image.widthAnchor.constraint(equalToConstant: 18),
+            image.heightAnchor.constraint(equalToConstant: 18),
+        ])
+        return container
     }
 
     private static func iconWell(

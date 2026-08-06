@@ -60,6 +60,7 @@ reliably.
 - [x] Optional Apple Writing Tools and Siri support on compatible Macs running macOS 15.1 or later
 - [x] Crash recovery through an append-only journal
 - [x] Atomic saves and rolling hourly, daily, and manual backups
+- [x] Optional user-selected iCloud Drive mirror for local backups
 - [x] Plain-text import and export
 - [x] Native settings for behavior, pads, editing, storage, and updates
 - [x] Explicit, manual-only checks for GitHub release metadata
@@ -94,10 +95,11 @@ BetterTot stores its data in:
 └── workspace.json     # pad metadata and UI state
 ```
 
-The app makes no automatic network requests. Choosing **Check for Updates**
-sends the installed version in a request to GitHub's public Releases API; note
-text, settings, paths, and backup data are never sent. See the complete
-[privacy documentation](docs/PRIVACY.md).
+The app makes no automatic network requests while the optional iCloud Drive
+mirror is off. Choosing **Check for Updates** sends the installed version in a
+request to GitHub's public Releases API. Enabling the mirror copies plain-text
+backups into the iCloud Drive folder you select, where macOS handles sync. See
+the complete [privacy documentation](docs/PRIVACY.md).
 
 ## Development
 

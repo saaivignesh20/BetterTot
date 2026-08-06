@@ -257,8 +257,9 @@ final class SettingsWindowTests: XCTestCase {
         XCTAssertTrue(buttons.allSatisfy { button in
             button.subviews.compactMap { $0 as? NSTextField }.count == 1
         })
-        XCTAssertEqual(iconViews[0].contentTintColor, .controlAccentColor)
-        assertAccentCircle(iconTintViews[0])
+        XCTAssertEqual(iconViews[0].contentTintColor, .selectedControlTextColor)
+        assertAccentTint(iconTintViews[0], alpha: 0.82)
+        assertAccentTint(buttons[0], alpha: 0.20)
         XCTAssertEqual(iconViews[1].contentTintColor, .secondaryLabelColor)
         XCTAssertTrue(buttons.allSatisfy { $0.accessibilityRole() == .radioButton })
         XCTAssertEqual(buttons.map(\.state), [.on, .off, .off, .off, .off])
@@ -307,8 +308,9 @@ final class SettingsWindowTests: XCTestCase {
         buttons[0].keyDown(with: downArrow)
         XCTAssertEqual(buttons.map(\.state), [.off, .on, .off, .off, .off])
         XCTAssertEqual(iconViews[0].contentTintColor, .secondaryLabelColor)
-        XCTAssertEqual(iconViews[1].contentTintColor, .controlAccentColor)
-        assertAccentCircle(iconTintViews[1])
+        XCTAssertEqual(iconViews[1].contentTintColor, .selectedControlTextColor)
+        assertAccentTint(iconTintViews[1], alpha: 0.82)
+        assertAccentTint(buttons[1], alpha: 0.20)
         XCTAssertNil(buttons[0].layer?.backgroundColor)
         XCTAssertNotNil(buttons[1].layer?.backgroundColor)
         XCTAssertTrue(buttons[1].acceptsFirstResponder)
@@ -867,15 +869,16 @@ final class SettingsWindowTests: XCTestCase {
         ))
     }
 
-    private func assertAccentCircle(
+    private func assertAccentTint(
         _ view: NSView,
+        alpha: CGFloat,
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
         var expected: NSColor?
         view.effectiveAppearance.performAsCurrentDrawingAppearance {
             expected = NSColor.controlAccentColor
-                .withAlphaComponent(0.24)
+                .withAlphaComponent(alpha)
                 .usingColorSpace(.sRGB)
         }
         guard let cgColor = view.layer?.backgroundColor,

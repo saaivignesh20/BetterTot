@@ -1,6 +1,8 @@
 import AppKit
 
 final class SettingsContentView: NSVisualEffectView {
+    static var pageAccentColor: NSColor { .controlAccentColor }
+
     enum Page: Int, CaseIterable {
         case general
         case pads
@@ -517,7 +519,7 @@ final class SettingsContentView: NSVisualEffectView {
 
     private func page(_ page: Page, sections: [NSView]) -> NSView {
         let headerIcon = NSImageView(image: Self.symbol(page.symbol, label: page.title))
-        headerIcon.contentTintColor = .controlAccentColor
+        headerIcon.contentTintColor = Self.pageAccentColor
         headerIcon.symbolConfiguration = NSImage.SymbolConfiguration(
             pointSize: 22,
             weight: .medium

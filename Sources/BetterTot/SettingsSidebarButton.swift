@@ -172,9 +172,9 @@ final class SettingsSidebarButton: NSButton {
         let rowTint: NSColor?
         if selected {
             titleColor = .labelColor
-            iconColor = .systemGreen
-            iconTint = NSColor.systemGreen.withAlphaComponent(0.36)
-            rowTint = NSColor.controlAccentColor.withAlphaComponent(0.12)
+            iconColor = SettingsContentView.pageAccentColor
+            iconTint = SettingsContentView.pageAccentColor.withAlphaComponent(0.24)
+            rowTint = SettingsContentView.pageAccentColor.withAlphaComponent(0.12)
         } else if isHovering {
             titleColor = .labelColor
             iconColor = .labelColor

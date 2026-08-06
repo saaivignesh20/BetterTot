@@ -634,7 +634,7 @@ Verification performed while writing this spec:
 ```text
 swift test
 Executed 142 tests, with 0 failures.
-Line coverage: 88.83% (4674/5262), minimum 80.00%.
+Line coverage: 88.83% (4675/5263), minimum 80.00%.
 ```
 
 ## Current Gaps and Risks

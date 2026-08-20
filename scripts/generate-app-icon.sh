@@ -45,7 +45,15 @@ ICONSET="$STAGING/BetterTot.iconset"
 MASTER="$STAGING/master.png"
 mkdir -p "$ICONSET"
 
-sips --setProperty format png "$SOURCE" --out "$MASTER" >/dev/null
+if ! sips --setProperty format png "$SOURCE" --out "$MASTER" >/dev/null 2>&1; then
+    command -v qlmanage >/dev/null || \
+        die "sips could not rasterize the SVG and qlmanage is unavailable"
+    qlmanage -t -s 1024 -o "$STAGING" "$SOURCE" >/dev/null 2>&1 || \
+        die "could not rasterize the SVG master"
+    QL_PREVIEW="$STAGING/$(basename "$SOURCE").png"
+    [[ -f "$QL_PREVIEW" ]] || die "Quick Look did not produce an icon preview"
+    mv "$QL_PREVIEW" "$MASTER"
+fi
 
 render() {
     local pixels="$1"

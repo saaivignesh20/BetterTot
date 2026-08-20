@@ -56,7 +56,7 @@ There should be no loading screen, note picker, sidebar, startup animation, or d
 
 ## 2.2 Fixed, not organized
 
-BetterTot should use seven permanent scratchpad slots.
+BetterTot should use eight permanent scratchpad slots.
 
 Users do not:
 
@@ -110,7 +110,7 @@ Text-editing commands, focus changes, Return, paste, undo, input methods, and mo
 Version 0.1 should include:
 
 1. Menu-bar-only application
-2. Seven fixed scratchpads
+2. Eight fixed scratchpads
 3. Native plain-text editor
 4. Custom menu-bar-attached panel
 5. Configurable global keyboard shortcut
@@ -204,7 +204,7 @@ Do not implement the feature by monitoring all keyboard input globally.
 
 ## 4.3 Scratchpad selection
 
-Display seven slot indicators.
+Display eight slot indicators.
 
 Each slot must have:
 
@@ -219,13 +219,16 @@ Color must not be the only way to distinguish slots.
 Recommended shortcuts:
 
 ```text
-Command + 1 ... Command + 7   Select slot
-Command + Left Arrow          Previous slot
-Command + Right Arrow         Next slot
+Command + 1 ... Command + 8   Select slot
+Control + Shift + Tab         Previous slot
+Control + Tab                 Next slot
 Command + Shift + C           Copy entire slot
 Command + Shift + Delete      Clear slot
 Escape                        Dismiss unpinned panel
 ```
+
+Command + Left Arrow and Command + Right Arrow remain native text-navigation
+commands and must not switch pads.
 
 Clearing a non-empty pad should require confirmation or provide an immediately available undo action.
 
@@ -540,9 +543,9 @@ struct WorkspaceMetadata: Codable {
 
 The store should ensure:
 
-* Exactly seven active pads
+* Exactly eight active pads
 * Unique IDs
-* Unique positions from zero through six
+* Unique positions from zero through seven
 * A valid selected pad
 * Missing pads are recreated
 * Duplicate positions are repaired deterministically
@@ -732,7 +735,7 @@ Use this requirement:
 Support:
 
 * Import one text file into the selected pad
-* Import seven text files into all slots
+* Import eight text files into all slots
 * Import a BetterTot backup
 * Paste as plain text
 
@@ -825,7 +828,7 @@ Requirements:
 
 * Complete keyboard operation
 * VoiceOver-readable status item
-* VoiceOver labels for all seven pads
+* VoiceOver labels for all eight pads
 * Selected-pad state exposed to accessibility APIs
 * Logical key-view order
 * Configurable text size
@@ -1056,7 +1059,7 @@ A global-hotkey package may be accepted when:
 Test:
 
 * Workspace creation
-* Exactly-seven-pad invariant
+* Exactly-eight-pad invariant
 * Duplicate pad repair
 * Missing file recovery
 * UTF-8 save/load round trips
@@ -1186,7 +1189,7 @@ Version 0.1 targets:
 * Typing should never wait for disk writes.
 * Pad switching should not display a loading indicator.
 * Ordinary saves should run off the main thread.
-* Startup should remain fast with all seven pads at expected scratchpad sizes.
+* Startup should remain fast with all eight pads at expected scratchpad sizes.
 * Memory should remain bounded when repeatedly switching pads.
 * Event monitors must not remain installed while unnecessary.
 
@@ -1362,14 +1365,14 @@ Exit criteria:
 
 * Content survives forced termination.
 * Corrupted metadata does not destroy pad text.
-* An individual damaged pad does not damage the other six.
+* An individual damaged pad does not damage the other seven.
 * Failed saves are visible and recoverable.
 
-## Phase 2 — Seven-pad MVP
+## Phase 2 — Eight-pad MVP
 
 Implement:
 
-* Seven fixed pads
+* Eight fixed pads
 * Pad indicators
 * Keyboard switching
 * Selection restoration
@@ -1509,7 +1512,7 @@ Version 0.1 is complete only when all of the following are true:
 
 ## Persistence
 
-* Seven pads persist independently.
+* Eight pads persist independently.
 * Rapid switching does not lose edits.
 * Forced termination recovers the latest journaled content.
 * Corrupted metadata does not destroy note files.
@@ -1566,7 +1569,7 @@ Version 0.1 is complete only when all of the following are true:
 11. Add recovery journal
 12. Add crash-recovery tests
 13. Add global shortcut abstraction
-14. Add seven-pad model
+14. Add eight-pad model
 15. Add pad-switch keyboard commands
 16. Add selection and scroll restoration
 17. Add backups
@@ -1586,7 +1589,7 @@ Version 0.1 is complete only when all of the following are true:
 
 # 25. Immediate first milestone
 
-The first milestone is not “seven notes.”
+The first milestone is not “eight notes.”
 
 It is:
 
@@ -1596,7 +1599,270 @@ Until that milestone is reliable, no additional product features should be built
 
 That interaction is BetterTot’s core technical risk and its primary competitive value.
 
-The right starting point is Phase 0. Do not begin with synchronization, Markdown, branding polish, or all seven pads.
+The right starting point is Phase 0. Do not begin with synchronization, Markdown, branding polish, or all eight pads.
+
+---
+
+# 26. Planned next phase: iCloud-only backups and command menus
+
+This phase replaces the optional local-to-iCloud mirror with one automatic,
+app-owned iCloud backup repository. It also moves every backup command into
+Settings and makes the application and status menus useful for scratchpad work.
+
+This is backup synchronization, not live pad synchronization. Pad files,
+journals, and recovered edits remain local. Normal editing and saving must
+continue when iCloud is unavailable. These local journal and recovery files are
+implementation safeguards, not an optional local backup destination. BetterTot
+must expose exactly one backup repository: iCloud Drive.
+
+## 26.1 Destination decision
+
+The current private build is ad-hoc signed and has no Apple Team ID or iCloud
+entitlements. For that build, resolve the visible iCloud Drive directory from
+the current user's home directory and use this fixed child folder:
+
+```text
+~/Library/Mobile Documents/com~apple~CloudDocs/
+  BetterTot Backups (org.bettertot.BetterTot)/
+```
+
+The display name and bundle identifier are fixed constants, not localized or
+derived from the running bundle. This makes the folder name human-readable,
+unique, and deterministic across BetterTot versions on the same iCloud account.
+There is no folder picker, enable switch, or persisted destination preference.
+
+The repository lives outside `BetterTot.app`, application caches, temporary
+directories, and local preferences. Replacing or updating the app bundle must
+not move, recreate, or delete it. Deleting and reinstalling the app must resolve
+the same path, read the existing ownership manifest, and continue from the
+existing snapshots without requiring remembered `UserDefaults`.
+
+The folder name, repository identifier, and schema contract are stable storage
+identities. Do not include the application version, build number, architecture,
+installation path, or localized app name in any of them. A future rename must
+keep resolving this original repository unless an explicit, verified migration
+is implemented.
+
+Access to `com~apple~CloudDocs` is an implementation detail suitable only for
+the current non-sandboxed private build. Isolate it behind an
+`ICloudBackupLocationResolving` boundary. Once Apple developer authorization is
+available, replace that resolver with
+`FileManager.url(forUbiquityContainerIdentifier:)` and the app-owned container
+`iCloud.org.bettertot.BetterTot`; do not change the repository or Settings
+contracts during that migration.
+
+Never create the `Mobile Documents` or `com~apple~CloudDocs` ancestors. If the
+iCloud Drive root does not already exist as a writable directory, report iCloud
+as unavailable.
+
+## 26.2 Repository ownership and validation
+
+The deterministic folder contains a versioned ownership manifest:
+
+```json
+{
+  "format": "org.bettertot.backup-repository",
+  "schemaVersion": 1,
+  "bundleIdentifier": "org.bettertot.BetterTot",
+  "repositoryIdentifier": "org.bettertot.BetterTot.backups"
+}
+```
+
+Use `Codable` for the manifest. Write it atomically before publishing the first
+snapshot. The repository may contain only the manifest, documented migration
+state, and the BetterTot backup hierarchy.
+
+Preflight states:
+
+| Existing state | Result |
+|---|---|
+| Folder absent | Create it and its manifest atomically |
+| Folder empty | Adopt it by writing the manifest |
+| Valid manifest and valid layout | Continue |
+| Recognizable legacy BetterTot layout | Migrate non-destructively, then claim it |
+| Wrong/missing manifest plus unknown content | Block all writes and pruning |
+| Symlink, regular file, malformed hierarchy, or newer schema | Block all writes and pruning |
+
+Validation must never rename, delete, or overwrite unknown content. Startup
+preflight validates structure and names without forcing every iCloud placeholder
+to download. Snapshot contents and hashes are validated when restoring.
+
+Each completed snapshot gets a manifest with its kind, creation date,
+installation ID, expected files, byte sizes, and SHA-256 hashes. The
+installation ID is a random UUID persisted by BetterTot; never derive it from
+hardware or account identifiers. Retention is applied per installation so one
+Mac cannot prune another Mac's snapshots. Repository discovery never depends
+on that locally persisted UUID: if a full reinstall loses it, BetterTot creates
+a new installation record while preserving and displaying every previous
+installation's snapshots.
+
+## 26.3 When to tell the user
+
+Run the first preflight asynchronously after the status item, menus, panel, and
+Settings controller are ready, but before migration or the first backup write.
+
+If the deterministic folder exists and contains invalid or foreign items:
+
+1. Mark iCloud backup as blocked and make no filesystem changes.
+2. Add an `iCloud Backup Needs Attention` status-menu item that opens Storage.
+3. Show a persistent warning in Settings > Storage with the exact folder path.
+4. Present one alert per launch after application setup, never while a backup
+   or editor operation is in progress. Offer `Open Folder` and `Open Storage
+   Settings`; dismissal does not authorize adoption or deletion.
+5. Revalidate when Storage opens and before every backup, prune, or restore.
+   Do not repeat the alert within the same launch unless the conflict changes.
+
+Use the same persistent status for unavailable iCloud Drive, but do not describe
+an unavailable root as invalid content. Logs include only error domain, code,
+and repository state; never log note text or foreign filenames.
+
+## 26.4 Backup execution and migration
+
+Replace local rolling snapshots plus mirroring with a `BackupRepository` actor
+that owns validation, coordinated iCloud I/O, publication, and retention.
+`WorkspaceStore` captures an immutable, internally consistent snapshot and
+hands it to that actor. Publishing uses a hidden temporary sibling, verifies
+the completed snapshot, then moves it into place. Pad commits must not wait for
+background hourly or daily publication.
+
+`Back Up Now`, destructive import safety backups, and restore safety backups do
+await verified publication. If iCloud is unavailable, those safety-dependent
+operations stop without changing current pad data.
+
+The upgrade migration is resumable and idempotent:
+
+1. Validate and claim the deterministic iCloud repository.
+2. Copy existing local backups.
+3. Copy the previously selected mirror, if configured.
+4. Deduplicate byte-identical snapshots; preserve differing same-name snapshots
+   with a deterministic hash suffix.
+5. Verify every copied snapshot before recording migration completion.
+6. Only then route future backups exclusively to iCloud.
+
+Never delete old local backups or the former user-selected mirror during this
+phase. They become untouched migration source data, not a selectable fallback,
+destination, or ongoing backup option. No new local rolling snapshots are
+created after the verified iCloud cutover.
+
+## 26.5 Settings > Storage
+
+Remove the mirror switch, folder chooser, local backup destination row, and all
+language describing a second copy. The Storage page becomes the only backup
+control surface and contains:
+
+* iCloud availability and repository health
+* Deterministic folder path
+* Hourly, daily, and manual snapshot counts
+* Migration progress or conflict status
+* `Back Up Now`
+* `Restore Backup...`
+* `Open in iCloud Drive`
+* `Recheck`
+
+Disable backup and restore commands while the repository is unavailable,
+invalid, migrating, or busy. `Open Folder` remains enabled for invalid-content
+recovery when the path exists. Settings backup actions must call through the
+panel controller so pending editor text is committed before snapshot capture.
+
+## 26.6 Menus
+
+Remove `Create Backup Now`, `Open Backup Folder`, and `Restore Backup...` from
+the status menu. Backup health may appear there only as the conditional
+attention item described above.
+
+Recommended status menu:
+
+```text
+Show/Hide BetterTot
+Pin/Unpin Scratchpad
+Scratchpads >
+Copy Entire Pad
+Import/Export >
+Settings...
+Quit BetterTot
+```
+
+`Scratchpads` lists all eight current pad names, checks the selected pad, and
+supports direct selection. `Import/Export` contains import into current pad,
+export current pad, and export all pads. Do not put destructive clear in the
+status menu while the pad content is hidden.
+
+The main menu adds:
+
+* `File`: import and export commands
+* `Scratchpad`: show/hide, pin/unpin, previous/next, direct pad selection, and
+  copy entire pad
+* `Format`: bulleted list, numbered list, and checklist
+
+Use one command-routing layer for the main and status menus. Dynamic titles,
+enabled states, and selected-pad checkmarks use menu validation rather than
+duplicated menu state.
+
+## 26.7 Implementation order
+
+1. Add resolver, repository state, manifest, and validator tests.
+2. Implement the deterministic private-build resolver and iCloud-unavailable
+   states behind dependency injection.
+3. Implement atomic repository publication, verification, cancellation, and
+   per-installation retention.
+4. Implement resumable migration without deleting legacy data.
+5. Cut backup creation, counts, and restore over to the repository actor.
+6. Rebuild Storage around repository health and backup actions.
+7. Introduce shared menu command routing and remove backup menu commands.
+8. Update SPEC, README, privacy documentation, and manual testing.
+9. Run the complete automated suite once, then perform signed-in, offline,
+   signed-out, invalid-folder, migration, and second-Mac manual checks.
+
+## 26.8 Release gates
+
+Required automated coverage:
+
+* Deterministic path resolution and missing/unwritable iCloud roots
+* Empty, valid, legacy, foreign, malformed, symlinked, and newer-schema folders
+* Proof that invalid content causes zero writes, moves, or deletions
+* Atomic publication, hash verification, collision handling, and cancellation
+* Per-installation retention and two-installation isolation
+* Resumable and interrupted migration with legacy preservation
+* Upgrade by replacing the app bundle while preserving the repository
+* Fresh installation with empty preferences rediscovering existing snapshots
+* Reinstall receiving a new installation ID without hiding or pruning old data
+* Pad saving while iCloud is unavailable
+* Safety backup enforcement before replace and restore
+* Storage states and exact main/status menu contents and actions
+* Existing macOS 13 compatibility and current macOS visual snapshots
+
+The private-build resolver may ship only for the existing non-sandboxed local
+distribution. Public, sandboxed, or multi-user distribution requires an
+entitlement-backed ubiquity container and development-signed validation first.
+
+## 26.9 Release target and ticket acceptance
+
+The release version is **BetterTot 0.3.0**. This is a minor pre-1.0 increment
+because the release replaces the backup architecture and adds new menu command
+surfaces without intentionally breaking the eight-pad workspace format. Reserve
+`0.3.1` for stabilization fixes found after the cutover.
+
+| Ticket # | Ticket Tagline | Acceptance Criteria |
+|---|---|---|
+| BT-030-01 | Freeze the iCloud repository identity | The root resolves to `iCloud Drive/BetterTot Backups (org.bettertot.BetterTot)` for every build and version; no version, localization, architecture, or installation path changes it; no folder picker or destination preference exists. |
+| BT-030-02 | Resolve iCloud availability safely | A present writable CloudDocs root resolves successfully; missing, non-directory, symlinked, or unwritable roots return explicit unavailable states; BetterTot never creates the `Mobile Documents` or `com~apple~CloudDocs` ancestors. |
+| BT-030-03 | Claim the repository with a manifest | An absent or empty app folder receives one atomically written schema-v1 ownership manifest; a matching manifest is accepted; wrong ownership or a newer schema blocks access without modifying the folder. |
+| BT-030-04 | Reject foreign and malformed contents | Unknown root items, malformed tiers, unexpected snapshot files, and symlinks produce a blocked state; automated tests prove the failed preflight performs zero writes, moves, overwrites, prunes, or deletions. |
+| BT-030-05 | Surface repository conflicts at the correct time | Preflight runs after menus, panel, and Settings are ready but before migration or backup writes; a conflict produces a persistent Storage warning, an `iCloud Backup Needs Attention` menu item, and at most one alert per launch unless the conflict fingerprint changes. |
+| BT-030-06 | Define immutable snapshot manifests | Every snapshot records kind, creation date, installation ID, expected files, byte sizes, and SHA-256 hashes; manifests encode and decode with `Codable`; note contents and filenames never enter diagnostic logs. |
+| BT-030-07 | Publish snapshots atomically | Publication writes to a hidden temporary sibling, verifies files and hashes, and moves into place only when complete; cancellation or failure leaves no visible partial snapshot and never overwrites an existing snapshot. |
+| BT-030-08 | Isolate retention between installations | Hourly retains 24 and daily retains 14 snapshots per installation; manual snapshots are not automatically pruned; one installation cannot prune another installation's snapshots; installation IDs never use hardware or account identifiers. |
+| BT-030-09 | Cut over to iCloud-only backups | After migration verification, hourly, daily, manual, import-safety, and restore-safety snapshots publish only to the iCloud repository; no new local rolling snapshot is created; local journals continue solely as crash-recovery infrastructure. |
+| BT-030-10 | Migrate legacy backups without loss | Existing local backups are copied before the previous mirror; migration is resumable and idempotent; byte-identical snapshots deduplicate; different same-name snapshots receive deterministic hash suffixes; source data is never deleted automatically. |
+| BT-030-11 | Survive updates and reinstalls | Replacing or updating `BetterTot.app` preserves and rediscovers all snapshots; a fresh installation with empty preferences finds the repository from its fixed path and manifest; a new installation ID does not hide or prune snapshots from previous installations. |
+| BT-030-12 | Keep editing independent of iCloud | Pad saves, journals, switching, launch, and termination work while iCloud is unavailable; `Back Up Now` reports failure without changing pad data; destructive import or restore stops before mutation when its verified safety snapshot cannot be published. |
+| BT-030-13 | Make Storage the backup control center | Storage shows repository health, fixed path, counts, migration state, and actionable errors; it contains `Back Up Now`, `Restore Backup...`, `Open in iCloud Drive`, and `Recheck`; there is no local destination, mirror switch, or folder chooser. |
+| BT-030-14 | Route Settings backup actions through live editor state | `Back Up Now` and restore first commit pending text from every edited pad; controls disable while unavailable, invalid, migrating, or busy; invalid-folder recovery can still open the existing folder. |
+| BT-030-15 | Share one menu command router | Main and status menus invoke one command layer; titles, enabled states, selected pad checkmarks, and pin state update through menu validation; command behavior matches keyboard and footer actions. |
+| BT-030-16 | Replace status-menu backup commands with useful tools | The status menu contains show/hide, pin/unpin, eight named scratchpads, copy entire pad, grouped import/export, Settings, and Quit; it contains no create/open/restore backup command; destructive clear is absent. |
+| BT-030-17 | Add complete main-menu commands | `File` exposes import/export, `Scratchpad` exposes visibility, pinning, navigation, selection, and copy-all, and `Format` exposes bulleted, numbered, and checklist actions; standard Edit behavior remains intact. |
+| BT-030-18 | Update the product contract | `SPEC.md`, README, privacy documentation, manual testing, and uninstall/update guidance describe iCloud as the only backup repository, disclose the private-build CloudDocs path, and distinguish crash recovery from backups. |
+| BT-030-19 | Pass the 0.3.0 release gate | The complete automated suite passes the 80% coverage gate; release and installer checks pass; manual signed-in, offline, signed-out, invalid-folder, interrupted-migration, app-update, app-reinstall, and second-Mac checks are recorded before tagging `v0.3.0`. |
 
 [1]: https://developer.apple.com/documentation/appkit/nswindow/canbecomekey?utm_source=chatgpt.com "canBecomeKey | Apple Developer Documentation"
 [2]: https://developer.apple.com/documentation/servicemanagement/smappservice?utm_source=chatgpt.com "SMAppService | Apple Developer Documentation"

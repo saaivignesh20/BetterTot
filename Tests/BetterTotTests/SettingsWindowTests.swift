@@ -33,24 +33,17 @@ final class SettingsWindowTests: XCTestCase {
         XCTAssertEqual(defaults.string(forKey: SettingsKeys.fontName), "AmericanTypewriter")
         XCTAssertEqual(defaults.double(forKey: SettingsKeys.fontSize), 14)
         XCTAssertEqual(SettingsKeys.editorFont(in: defaults).fontName, "AmericanTypewriter")
-        XCTAssertFalse(defaults.bool(forKey: SettingsKeys.backupMirrorEnabled))
-        XCTAssertNil(SettingsKeys.activeBackupMirrorDirectory(in: defaults))
     }
 
-    func testBackupMirrorSettingsPersistOnlyValidEnabledDirectories() {
+    func testLegacyBackupLocationAcceptsOnlyValidFileURLsForMigration() {
         defaults.register(defaults: SettingsKeys.defaults)
         let directory = root.appendingPathComponent("iCloud Drive", isDirectory: true)
 
-        SettingsKeys.saveBackupMirrorDirectory(directory, to: defaults)
-        XCTAssertEqual(SettingsKeys.storedBackupMirrorDirectory(in: defaults), directory)
-        XCTAssertNil(SettingsKeys.activeBackupMirrorDirectory(in: defaults))
+        SettingsKeys.saveLegacyBackupDirectory(directory, to: defaults)
+        XCTAssertEqual(SettingsKeys.storedLegacyBackupDirectory(in: defaults), directory)
 
-        defaults.set(true, forKey: SettingsKeys.backupMirrorEnabled)
-        XCTAssertEqual(SettingsKeys.activeBackupMirrorDirectory(in: defaults), directory)
-
-        SettingsKeys.saveBackupMirrorDirectory(URL(string: "https://example.com")!, to: defaults)
-        XCTAssertNil(SettingsKeys.storedBackupMirrorDirectory(in: defaults))
-        XCTAssertNil(SettingsKeys.activeBackupMirrorDirectory(in: defaults))
+        SettingsKeys.saveLegacyBackupDirectory(URL(string: "https://example.com")!, to: defaults)
+        XCTAssertNil(SettingsKeys.storedLegacyBackupDirectory(in: defaults))
     }
 
     func testSettingsContentViewBuildsFiveSidebarPages() throws {
@@ -76,8 +69,10 @@ final class SettingsWindowTests: XCTestCase {
         let commandIdentifiers = [
             "global-shortcut",
             "change-font",
-            "open-backup-folder",
-            "choose-backup-mirror",
+            "backup-now",
+            "restore-backup",
+            "open-icloud-backups",
+            "recheck-icloud-backups",
             "check-for-updates",
             "view-update",
         ]
@@ -88,20 +83,48 @@ final class SettingsWindowTests: XCTestCase {
                 $0.identifier?.rawValue == identifier
             })
             XCTAssertEqual(button.contentTintColor, .labelColor, identifier)
-            #if compiler(>=6.2)
-                if #available(macOS 26.0, *) {
-                    XCTAssertEqual(button.bezelStyle, .glass, identifier)
-                } else {
-                    XCTAssertEqual(button.bezelStyle, .rounded, identifier)
-                }
-            #else
-                XCTAssertEqual(button.bezelStyle, .rounded, identifier)
-            #endif
+            XCTAssertTrue(button.isBordered, identifier)
+            XCTAssertEqual(button.bezelStyle, .rounded, identifier)
         }
     }
 
+    func testStoragePageExposesOnlyICloudBackupControls() throws {
+        let view = SettingsContentView()
+        let subviews = allSubviews(of: view)
+        let identifiers = Set(subviews.compactMap { $0.identifier?.rawValue })
+        let text = subviews.compactMap { ($0 as? NSTextField)?.stringValue }.joined(separator: " ")
+
+        XCTAssertTrue(identifiers.contains("backup-latest-date"))
+        XCTAssertTrue(identifiers.contains("backup-latest-size"))
+        XCTAssertTrue(identifiers.contains("backup-now"))
+        XCTAssertTrue(identifiers.contains("restore-backup"))
+        XCTAssertTrue(identifiers.contains("open-icloud-backups"))
+        XCTAssertTrue(identifiers.contains("recheck-icloud-backups"))
+        XCTAssertFalse(identifiers.contains("backup-mirror-enabled"))
+        XCTAssertFalse(identifiers.contains("choose-backup-mirror"))
+        XCTAssertFalse(identifiers.contains("open-backup-folder"))
+        XCTAssertFalse(text.contains("Local Recovery"))
+        XCTAssertFalse(text.contains("Backup Mirror"))
+        XCTAssertFalse(text.contains("Local Storage"))
+    }
+
+    func testBlockedBackupRepositoryStillAllowsRestoreOfExistingSnapshots() {
+        let view = SettingsContentView()
+        view.setBackupSummary(BackupRepositorySummary(
+            health: .blocked("Unexpected files need attention."),
+            directory: root,
+            canOpenDirectory: true,
+            latestBackupDate: Date(),
+            latestBackupSizeBytes: 42,
+            counts: [.manual: 1]
+        ))
+
+        XCTAssertFalse(view.backupNowButton.isEnabled)
+        XCTAssertTrue(view.restoreBackupButton.isEnabled)
+    }
+
     func testSettingsPageHeadersUseCircularAccentIcons() {
-        let windowSize = NSSize(width: 680, height: 460)
+        let windowSize = NSSize(width: 520, height: 460)
         let view = SettingsContentView(frame: NSRect(origin: .zero, size: windowSize))
         view.layoutSubtreeIfNeeded()
         let headerIcons = allSubviews(of: view).filter {
@@ -131,8 +154,22 @@ final class SettingsWindowTests: XCTestCase {
         XCTAssertEqual(window.backgroundColor, .clear)
     }
 
+    func testSettingsWindowUsesCompactFixedWidth() throws {
+        let controller = SettingsWindowController(
+            store: WorkspaceStore(root: root),
+            shortcutService: ShortcutServiceStub(currentShortcut: .defaultShortcut),
+            defaults: defaults
+        )
+        defer { controller.close() }
+        let window = try XCTUnwrap(controller.window)
+
+        XCTAssertEqual(window.contentView?.frame.size, NSSize(width: 520, height: 460))
+        XCTAssertEqual(window.minSize, NSSize(width: 520, height: 460))
+        XCTAssertFalse(window.styleMask.contains(.resizable))
+    }
+
     func testSettingsPagesRenderAtWindowSize() throws {
-        let windowSize = NSSize(width: 680, height: 460)
+        let windowSize = NSSize(width: 520, height: 460)
         let window = NSWindow(
             contentRect: NSRect(origin: .zero, size: windowSize),
             styleMask: [.titled, .closable],
@@ -419,6 +456,78 @@ final class SettingsWindowTests: XCTestCase {
         XCTAssertTrue(controller.window?.firstResponder === buttons[4])
     }
 
+    func testPadsPageUsesNumberedPadButtonsColorPopupAndRoundedNameField() throws {
+        let view = PadCustomizationView(frame: NSRect(x: 0, y: 0, width: 480, height: 180))
+        var pads = WorkspaceMetadata.fresh().pads.sorted { $0.position < $1.position }
+        pads[0].name = "Inbox"
+        pads[0].colorIdentifier = PadColorIdentifier.blue.rawValue
+        view.updatePads(pads)
+        view.layoutSubtreeIfNeeded()
+
+        let padButtons = view.padSelectorButtons
+        XCTAssertEqual(
+            padButtons.map(\.title),
+            (1...WorkspaceMetadata.padCount).map(String.init)
+        )
+        XCTAssertEqual(
+            padButtons.map { $0.identifier?.rawValue },
+            (1...WorkspaceMetadata.padCount).map { "settings-pad-selector-\($0)" }
+        )
+        XCTAssertEqual(padButtons.map { $0.accessibilityRole() }, Array(
+            repeating: .radioButton,
+            count: WorkspaceMetadata.padCount
+        ))
+        XCTAssertEqual(
+            padButtons.map { $0.accessibilityLabel() ?? "" },
+            pads.map(\.accessibilityName)
+        )
+        XCTAssertEqual(
+            padButtons.map(\.state),
+            [.on] + Array(repeating: .off, count: WorkspaceMetadata.padCount - 1)
+        )
+        XCTAssertEqual(
+            padButtons.map(\.contentTintColor),
+            pads.map { Optional(PanelContentView.padColor(for: $0)) }
+        )
+        XCTAssertTrue(padButtons.allSatisfy { $0.frame.size == NSSize(width: 32, height: 32) })
+        XCTAssertTrue(padButtons.allSatisfy { $0.layer?.cornerRadius == 16 })
+        XCTAssertTrue(padButtons.allSatisfy { $0.layer?.backgroundColor != nil })
+
+        let colorSelector = try XCTUnwrap(
+            allSubviews(of: view)
+                .compactMap { $0 as? NSPopUpButton }
+                .first { $0.identifier?.rawValue == "settings-pad-color" }
+        )
+        let colorItems = try (0..<colorSelector.numberOfItems).map {
+            try XCTUnwrap(colorSelector.item(at: $0))
+        }
+
+        XCTAssertEqual(colorSelector.accessibilityRole(), .popUpButton)
+        XCTAssertEqual(colorSelector.accessibilityLabel(), "Scratchpad 1, Inbox color")
+        XCTAssertEqual(colorItems.map(\.title), PadColorIdentifier.allCases.map(\.displayName))
+        XCTAssertEqual(
+            colorItems.map { $0.identifier?.rawValue },
+            PadColorIdentifier.allCases.map { "settings-pad-color-\($0.rawValue)" }
+        )
+        XCTAssertEqual(
+            colorItems.compactMap { $0.representedObject as? String },
+            PadColorIdentifier.allCases.map(\.rawValue)
+        )
+        XCTAssertTrue(colorItems.allSatisfy { $0.image != nil && $0.image?.isTemplate == false })
+        XCTAssertEqual(
+            colorSelector.selectedItem?.representedObject as? String,
+            PadColorIdentifier.blue.rawValue
+        )
+
+        let nameField = view.nameField
+        XCTAssertTrue(nameField.isEditable)
+        XCTAssertTrue(nameField.isBezeled)
+        XCTAssertEqual(nameField.bezelStyle, .roundedBezel)
+        XCTAssertEqual(nameField.controlSize, .large)
+        XCTAssertEqual(nameField.focusRingType, .default)
+        XCTAssertGreaterThanOrEqual(nameField.intrinsicContentSize.height, 26)
+    }
+
     func testPadsPageEditsSelectedPadNameAndColorThroughManager() async throws {
         defaults.register(defaults: SettingsKeys.defaults)
         let controller = try await makeController(
@@ -448,17 +557,22 @@ final class SettingsWindowTests: XCTestCase {
         XCTAssertEqual(manager.updates.last?.id, manager.padMetadata[1].id)
         XCTAssertEqual(manager.updates.last?.name, "Research")
         XCTAssertNil(manager.updates.last?.colorIdentifier)
+        XCTAssertEqual(secondPad.accessibilityLabel(), "Scratchpad 2, Research")
 
         let colorSaved = expectation(description: "pad color saved")
         manager.updateExpectation = colorSaved
-        let blue = try settingsButton(identifier: "settings-pad-color-blue", in: controller)
-        blue.performClick(nil)
+        let colorSelector = try settingsColorSelector(in: controller)
+        let blue = try XCTUnwrap(colorSelector.itemArray.first {
+            $0.identifier?.rawValue == "settings-pad-color-blue"
+        })
+        colorSelector.select(blue)
+        XCTAssertTrue(colorSelector.sendAction(colorSelector.action, to: colorSelector.target))
         await fulfillment(of: [colorSaved], timeout: 1)
         await Task.yield()
 
         XCTAssertEqual(manager.updates.last?.name, "Research")
         XCTAssertEqual(manager.updates.last?.colorIdentifier, PadColorIdentifier.blue.rawValue)
-        XCTAssertEqual(blue.state, .on)
+        XCTAssertTrue(colorSelector.selectedItem === blue)
     }
 
     func testPadsPageRevertsAndReportsPersistenceFailure() async throws {
@@ -512,6 +626,10 @@ final class SettingsWindowTests: XCTestCase {
         await fulfillment(of: [started], timeout: 1)
 
         let secondPad = try settingsButton(identifier: "settings-pad-selector-2", in: controller)
+        let colorSelector = try settingsColorSelector(in: controller)
+        XCTAssertFalse(nameField.isEnabled)
+        XCTAssertFalse(colorSelector.isEnabled)
+        XCTAssertTrue(secondPad.isEnabled)
         secondPad.performClick(nil)
         XCTAssertEqual(nameField.placeholderString, "Scratchpad 2")
 
@@ -524,7 +642,7 @@ final class SettingsWindowTests: XCTestCase {
         XCTAssertEqual(manager.padMetadata[0].name, "Research")
     }
 
-    func testClosingDuringFailedPadSaveStillReportsFailure() async throws {
+    func testClosingDuringFailedPadSaveDoesNotMutateDismissedSettings() async throws {
         defaults.register(defaults: SettingsKeys.defaults)
         var errors: [(String, String)] = []
         let controller = try await makeController(
@@ -552,8 +670,7 @@ final class SettingsWindowTests: XCTestCase {
         await fulfillment(of: [completed], timeout: 1)
         await Task.yield()
 
-        XCTAssertEqual(errors.first?.0, "Could not update the scratchpad.")
-        XCTAssertEqual(errors.first?.1, PadCustomizationError.metadataWriteFailed.localizedDescription)
+        XCTAssertTrue(errors.isEmpty)
     }
 
     func testUpdatesPageChecksOnDemandAndOpensValidatedReleasePage() async throws {
@@ -678,7 +795,10 @@ final class SettingsWindowTests: XCTestCase {
         controller.present()
         defer { controller.close() }
 
-        XCTAssertEqual(status.stringValue, "Updates are checked only when requested.")
+        XCTAssertEqual(
+            status.stringValue,
+            "Updates are checked automatically. You can also check now."
+        )
         XCTAssertTrue(checkButton.isEnabled)
     }
 
@@ -708,152 +828,43 @@ final class SettingsWindowTests: XCTestCase {
 
         await controller.refreshBackupSummary()
         XCTAssertEqual(
-            try settingsLabel(identifier: "backup-total", in: controller).stringValue,
-            "No backups yet"
+            try settingsLabel(identifier: "backup-latest-date", in: controller).stringValue,
+            "Never"
         )
         XCTAssertEqual(
-            try settingsLabel(identifier: "backup-hourly-count", in: controller).stringValue,
-            "0"
-        )
-        XCTAssertEqual(
-            try settingsLabel(
-                identifier: "backup-hourly-count",
-                in: controller
-            ).accessibilityLabel(),
-            "Hourly backups"
-        )
-        XCTAssertEqual(
-            try settingsLabel(
-                identifier: "backup-hourly-count",
-                in: controller
-            ).accessibilityValue(),
-            "0"
-        )
-        XCTAssertEqual(
-            try settingsLabel(identifier: "backup-daily-count", in: controller).stringValue,
-            "0"
-        )
-        XCTAssertEqual(
-            try settingsLabel(identifier: "backup-manual-count", in: controller).stringValue,
-            "0"
+            try settingsLabel(identifier: "backup-latest-size", in: controller).stringValue,
+            "—"
         )
     }
 
-    func testStoragePageConfiguresAndDisablesBackupMirror() async throws {
+    func testStoragePageRefreshesICloudSummaryAndOpensRepository() async throws {
         defaults.register(defaults: SettingsKeys.defaults)
-        let destination = root.appendingPathComponent("iCloud Drive", isDirectory: true)
         let store = WorkspaceStore(root: root)
-        _ = try await store.load()
+        let snapshot = try await store.load()
+        await store.commit(snapshot.metadata.pads[0].id, text: "backup", revision: 1)
+        _ = await store.createBackup(.manual)
+        var opened: [URL] = []
         let controller = SettingsWindowController(
             store: store,
             shortcutService: ShortcutServiceStub(currentShortcut: nil),
             defaults: defaults,
-            chooseBackupMirrorDirectory: { destination }
+            openURL: { opened.append($0) }
         )
         controller.present()
         defer { controller.close() }
 
         try settingsNavigationButton(.storage, in: controller).performClick(nil)
-        let chooseButton = try settingsButton(identifier: "choose-backup-mirror", in: controller)
-        let mirrorSwitch = try XCTUnwrap(
-            allSubviews(of: try XCTUnwrap(controller.window?.contentView))
-                .compactMap { $0 as? NSSwitch }
-                .first { $0.identifier?.rawValue == "backup-mirror-enabled" }
+        await controller.refreshBackupSummary()
+        XCTAssertNotEqual(
+            try settingsLabel(identifier: "backup-latest-date", in: controller).stringValue,
+            "Never"
         )
-        let statusLabel = try settingsLabel(identifier: "backup-mirror-status", in: controller)
-
-        chooseButton.performClick(nil)
-        await controller.waitForBackupMirrorConfiguration()
-        let enabledStatus = await store.backupMirrorStatus()
-
-        XCTAssertTrue(defaults.bool(forKey: SettingsKeys.backupMirrorEnabled))
-        XCTAssertEqual(SettingsKeys.activeBackupMirrorDirectory(in: defaults), destination)
-        XCTAssertEqual(mirrorSwitch.state, .on)
-        XCTAssertTrue(statusLabel.stringValue.contains("BetterTot Backups"))
-        XCTAssertEqual(
-            enabledStatus.directory,
-            destination.appendingPathComponent("BetterTot Backups", isDirectory: true)
+        XCTAssertNotEqual(
+            try settingsLabel(identifier: "backup-latest-size", in: controller).stringValue,
+            "—"
         )
-
-        mirrorSwitch.state = .off
-        XCTAssertTrue(mirrorSwitch.sendAction(mirrorSwitch.action, to: mirrorSwitch.target))
-        await controller.waitForBackupMirrorConfiguration()
-        let disabledStatus = await store.backupMirrorStatus()
-
-        XCTAssertFalse(defaults.bool(forKey: SettingsKeys.backupMirrorEnabled))
-        XCTAssertNil(SettingsKeys.activeBackupMirrorDirectory(in: defaults))
-        XCTAssertEqual(mirrorSwitch.state, .off)
-        XCTAssertEqual(statusLabel.stringValue, "Off. Local recovery remains active.")
-        XCTAssertNil(disabledStatus.directory)
-    }
-
-    func testStoragePageDoesNotEnableAnUnusableBackupMirror() async throws {
-        defaults.register(defaults: SettingsKeys.defaults)
-        let blockedDestination = root.appendingPathComponent("blocked-mirror")
-        try Data("not a directory".utf8).write(to: blockedDestination)
-        let store = WorkspaceStore(root: root)
-        _ = try await store.load()
-        let controller = SettingsWindowController(
-            store: store,
-            shortcutService: ShortcutServiceStub(currentShortcut: nil),
-            defaults: defaults,
-            chooseBackupMirrorDirectory: { blockedDestination }
-        )
-        controller.present()
-        defer { controller.close() }
-
-        try settingsButton(identifier: "choose-backup-mirror", in: controller).performClick(nil)
-        await controller.waitForBackupMirrorConfiguration()
-        let mirrorState = await store.backupMirrorStatus()
-        let mirrorSwitch = try XCTUnwrap(
-            allSubviews(of: try XCTUnwrap(controller.window?.contentView))
-                .compactMap { $0 as? NSSwitch }
-                .first { $0.identifier?.rawValue == "backup-mirror-enabled" }
-        )
-        let status = try settingsLabel(identifier: "backup-mirror-status", in: controller)
-
-        XCTAssertFalse(defaults.bool(forKey: SettingsKeys.backupMirrorEnabled))
-        XCTAssertNil(mirrorState.directory)
-        XCTAssertEqual(mirrorSwitch.state, .off)
-        XCTAssertTrue(status.stringValue.hasPrefix("Mirror unavailable:"))
-    }
-
-    func testInvalidBackupMirrorReplacementKeepsPreviousDestination() async throws {
-        defaults.register(defaults: SettingsKeys.defaults)
-        let validDestination = root.appendingPathComponent("working-cloud", isDirectory: true)
-        let blockedDestination = root.appendingPathComponent("blocked-cloud")
-        try Data("not a directory".utf8).write(to: blockedDestination)
-        var choices = [validDestination, blockedDestination]
-        var errors: [(String, String)] = []
-        let store = WorkspaceStore(root: root)
-        _ = try await store.load()
-        let controller = SettingsWindowController(
-            store: store,
-            shortcutService: ShortcutServiceStub(currentShortcut: nil),
-            defaults: defaults,
-            showError: { errors.append(($0, $1)) },
-            chooseBackupMirrorDirectory: { choices.removeFirst() }
-        )
-        controller.present()
-        defer { controller.close() }
-        let chooseButton = try settingsButton(identifier: "choose-backup-mirror", in: controller)
-
-        chooseButton.performClick(nil)
-        await controller.waitForBackupMirrorConfiguration()
-        chooseButton.performClick(nil)
-        await controller.waitForBackupMirrorConfiguration()
-        let mirrorState = await store.backupMirrorStatus()
-
-        XCTAssertTrue(defaults.bool(forKey: SettingsKeys.backupMirrorEnabled))
-        XCTAssertEqual(
-            SettingsKeys.activeBackupMirrorDirectory(in: defaults),
-            validDestination
-        )
-        XCTAssertEqual(
-            mirrorState.directory,
-            validDestination.appendingPathComponent("BetterTot Backups", isDirectory: true)
-        )
-        XCTAssertEqual(errors.first?.0, "Could not change the backup mirror.")
+        try settingsButton(identifier: "open-icloud-backups", in: controller).performClick(nil)
+        XCTAssertEqual(opened, [store.backupsDirectory])
     }
 
     func testLaunchAtLoginActionsUseInjectedBoundaryAndRevertOnFailure() async throws {
@@ -986,7 +997,7 @@ final class SettingsWindowTests: XCTestCase {
         }).performClick(nil)
         XCTAssertTrue(NSFontManager.shared.target === controller)
         try XCTUnwrap(buttons.first {
-            $0.identifier?.rawValue == "open-backup-folder"
+            $0.identifier?.rawValue == "open-icloud-backups"
         }).performClick(nil)
         XCTAssertEqual(openedURLs, [store.backupsDirectory])
 
@@ -1033,6 +1044,14 @@ final class SettingsWindowTests: XCTestCase {
         try XCTUnwrap(allSubviews(of: try XCTUnwrap(controller.window?.contentView))
             .compactMap { $0 as? NSButton }
             .first { $0.identifier?.rawValue == identifier })
+    }
+
+    private func settingsColorSelector(
+        in controller: SettingsWindowController
+    ) throws -> NSPopUpButton {
+        try XCTUnwrap(allSubviews(of: try XCTUnwrap(controller.window?.contentView))
+            .compactMap { $0 as? NSPopUpButton }
+            .first { $0.identifier?.rawValue == "settings-pad-color" })
     }
 
     private func settingsLabel(

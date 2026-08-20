@@ -13,18 +13,11 @@ struct WorkspaceSnapshot {
 // treats this actor as the single writer of pad files, journals, and metadata.
 actor WorkspaceStore {
     let root: URL
+    let backupRepositoryLocation: BackupRepositoryLocation
+    let legacyBackupDirectories: [URL]
+    let backupRepositoryLocationResolver: (any ICloudBackupLocationResolving)?
     private var metadata: WorkspaceMetadata?
     private var journaledRevisions: [PadID: UInt64] = [:]
-    let backupMirror: BackupMirrorService
-    var pendingBackupMirrorTasks: [UUID: Task<Void, Never>] = [:]
-    var backupMirrorConfigurationGeneration: UInt64 = 0
-    var backupMirrorReconfigurationGeneration: UInt64?
-    var deferredBackupMirrorJobs: [(BackupKind, URL)] = []
-
-    var backupMirrorReconfigurationInProgress: Bool {
-        backupMirrorReconfigurationGeneration != nil
-    }
-
     private var padsDir: URL { root.appendingPathComponent("Pads", isDirectory: true) }
     private var journalDir: URL { root.appendingPathComponent("Journal", isDirectory: true) }
     private var recoveredDir: URL { journalDir.appendingPathComponent("recovered", isDirectory: true) }
@@ -32,17 +25,16 @@ actor WorkspaceStore {
 
     init(
         root: URL,
-        backupMirrorDirectory: URL? = nil,
-        backupMirrorCopyItem: @escaping @Sendable (URL, URL) throws -> Void = {
-            try FileManager.default.copyItem(at: $0, to: $1)
-        }
+        backupRepositoryLocation: BackupRepositoryLocation? = nil,
+        backupRepositoryLocationResolver: (any ICloudBackupLocationResolving)? = nil,
+        legacyBackupDirectories: [URL] = []
     ) {
         self.root = root
-        backupMirror = BackupMirrorService(
-            parentDirectory: backupMirrorDirectory,
-            localBackupsDirectory: root.appendingPathComponent("Backups", isDirectory: true),
-            copyItem: backupMirrorCopyItem
-        )
+        self.backupRepositoryLocation = backupRepositoryLocation
+            ?? backupRepositoryLocationResolver?.resolve()
+            ?? .available(root.appendingPathComponent("Backups", isDirectory: true))
+        self.backupRepositoryLocationResolver = backupRepositoryLocationResolver
+        self.legacyBackupDirectories = legacyBackupDirectories.map(\.standardizedFileURL)
     }
 
     static func defaultRoot() -> URL {
@@ -113,6 +105,7 @@ actor WorkspaceStore {
         meta.lastCleanShutdown = false
         metadata = meta
         saveMetadata()
+        migrateLegacyBackupsIfNeeded()
         return WorkspaceSnapshot(metadata: meta, texts: texts, revisions: revisions)
     }
 

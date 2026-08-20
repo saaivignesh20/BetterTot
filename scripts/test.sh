@@ -9,3 +9,4 @@ scripts/check-coverage.sh
 Tests/ReleaseTests/release_tooling_test.sh
 Tests/ReleaseTests/coverage_tooling_test.sh
 Tests/ReleaseTests/release_notes_test.sh
+Tests/ReleaseTests/local_install_test.sh

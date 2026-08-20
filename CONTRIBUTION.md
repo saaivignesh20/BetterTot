@@ -28,6 +28,17 @@ scripts/bundle.sh
 open dist/BetterTot.app
 ```
 
+To build the bundle and local installer package, replace the copy in
+`/Applications`, and relaunch BetterTot, use:
+
+```sh
+scripts/build-and-install.sh
+```
+
+The command fails without escalating privileges when `/Applications` is not
+writable. Artifact-only release builds remain separate and never install an
+application as a side effect.
+
 ## Making Changes
 
 1. Create a branch from `main`.

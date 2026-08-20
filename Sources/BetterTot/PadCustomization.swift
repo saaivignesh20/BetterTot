@@ -10,6 +10,13 @@ protocol PadCustomizationManaging: AnyObject {
         name: String?,
         colorIdentifier: String?
     ) async throws -> PadMetadata
+
+}
+
+@MainActor
+protocol SettingsWorkspaceManaging: PadCustomizationManaging {
+    func createSettingsBackup() async -> Bool
+    func restoreBackupFromSettings()
 }
 
 extension PadColorIdentifier {
@@ -22,6 +29,7 @@ extension PadColorIdentifier {
         case .teal: .systemTeal
         case .blue: .systemBlue
         case .purple: .systemPurple
+        case .pink: .systemPink
         }
     }
 

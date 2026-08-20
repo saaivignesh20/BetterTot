@@ -19,8 +19,8 @@
   <img src="./Assets/BetterTot-demo.gif" alt="BetterTot list controls, native checkboxes, and live text statistics" width="720">
 </p>
 
-BetterTot keeps seven lightweight text pads one shortcut away. It is a native
-AppKit application with no account, analytics, or cloud storage.
+BetterTot keeps eight lightweight text pads one shortcut away. It is a native
+AppKit application with no BetterTot account or analytics.
 
 > [!IMPORTANT]
 > BetterTot releases are ad-hoc signed and are not notarized by Apple. macOS
@@ -34,6 +34,19 @@ then verify it with the published SHA-256 checksum. The package installs
 BetterTot in `/Applications`; the ZIP can be extracted and moved there
 manually.
 
+BetterTot currently has no Apple Developer ID signature: the app is ad-hoc
+signed, the installer package is unsigned, and neither is notarized. After you
+verify that the downloaded file's SHA-256 value matches the release checksum:
+
+1. Open the `.pkg` and attempt the installation normally.
+2. If macOS blocks it, open **System Settings → Privacy & Security**.
+3. In **Security**, click **Open Anyway**, authenticate, then confirm **Open**.
+
+Only override the warning for a checksum-verified download from this repository.
+Apple documents this one-time exception in
+[Open an app by overriding security settings](https://support.apple.com/guide/mac-help/open-an-app-by-overriding-security-settings-mh40617/mac).
+Never disable Gatekeeper globally.
+
 ## Build from Source
 
 Requires macOS 13 or later and a compatible Xcode toolchain.
@@ -42,28 +55,31 @@ Requires macOS 13 or later and a compatible Xcode toolchain.
 git clone https://github.com/saaivignesh20/BetterTot.git
 cd BetterTot
 scripts/bundle.sh
-open dist/BetterTot.app
+scripts/build-and-install.sh
 ```
 
-Move `BetterTot.app` to `/Applications` if you want Launch at Login to work
-reliably.
+`scripts/build-and-install.sh` builds `dist/BetterTot.app`, creates the matching
+local `.pkg`, safely replaces `/Applications/BetterTot.app`, and relaunches the
+installed copy. Use `scripts/bundle.sh` by itself when you only need an app
+bundle and do not want to update the installed application.
 
 ## Features
 
-- [x] Seven color-coded scratchpads available from the menu bar
+- [x] Eight color-coded scratchpads available from the menu bar
 - [x] Custom pad names and colors with immediate panel updates
 - [x] Global, configurable keyboard shortcut
 - [x] Pinning by dragging, with position restored between launches
 - [x] Per-pad undo history, selection, and scroll position
 - [x] Footer controls for bulleted, numbered, and checkbox lists
 - [x] Native inline checkboxes backed by portable Markdown task-list text
+- [x] Live Markdown styling for headings, emphasis, code, and web links
 - [x] Optional Apple Writing Tools and Siri support on compatible Macs running macOS 15.1 or later
 - [x] Crash recovery through an append-only journal
-- [x] Atomic saves and rolling hourly, daily, and manual backups
-- [x] Optional user-selected iCloud Drive mirror for local backups
+- [x] Atomic local saves with rolling iCloud Drive backups
+- [x] Fixed, app-owned backup location that survives updates and reinstalls
 - [x] Plain-text import and export
 - [x] Native settings for behavior, pads, editing, storage, and updates
-- [x] Explicit, manual-only checks for GitHub release metadata
+- [x] Daily release checks in bundled builds plus a manual check action
 - [x] Versioned ZIP and macOS installer artifacts for tagged builds
 
 ## Keyboard Shortcuts
@@ -71,8 +87,8 @@ reliably.
 | Shortcut | Action |
 |---|---|
 | `Option-Command-Space` | Toggle BetterTot |
-| `Command-1` ... `Command-7` | Select a pad |
-| `Command-Left` / `Command-Right` | Select the previous / next pad |
+| `Command-1` ... `Command-8` | Select a pad |
+| `Control-Shift-Tab` / `Control-Tab` | Select the previous / next pad |
 | `Shift-Command-C` | Copy the entire pad |
 | `Shift-Command-Delete` | Clear the pad |
 | `Command-P` | Pin or unpin |
@@ -81,7 +97,7 @@ reliably.
 | `Escape` | Dismiss an unpinned panel |
 
 Standard macOS editing shortcuts remain available. The pad-switching shortcuts
-take precedence over line-start and line-end navigation in the editor.
+do not override line-start and line-end navigation in the editor.
 
 ## Data and Privacy
 
@@ -91,15 +107,16 @@ BetterTot stores its data in:
 ~/Library/Application Support/BetterTot/
 ├── Pads/              # one UTF-8 file per pad
 ├── Journal/           # crash-recovery snapshots
-├── Backups/           # hourly, daily, and manual backups
 └── workspace.json     # pad metadata and UI state
 ```
 
-The app makes no automatic network requests while the optional iCloud Drive
-mirror is off. Choosing **Check for Updates** sends the installed version in a
-request to GitHub's public Releases API. Enabling the mirror copies plain-text
-backups into the iCloud Drive folder you select, where macOS handles sync. See
-the complete [privacy documentation](docs/PRIVACY.md).
+Backups are stored only in the deterministic iCloud Drive folder
+`BetterTot Backups (org.bettertot.BetterTot)`. Local pad and journal data stays
+in Application Support, so editing continues without iCloud and normal app
+updates or reinstalls do not remove it. Bundled builds check GitHub's public
+Releases API at most once per 24 hours; the manual check remains available.
+BetterTot never downloads or installs an update automatically. See the complete
+[privacy documentation](docs/PRIVACY.md).
 
 ## Development
 
@@ -107,6 +124,7 @@ the complete [privacy documentation](docs/PRIVACY.md).
 swift run                  # run from source
 scripts/test.sh            # tests and the enforced 80% coverage gate
 scripts/bundle.sh          # build an ad-hoc-signed app bundle
+scripts/build-and-install.sh # build the app and PKG, then update /Applications
 scripts/release.sh         # build and verify the release ZIP, PKG, and checksum
 ```
 
@@ -117,6 +135,7 @@ history and future phases.
 
 ## Documentation
 
+- [BetterTot website](https://saaivignesh20.github.io/BetterTot/)
 - [Contributing](CONTRIBUTION.md)
 - [Security policy](SECURITY.md)
 - [Manual testing](docs/MANUAL_TESTING.md)

@@ -286,11 +286,27 @@ final class PanelControllerTests: XCTestCase {
         XCTAssertFalse(panel.performKeyEquivalent(with: keyEvent(
             keyCode: 11, characters: "b", modifiers: [])))
         XCTAssertTrue(panel.performKeyEquivalent(with: keyEvent(
-            keyCode: 124, modifiers: [.command])))
+            keyCode: 48, characters: "\t", modifiers: [.control])))
         XCTAssertEqual(controller.currentPadPosition, 1)
         XCTAssertTrue(panel.performKeyEquivalent(with: keyEvent(
+            keyCode: 48, characters: "\t", modifiers: [.control, .shift])))
+        XCTAssertEqual(controller.currentPadPosition, 0)
+
+        XCTAssertFalse(panel.performKeyEquivalent(with: keyEvent(
+            keyCode: 124, modifiers: [.command])))
+        XCTAssertEqual(controller.currentPadPosition, 0)
+        XCTAssertFalse(panel.performKeyEquivalent(with: keyEvent(
             keyCode: 123, modifiers: [.command])))
         XCTAssertEqual(controller.currentPadPosition, 0)
+
+        controller.textView.setMarkedText(
+            "composing",
+            selectedRange: NSRange(location: 9, length: 0),
+            replacementRange: NSRange(location: NSNotFound, length: 0))
+        XCTAssertFalse(panel.performKeyEquivalent(with: keyEvent(
+            keyCode: 48, characters: "\t", modifiers: [.control])))
+        XCTAssertEqual(controller.currentPadPosition, 0)
+        controller.textView.unmarkText()
 
         XCTAssertTrue(panel.performKeyEquivalent(with: keyEvent(
             keyCode: 20, characters: "3", modifiers: [.command])))
@@ -298,6 +314,9 @@ final class PanelControllerTests: XCTestCase {
         XCTAssertTrue(panel.performKeyEquivalent(with: keyEvent(
             keyCode: 18, characters: "1", modifiers: [.command])))
         XCTAssertEqual(controller.currentPadPosition, 0)
+        XCTAssertTrue(panel.performKeyEquivalent(with: keyEvent(
+            keyCode: 28, characters: "8", modifiers: [.command])))
+        XCTAssertEqual(controller.currentPadPosition, 7)
 
         XCTAssertTrue(panel.performKeyEquivalent(with: keyEvent(
             keyCode: 8, characters: "c", modifiers: [.command, .shift])))
@@ -328,8 +347,9 @@ final class PanelControllerTests: XCTestCase {
             keyCode: 13, characters: "w", modifiers: [.command])))
         XCTAssertFalse(panel.isVisible)
 
-        XCTAssertFalse(panel.performKeyEquivalent(with: keyEvent(
-            keyCode: 124, modifiers: [.command, .shift])))
+        _ = panel.performKeyEquivalent(with: keyEvent(
+            keyCode: 48, characters: "\t", modifiers: [.control, .option]))
+        XCTAssertEqual(controller.currentPadPosition, 0)
         XCTAssertFalse(panel.performKeyEquivalent(with: keyEvent(
             keyCode: 11, characters: "b", modifiers: [.command])))
     }
@@ -337,6 +357,7 @@ final class PanelControllerTests: XCTestCase {
     func testPadDotsUseColorsAndAccessibleNumericIdentities() throws {
         let buttons = padButtons
 
+        XCTAssertEqual(PadColorIdentifier.fallbackPalette.count, WorkspaceMetadata.padCount)
         XCTAssertEqual(buttons.count, WorkspaceMetadata.padCount)
         let images = try buttons.enumerated().map { index, button in
             XCTAssertEqual(button.title, "")
@@ -449,10 +470,14 @@ final class PanelControllerTests: XCTestCase {
         controller.onOpenSettings = { openCount += 1 }
         controller.show()
         let button = try panelButton(identifier: "panel-settings")
+        let checkboxButton = try panelButton(identifier: "panel-checkbox-list")
+        let pinButton = try panelButton(identifier: "panel-pin")
 
         XCTAssertNotNil(button.image)
         XCTAssertEqual(button.toolTip, "Settings")
         XCTAssertEqual(button.accessibilityLabel(), "Settings")
+        XCTAssertTrue(button.superview === checkboxButton.superview)
+        XCTAssertFalse(button.superview === pinButton.superview)
         XCTAssertTrue(button.sendAction(button.action, to: button.target))
         XCTAssertEqual(openCount, 1)
         XCTAssertFalse(panel.isVisible)
@@ -575,18 +600,46 @@ final class PanelControllerTests: XCTestCase {
         XCTAssertFalse(panel.isVisible)
     }
 
-    func testTextSystemPanelClickIsNotHandledAsOutsideClick() {
+    func testAttachedTextSystemWindowClickIsNotHandledAsOutsideClick() {
         controller.show()
-        let correctionPanel = NSPanel(
+        let correctionWindow = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 100, height: 40),
             styleMask: .borderless,
             backing: .buffered,
             defer: false
         )
+        panel.addChildWindow(correctionWindow, ordered: .above)
 
-        controller.handleOutsideClick(window: correctionPanel, screenLocation: .zero)
+        controller.handleOutsideClick(window: correctionWindow, screenLocation: .zero)
 
         XCTAssertTrue(panel.isVisible)
+
+        panel.removeChildWindow(correctionWindow)
+        controller.handleOutsideClick(window: correctionWindow, screenLocation: .zero)
+        XCTAssertFalse(panel.isVisible)
+    }
+
+    func testTextInputServiceClickIsNotHandledAsOutsideClick() {
+        let outsidePoint = NSPoint(x: -10_000, y: -10_000)
+        for bundleIdentifier in [
+            "com.apple.TextInputMenuAgent",
+            "com.apple.inputmethod.PluginIM",
+        ] {
+            controller.show()
+            controller.handleOutsideClick(
+                window: nil,
+                screenLocation: outsidePoint,
+                ownerBundleIdentifier: bundleIdentifier
+            )
+            XCTAssertTrue(panel.isVisible, bundleIdentifier)
+        }
+
+        controller.handleOutsideClick(
+            window: nil,
+            screenLocation: outsidePoint,
+            ownerBundleIdentifier: "com.apple.Safari"
+        )
+        XCTAssertFalse(panel.isVisible)
     }
 
     func testEscapeDuringMarkedTextRemainsAnInputMethodCommand() {

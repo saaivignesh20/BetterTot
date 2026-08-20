@@ -9,8 +9,8 @@ enum SettingsKeys {
     static let fontName = "editorFontName"
     static let fontSize = "editorFontSize"
     static let globalShortcut = "globalShortcut"
-    static let backupMirrorEnabled = "backupMirrorEnabled"
-    static let backupMirrorDirectory = "backupMirrorDirectory"
+    // Read-only compatibility key used to migrate the pre-0.3 mirror once.
+    static let legacyBackupDirectoryKey = "backupMirrorDirectory"
 
     static func loadShortcut(from defaults: UserDefaults = .standard) -> Shortcut {
         guard let data = defaults.data(forKey: globalShortcut),
@@ -35,33 +35,26 @@ enum SettingsKeys {
         defaults.set(Double(font.pointSize), forKey: fontSize)
     }
 
-    static func saveBackupMirrorDirectory(
+    static func saveLegacyBackupDirectory(
         _ directory: URL,
         to defaults: UserDefaults = .standard
     ) {
         guard directory.isFileURL, directory.path != "/" else {
-            defaults.removeObject(forKey: backupMirrorDirectory)
+            defaults.removeObject(forKey: legacyBackupDirectoryKey)
             return
         }
-        defaults.set(directory.standardizedFileURL.path, forKey: backupMirrorDirectory)
+        defaults.set(directory.standardizedFileURL.path, forKey: legacyBackupDirectoryKey)
     }
 
-    static func storedBackupMirrorDirectory(
+    static func storedLegacyBackupDirectory(
         in defaults: UserDefaults = .standard
     ) -> URL? {
-        guard let path = defaults.string(forKey: backupMirrorDirectory),
+        guard let path = defaults.string(forKey: legacyBackupDirectoryKey),
               !path.isEmpty,
               path != "/" else {
             return nil
         }
         return URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL
-    }
-
-    static func activeBackupMirrorDirectory(
-        in defaults: UserDefaults = .standard
-    ) -> URL? {
-        guard defaults.bool(forKey: backupMirrorEnabled) else { return nil }
-        return storedBackupMirrorDirectory(in: defaults)
     }
 
     static let defaults: [String: Any] = [
@@ -71,7 +64,6 @@ enum SettingsKeys {
         writingTools: false,
         fontName: "AmericanTypewriter",
         fontSize: 14.0,
-        backupMirrorEnabled: false,
     ]
 
     static var editorFont: NSFont {
@@ -90,7 +82,8 @@ enum SettingsKeys {
 
 @MainActor
 final class SettingsWindowController: NSWindowController, NSWindowDelegate {
-    private static let idleUpdateStatus = "Updates are checked only when requested."
+    private static let idleUpdateStatus =
+        "Updates are checked automatically. You can also check now."
 
     private let store: WorkspaceStore
     private let shortcutService: GlobalShortcutService
@@ -101,7 +94,6 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     private let openURL: @MainActor (URL) -> Void
     private let showError: @MainActor (String, String) -> Void
     private let convertFont: @MainActor (NSFont) -> NSFont
-    private let chooseBackupMirrorDirectory: @MainActor () -> URL?
     private let checkForUpdates: @MainActor () async throws -> UpdateCheckOutcome
     private let currentVersion: String
     private let currentBuild: String
@@ -110,9 +102,13 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     private var recordingMonitor: Any?
     private var updateTask: Task<Void, Never>?
     private var padUpdateTask: Task<Void, Never>?
-    private var backupMirrorTask: Task<Void, Never>?
+    private var backupTask: Task<Void, Never>?
+    private var backupSummary: BackupRepositorySummary?
     private var availableReleaseURL: URL?
+    private var isPresented = false
     private weak var padCustomizationManager: (any PadCustomizationManaging)?
+    private weak var workspaceManager: (any SettingsWorkspaceManaging)?
+    var onBackupRepositoryDidChange: (@MainActor () -> Void)?
 
     init(
         store: WorkspaceStore,
@@ -139,16 +135,6 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         convertFont: @escaping @MainActor (NSFont) -> NSFont = {
             NSFontManager.shared.convert($0)
         },
-        chooseBackupMirrorDirectory: @escaping @MainActor () -> URL? = {
-            let panel = NSOpenPanel()
-            panel.canChooseFiles = false
-            panel.canChooseDirectories = true
-            panel.allowsMultipleSelection = false
-            panel.canCreateDirectories = true
-            panel.message = "Choose a folder in iCloud Drive for BetterTot backups."
-            panel.prompt = "Use Folder"
-            return panel.runModal() == .OK ? panel.url : nil
-        },
         currentVersion: String? = nil,
         currentBuild: String? = nil,
         checkForUpdates: (@MainActor () async throws -> UpdateCheckOutcome)? = nil
@@ -162,7 +148,6 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         self.openURL = openURL
         self.showError = showError
         self.convertFont = convertFont
-        self.chooseBackupMirrorDirectory = chooseBackupMirrorDirectory
         let resolvedVersion = currentVersion ?? Self.bundleVersion
         self.currentVersion = resolvedVersion
         self.currentBuild = currentBuild ?? Self.bundleBuild
@@ -181,7 +166,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         }
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 680, height: 460),
+            contentRect: NSRect(x: 0, y: 0, width: 520, height: 460),
             styleMask: [.titled, .closable, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -192,7 +177,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         window.titlebarSeparatorStyle = .none
         window.isOpaque = false
         window.backgroundColor = .clear
-        window.minSize = NSSize(width: 680, height: 460)
+        window.minSize = NSSize(width: 520, height: 460)
         window.isMovableByWindowBackground = true
         super.init(window: window)
         window.delegate = self
@@ -205,13 +190,14 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     deinit {
         updateTask?.cancel()
         padUpdateTask?.cancel()
-        backupMirrorTask?.cancel()
+        backupTask?.cancel()
         if let recordingMonitor {
             NSEvent.removeMonitor(recordingMonitor)
         }
     }
 
     func present() {
+        isPresented = true
         endRecording()
         refresh()
         NSApp.activate(ignoringOtherApps: true)
@@ -219,8 +205,14 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         window?.makeKeyAndOrderFront(nil)
     }
 
+    func present(_ page: SettingsContentView.Page) {
+        present()
+        settingsView.show(page)
+    }
+
     func connectPadCustomizationManager(_ manager: any PadCustomizationManaging) {
         padCustomizationManager = manager
+        workspaceManager = manager as? any SettingsWorkspaceManaging
         settingsView.padCustomizationView.updatePads(manager.padMetadata)
         settingsView.padCustomizationView.setEditingEnabled(true)
     }
@@ -238,16 +230,15 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         settingsView.shortcutButton.action = #selector(recordShortcut)
         settingsView.fontButton.target = self
         settingsView.fontButton.action = #selector(showFontPanel)
-        settingsView.backupMirrorSwitch.target = self
-        settingsView.backupMirrorSwitch.action = #selector(backupMirrorSwitchChanged)
-        settingsView.backupMirrorButton.target = self
-        settingsView.backupMirrorButton.action = #selector(chooseBackupMirrorFolder)
         settingsView.checkUpdatesButton.target = self
         settingsView.checkUpdatesButton.action = #selector(checkForUpdatesPressed)
         settingsView.viewUpdateButton.target = self
         settingsView.viewUpdateButton.action = #selector(viewUpdatePressed)
         settingsView.onNavigate = { [weak self] _ in self?.endRecording() }
-        settingsView.onOpenBackupFolder = { [weak self] in self?.openBackupFolder() }
+        settingsView.onBackUpNow = { [weak self] in self?.backUpNow() }
+        settingsView.onRestoreBackup = { [weak self] in self?.restoreBackup() }
+        settingsView.onOpenICloudBackups = { [weak self] in self?.openICloudBackups() }
+        settingsView.onRecheckICloudBackups = { [weak self] in self?.recheckICloudBackups() }
         settingsView.padCustomizationView.onUpdateRequested = {
             [weak self] id, name, colorIdentifier in
             self?.updatePadAppearance(id, name: name, colorIdentifier: colorIdentifier)
@@ -301,16 +292,6 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
             settingsView.writingTools.toolTip = "Requires macOS 15.1 or later"
         }
 
-        let selectedMirror = SettingsKeys.storedBackupMirrorDirectory(in: defaults)
-        settingsView.setBackupMirror(
-            enabled: SettingsKeys.activeBackupMirrorDirectory(in: defaults) != nil,
-            selectedDirectory: selectedMirror,
-            status: nil
-        )
-        if let activeMirror = SettingsKeys.activeBackupMirrorDirectory(in: defaults) {
-            configureBackupMirror(at: activeMirror)
-        }
-
         if let padCustomizationManager {
             settingsView.padCustomizationView.updatePads(padCustomizationManager.padMetadata)
             settingsView.padCustomizationView.setEditingEnabled(padUpdateTask == nil)
@@ -324,18 +305,8 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     }
 
     func refreshBackupSummary() async {
-        let counts = await store.backupCounts()
-        let status = await store.backupMirrorStatus()
-        let selectedMirror = SettingsKeys.storedBackupMirrorDirectory(in: defaults)
-        let activeMirror = SettingsKeys.activeBackupMirrorDirectory(in: defaults)
-        settingsView.setBackupCounts(counts)
-        if backupMirrorTask == nil {
-            settingsView.setBackupMirror(
-                enabled: activeMirror != nil,
-                selectedDirectory: selectedMirror,
-                status: status
-            )
-        }
+        let summary = await store.backupRepositorySummary()
+        applyBackupSummary(summary, busy: backupTask != nil)
     }
 
     static var isBundledApp: Bool {
@@ -445,110 +416,64 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
             "\(font.displayName ?? font.fontName) \(Int(font.pointSize)) pt"
     }
 
-    private func openBackupFolder() {
+    private func backUpNow() {
+        guard backupTask == nil else { return }
+        if let backupSummary {
+            settingsView.setBackupSummary(backupSummary, busy: true)
+        }
+        backupTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { backupTask = nil }
+            let created = await workspaceManager?.createSettingsBackup() ?? false
+            guard !Task.isCancelled else { return }
+            let summary = await store.backupRepositorySummary()
+            applyBackupSummary(summary)
+            guard isPresented else { return }
+            if !created {
+                showError(
+                    "Could not back up to iCloud Drive.",
+                    "Check that iCloud Drive is available, then use Recheck."
+                )
+            }
+        }
+    }
+
+    private func restoreBackup() {
+        workspaceManager?.restoreBackupFromSettings()
+    }
+
+    private func openICloudBackups() {
+        guard backupSummary?.canOpenDirectory == true else { return }
         openURL(store.backupsDirectory)
     }
 
-    @objc private func backupMirrorSwitchChanged() {
-        if settingsView.backupMirrorSwitch.state == .off {
-            defaults.set(false, forKey: SettingsKeys.backupMirrorEnabled)
-            configureBackupMirror(at: nil)
-            return
+    private func recheckICloudBackups() {
+        guard backupTask == nil else { return }
+        if let backupSummary {
+            settingsView.setBackupSummary(backupSummary, busy: true)
         }
-        if let directory = SettingsKeys.storedBackupMirrorDirectory(in: defaults) {
-            configureBackupMirrorCandidate(at: directory)
-            return
-        }
-        guard let directory = chooseBackupMirrorDirectory() else {
-            settingsView.backupMirrorSwitch.state = .off
-            return
-        }
-        enableBackupMirror(at: directory)
-    }
-
-    @objc private func chooseBackupMirrorFolder() {
-        guard let directory = chooseBackupMirrorDirectory() else { return }
-        enableBackupMirror(at: directory)
-    }
-
-    private func enableBackupMirror(at directory: URL) {
-        guard directory.isFileURL, directory.path != "/" else {
-            showError(
-                "Could not use that backup folder.",
-                "Choose a folder on this Mac or in iCloud Drive."
-            )
-            return
-        }
-        configureBackupMirrorCandidate(at: directory.standardizedFileURL)
-    }
-
-    private func configureBackupMirror(at directory: URL?) {
-        guard backupMirrorTask == nil else { return }
-        let selected = SettingsKeys.storedBackupMirrorDirectory(in: defaults)
-        settingsView.setBackupMirror(
-            enabled: directory != nil,
-            selectedDirectory: selected,
-            status: nil,
-            busy: true
-        )
-        backupMirrorTask = Task { @MainActor [weak self] in
+        backupTask = Task { @MainActor [weak self] in
             guard let self else { return }
-            let status = await store.configureBackupMirror(at: directory)
+            defer { backupTask = nil }
+            let summary = await store.backupRepositorySummary()
             guard !Task.isCancelled else { return }
-            settingsView.setBackupMirror(
-                enabled: directory != nil
-                    && defaults.bool(forKey: SettingsKeys.backupMirrorEnabled),
-                selectedDirectory: selected,
-                status: status
-            )
-            backupMirrorTask = nil
+            applyBackupSummary(summary)
         }
     }
 
-    private func configureBackupMirrorCandidate(at directory: URL) {
-        guard backupMirrorTask == nil else { return }
-        let candidate = directory.standardizedFileURL
-        let previous = SettingsKeys.activeBackupMirrorDirectory(in: defaults)
-        settingsView.setBackupMirror(
-            enabled: true,
-            selectedDirectory: candidate,
-            status: nil,
-            busy: true
-        )
-        backupMirrorTask = Task { @MainActor [weak self] in
-            guard let self else { return }
-            let attempted = await store.configureBackupMirror(at: candidate)
-            guard !Task.isCancelled else { return }
-            let configured = attempted.directory != nil
-                && attempted.errorDescription == nil
-            if configured {
-                SettingsKeys.saveBackupMirrorDirectory(candidate, to: defaults)
-                defaults.set(true, forKey: SettingsKeys.backupMirrorEnabled)
-                settingsView.setBackupMirror(
-                    enabled: true,
-                    selectedDirectory: candidate,
-                    status: attempted
-                )
-            } else {
-                let restored = await store.configureBackupMirror(at: previous)
-                settingsView.setBackupMirror(
-                    enabled: previous != nil,
-                    selectedDirectory: previous,
-                    status: previous == nil ? attempted : restored
-                )
-                if previous != nil {
-                    showError(
-                        "Could not change the backup mirror.",
-                        attempted.errorDescription ?? "The selected folder is unavailable."
-                    )
-                }
-            }
-            backupMirrorTask = nil
+    private func applyBackupSummary(
+        _ summary: BackupRepositorySummary,
+        busy: Bool = false
+    ) {
+        backupSummary = summary
+        onBackupRepositoryDidChange?()
+        if isPresented {
+            settingsView.setBackupSummary(summary, busy: busy)
         }
     }
 
-    func waitForBackupMirrorConfiguration() async {
-        await backupMirrorTask?.value
+    func waitForBackupOperation() async {
+        await backupTask?.value
     }
 
     private func updatePadAppearance(
@@ -560,6 +485,12 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         settingsView.padCustomizationView.setEditingEnabled(false)
         padUpdateTask = Task { @MainActor [weak self] in
             guard let self else { return }
+            defer {
+                if isPresented {
+                    settingsView.padCustomizationView.setEditingEnabled(true)
+                }
+                padUpdateTask = nil
+            }
             do {
                 _ = try await manager.updatePadAppearance(
                     id,
@@ -567,14 +498,16 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
                     colorIdentifier: colorIdentifier
                 )
                 guard !Task.isCancelled else { return }
-                settingsView.padCustomizationView.updatePads(manager.padMetadata)
+                if isPresented {
+                    settingsView.padCustomizationView.updatePads(manager.padMetadata)
+                }
             } catch {
                 guard !Task.isCancelled else { return }
-                settingsView.padCustomizationView.updatePads(manager.padMetadata)
-                showError("Could not update the scratchpad.", error.localizedDescription)
+                if isPresented {
+                    settingsView.padCustomizationView.updatePads(manager.padMetadata)
+                    showError("Could not update the scratchpad.", error.localizedDescription)
+                }
             }
-            settingsView.padCustomizationView.setEditingEnabled(true)
-            padUpdateTask = nil
         }
     }
 
@@ -655,6 +588,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     }
 
     func windowWillClose(_ notification: Notification) {
+        isPresented = false
         endRecording()
         let wasCheckingForUpdates = updateTask != nil
         updateTask?.cancel()

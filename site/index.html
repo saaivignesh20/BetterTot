@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#171719">
+  <meta name="description" content="BetterTot is a fast, local-first scratchpad for the macOS menu bar.">
+  <meta property="og:title" content="BetterTot">
+  <meta property="og:description" content="Eight scratchpads. One shortcut. No workflow.">
+  <meta property="og:image" content="https://raw.githubusercontent.com/saaivignesh20/BetterTot/main/Assets/BetterTot-screenshot.png">
+  <title>BetterTot — macOS menu-bar scratchpad</title>
+  <link rel="icon" href="assets/AppIcon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="#top" aria-label="BetterTot home">
+      <img src="assets/AppIcon.svg" alt="" width="32" height="32">
+      <span>BetterTot</span>
+    </a>
+    <nav aria-label="Primary navigation">
+      <a href="#features">Features</a>
+      <a href="#install">Install</a>
+      <a href="https://github.com/saaivignesh20/BetterTot">GitHub</a>
+    </nav>
+  </header>
+
+  <main id="top">
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="hero-copy">
+        <div class="pad-dots" aria-label="Eight color-coded scratchpads">
+          <span class="yellow"></span><span class="orange"></span>
+          <span class="red"></span><span class="purple"></span>
+          <span class="blue"></span><span class="cyan"></span>
+          <span class="green"></span><span class="pink"></span>
+        </div>
+        <h1 id="hero-title">BetterTot</h1>
+        <p class="hero-line">Eight scratchpads. One shortcut. No workflow.</p>
+        <p class="hero-detail">A native, local-first scratchpad that stays in your macOS menu bar until you need it.</p>
+        <div class="hero-actions">
+          <a class="button primary" href="https://github.com/saaivignesh20/BetterTot/releases/latest">Download for macOS</a>
+          <a class="button secondary" href="https://github.com/saaivignesh20/BetterTot">View source</a>
+        </div>
+        <p class="release-note">macOS 13+ · Apache 2.0 · No BetterTot account</p>
+      </div>
+      <img class="hero-product" src="assets/BetterTot-demo.gif" alt="BetterTot showing native checklists, pad colors, and live text statistics">
+    </section>
+
+    <section class="feature-band" id="features" aria-labelledby="features-title">
+      <div class="section-inner">
+        <p class="eyebrow">Built for quick capture</p>
+        <h2 id="features-title">A scratchpad, not a filing system.</h2>
+        <div class="feature-grid">
+          <article>
+            <h3>Always one shortcut away</h3>
+            <p>Open BetterTot globally, switch between eight pads, then dismiss it without leaving your current app.</p>
+          </article>
+          <article>
+            <h3>Markdown without the clutter</h3>
+            <p>Headings, emphasis, links, code, lists, and checkboxes style live while the portable source stays intact.</p>
+          </article>
+          <article>
+            <h3>Local-first by design</h3>
+            <p>Plain-text pads, atomic saves, crash recovery, and no analytics. Editing never depends on a network.</p>
+          </article>
+          <article>
+            <h3>Backed up to iCloud Drive</h3>
+            <p>Rolling backups use one predictable app-owned folder and survive ordinary updates and reinstalls.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="workflow-band" aria-labelledby="workflow-title">
+      <div class="section-inner workflow-layout">
+        <div>
+          <p class="eyebrow">Native macOS behavior</p>
+          <h2 id="workflow-title">Small enough to stay out of the way.</h2>
+        </div>
+        <ul class="workflow-list">
+          <li><strong>Pin by dragging.</strong> Keep a pad visible when you need a temporary working surface.</li>
+          <li><strong>Use real controls.</strong> Native checkboxes, spelling, undo, and optional Apple Writing Tools.</li>
+          <li><strong>Keep your shortcuts.</strong> Standard Command-Arrow text navigation remains untouched.</li>
+          <li><strong>Own your text.</strong> Import, export, or read every pad without BetterTot.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="install-band" id="install" aria-labelledby="install-title">
+      <div class="section-inner install-layout">
+        <div>
+          <p class="eyebrow">Install BetterTot 0.3.0</p>
+          <h2 id="install-title">Download, verify, install.</h2>
+          <p>Choose the installer package or ZIP from GitHub Releases. Compare its SHA-256 value with the published checksum before opening it.</p>
+          <a class="button primary light" href="https://github.com/saaivignesh20/BetterTot/releases/latest">Open latest release</a>
+        </div>
+        <div class="install-steps">
+          <ol>
+            <li>Open the checksum-verified <code>.pkg</code> and attempt installation normally.</li>
+            <li>If macOS blocks it, open <strong>System Settings → Privacy &amp; Security</strong>.</li>
+            <li>Under <strong>Security</strong>, choose <strong>Open Anyway</strong>, authenticate, and confirm.</li>
+          </ol>
+          <p class="warning"><strong>Unsigned release:</strong> the app is ad-hoc signed, the package is unsigned, and neither is notarized. Never disable Gatekeeper globally.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="section-inner footer-inner">
+      <p>BetterTot is open source under Apache 2.0.</p>
+      <nav aria-label="Footer navigation">
+        <a href="https://github.com/saaivignesh20/BetterTot/blob/main/docs/PRIVACY.md">Privacy</a>
+        <a href="https://github.com/saaivignesh20/BetterTot/blob/main/CONTRIBUTION.md">Contribute</a>
+        <a href="https://github.com/saaivignesh20/BetterTot/blob/main/LICENSE">License</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>

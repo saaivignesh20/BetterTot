@@ -2,38 +2,7 @@ import AppKit
 
 final class SettingsContentView: NSVisualEffectView {
     static var pageAccentColor: NSColor { .controlAccentColor }
-
-    enum Page: Int, CaseIterable {
-        case general
-        case pads
-        case editor
-        case storage
-        case updates
-
-        var title: String {
-            switch self {
-            case .general: "General"
-            case .pads: "Pads"
-            case .editor: "Editor"
-            case .storage: "Storage"
-            case .updates: "Updates"
-            }
-        }
-
-        var identifier: String {
-            title.lowercased()
-        }
-
-        var symbol: String {
-            switch self {
-            case .general: "gearshape"
-            case .pads: "circle.grid.2x2"
-            case .editor: "pencil"
-            case .storage: "internaldrive"
-            case .updates: "arrow.clockwise"
-            }
-        }
-    }
+    typealias Page = SettingsPage
 
     let launchAtLogin = NSSwitch()
     let spellChecking = NSSwitch()
@@ -47,7 +16,30 @@ final class SettingsContentView: NSVisualEffectView {
         symbol: "textformat.size",
         identifier: "change-font"
     )
-    let backupSummary = NSTextField(labelWithString: "Loading backup history...")
+    let backupStatus = NSTextField(labelWithString: "Checking iCloud backup...")
+    let latestBackupDate = NSTextField(labelWithString: "Never")
+    let latestBackupSize = NSTextField(labelWithString: "—")
+    let backupLocation = NSTextField(labelWithString: "")
+    let backupNowButton = SettingsContentView.actionButton(
+        title: "Back Up Now",
+        symbol: "arrow.clockwise.icloud",
+        identifier: "backup-now"
+    )
+    let restoreBackupButton = SettingsContentView.actionButton(
+        title: "Restore...",
+        symbol: "clock.arrow.circlepath",
+        identifier: "restore-backup"
+    )
+    let openICloudBackupsButton = SettingsContentView.actionButton(
+        title: "Open in iCloud Drive",
+        symbol: "folder",
+        identifier: "open-icloud-backups"
+    )
+    let recheckICloudBackupsButton = SettingsContentView.actionButton(
+        title: "Recheck",
+        symbol: "arrow.clockwise",
+        identifier: "recheck-icloud-backups"
+    )
     let checkUpdatesButton = SettingsContentView.actionButton(
         title: "Check for Updates",
         symbol: "arrow.clockwise",
@@ -58,36 +50,20 @@ final class SettingsContentView: NSVisualEffectView {
         symbol: "safari",
         identifier: "view-update"
     )
-    let backupMirrorSwitch = NSSwitch()
-    let backupMirrorButton = SettingsContentView.actionButton(
-        title: "Choose Folder...",
-        symbol: "folder.badge.plus",
-        identifier: "choose-backup-mirror"
+    let updateStatus = NSTextField(
+        labelWithString: "Updates are checked automatically. You can also check now."
     )
-    let backupMirrorStatus = NSTextField(
-        labelWithString: "Choose a folder in iCloud Drive to keep a second copy."
-    )
-    let updateStatus = NSTextField(labelWithString: "Updates are checked only when requested.")
     let currentVersionLabel = NSTextField(labelWithString: "")
     let padCustomizationView = PadCustomizationView()
 
     var onNavigate: ((Page) -> Void)?
-    var onOpenBackupFolder: (() -> Void)?
+    var onBackUpNow: (() -> Void)?
+    var onRestoreBackup: (() -> Void)?
+    var onOpenICloudBackups: (() -> Void)?
+    var onRecheckICloudBackups: (() -> Void)?
 
     private let pageHost = NSView()
     private let updateProgress = NSProgressIndicator()
-    private let hourlyBackupCount = SettingsContentView.metricCountLabel(
-        identifier: "backup-hourly-count",
-        accessibilityLabel: "Hourly backups"
-    )
-    private let dailyBackupCount = SettingsContentView.metricCountLabel(
-        identifier: "backup-daily-count",
-        accessibilityLabel: "Daily backups"
-    )
-    private let manualBackupCount = SettingsContentView.metricCountLabel(
-        identifier: "backup-manual-count",
-        accessibilityLabel: "Manual backups"
-    )
     private var navigationButtons: [Page: SettingsSidebarButton] = [:]
     private var pages: [Page: NSView] = [:]
 
@@ -108,23 +84,35 @@ final class SettingsContentView: NSVisualEffectView {
         }
     }
 
-    func setBackupCounts(_ counts: [BackupKind: Int]) {
-        let hourly = counts[.hourly] ?? 0
-        let daily = counts[.daily] ?? 0
-        let manual = counts[.manual] ?? 0
-        let total = hourly + daily + manual
+    func setBackupSummary(_ summary: BackupRepositorySummary, busy: Bool = false) {
+        backupLocation.stringValue = summary.directory.path(percentEncoded: false)
+        latestBackupDate.stringValue = summary.latestBackupDate.map {
+            BackupDisplayFormatting.date($0)
+        } ?? "Never"
+        latestBackupSize.stringValue = summary.latestBackupSizeBytes.map {
+            BackupDisplayFormatting.size($0)
+        } ?? "—"
 
-        hourlyBackupCount.stringValue = String(hourly)
-        dailyBackupCount.stringValue = String(daily)
-        manualBackupCount.stringValue = String(manual)
-        backupSummary.stringValue = switch total {
-        case 0: "No backups yet"
-        case 1: "1 backup available"
-        default: "\(total) backups available"
+        let ready: Bool
+        switch summary.health {
+        case .ready:
+            ready = true
+            backupStatus.stringValue = summary.totalCount == 0
+                ? "Ready to back up to iCloud Drive."
+                : "Your latest backup is stored in iCloud Drive."
+        case .unavailable(let reason):
+            ready = false
+            backupStatus.stringValue = reason
+        case .blocked(let reason):
+            ready = false
+            backupStatus.stringValue = "Backup needs attention. \(reason)"
         }
-        backupSummary.setAccessibilityValue(
-            "\(backupSummary.stringValue). Hourly \(hourly), daily \(daily), manual \(manual)."
-        )
+        backupNowButton.isEnabled = ready && !busy
+        restoreBackupButton.isEnabled = summary.totalCount > 0 && !busy
+        openICloudBackupsButton.isEnabled = summary.canOpenDirectory && !busy
+        recheckICloudBackupsButton.isEnabled = !busy
+        backupNowButton.title = busy ? "Backing Up..." : "Back Up Now"
+        backupStatus.setAccessibilityValue(backupStatus.stringValue)
     }
 
     func setCheckingForUpdates(_ checking: Bool) {
@@ -135,33 +123,6 @@ final class SettingsContentView: NSVisualEffectView {
         } else {
             updateProgress.stopAnimation(nil)
         }
-    }
-
-    func setBackupMirror(
-        enabled: Bool,
-        selectedDirectory: URL?,
-        status: BackupMirrorStatus?,
-        busy: Bool = false
-    ) {
-        backupMirrorSwitch.state = enabled ? .on : .off
-        backupMirrorSwitch.isEnabled = !busy
-        backupMirrorButton.isEnabled = !busy
-        backupMirrorButton.title = selectedDirectory == nil ? "Choose Folder..." : "Change..."
-
-        let message: String
-        if busy {
-            message = "Copying existing backups to iCloud Drive..."
-        } else if let error = status?.errorDescription {
-            message = "Mirror unavailable: \(error)"
-        } else if enabled, let directory = status?.directory {
-            message = "Mirroring to \(directory.path(percentEncoded: false))."
-        } else if selectedDirectory != nil {
-            message = "Off. Local recovery remains active."
-        } else {
-            message = "Choose a folder in iCloud Drive to keep a second copy."
-        }
-        backupMirrorStatus.stringValue = message
-        backupMirrorStatus.setAccessibilityValue(message)
     }
 
     private func build() {
@@ -179,7 +140,7 @@ final class SettingsContentView: NSVisualEffectView {
             sidebar.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor, constant: 10),
             sidebar.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
             sidebar.bottomAnchor.constraint(equalTo: safeAreaLayoutGuide.bottomAnchor, constant: -10),
-            sidebar.widthAnchor.constraint(equalToConstant: 176),
+            sidebar.widthAnchor.constraint(equalToConstant: 140),
             pageHost.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor),
             pageHost.leadingAnchor.constraint(equalTo: sidebar.trailingAnchor, constant: 8),
             pageHost.trailingAnchor.constraint(equalTo: trailingAnchor),
@@ -406,101 +367,62 @@ final class SettingsContentView: NSVisualEffectView {
     }
 
     private func buildStoragePage() -> NSView {
-        backupSummary.identifier = NSUserInterfaceItemIdentifier("backup-total")
-        backupSummary.font = .systemFont(ofSize: 15, weight: .medium)
-        backupSummary.maximumNumberOfLines = 1
+        backupStatus.identifier = NSUserInterfaceItemIdentifier("backup-status")
+        backupStatus.textColor = .secondaryLabelColor
+        backupStatus.maximumNumberOfLines = 2
+        backupStatus.lineBreakMode = .byWordWrapping
+        latestBackupDate.identifier = NSUserInterfaceItemIdentifier("backup-latest-date")
+        latestBackupSize.identifier = NSUserInterfaceItemIdentifier("backup-latest-size")
+        backupLocation.identifier = NSUserInterfaceItemIdentifier("backup-location")
+        backupLocation.textColor = .secondaryLabelColor
+        backupLocation.lineBreakMode = .byTruncatingMiddle
 
-        let summaryIcon = Self.iconWell(
-            symbol: "externaldrive.badge.timemachine",
-            label: "Backups",
-            tint: .systemYellow,
-            size: 34
-        )
-        let summaryRow = NSStackView(views: [summaryIcon, backupSummary])
-        summaryRow.orientation = .horizontal
-        summaryRow.alignment = .centerY
-        summaryRow.spacing = 12
+        let latest = backupFact(title: "Latest Backup", value: latestBackupDate)
+        let size = backupFact(title: "Size", value: latestBackupSize)
+        let facts = NSStackView(views: [latest, verticalSeparator(), size])
+        facts.orientation = .horizontal
+        facts.alignment = .centerY
+        facts.spacing = 20
+        latest.widthAnchor.constraint(equalTo: size.widthAnchor).isActive = true
 
-        let hourly = backupMetric(
-            title: "Hourly",
-            detail: "Keeps 24",
-            symbol: "clock",
-            tint: .systemBlue,
-            count: hourlyBackupCount
-        )
-        let daily = backupMetric(
-            title: "Daily",
-            detail: "Keeps 14",
-            symbol: "calendar",
-            tint: .systemPurple,
-            count: dailyBackupCount
-        )
-        let manual = backupMetric(
-            title: "Manual",
-            detail: "Kept until removed",
-            symbol: "archivebox",
-            tint: .systemOrange,
-            count: manualBackupCount
-        )
-        let metrics = NSStackView(views: [
-            hourly,
-            verticalSeparator(),
-            daily,
-            verticalSeparator(),
-            manual,
+        backupNowButton.target = self
+        backupNowButton.action = #selector(backUpNowPressed)
+        restoreBackupButton.target = self
+        restoreBackupButton.action = #selector(restoreBackupPressed)
+        openICloudBackupsButton.target = self
+        openICloudBackupsButton.action = #selector(openICloudBackupsPressed)
+        recheckICloudBackupsButton.target = self
+        recheckICloudBackupsButton.action = #selector(recheckICloudBackupsPressed)
+        let actions = NSStackView(views: [
+            backupNowButton,
+            restoreBackupButton,
+            recheckICloudBackupsButton,
         ])
-        metrics.orientation = .horizontal
-        metrics.alignment = .centerY
-        metrics.spacing = 14
-        NSLayoutConstraint.activate([
-            hourly.widthAnchor.constraint(equalTo: daily.widthAnchor),
-            daily.widthAnchor.constraint(equalTo: manual.widthAnchor),
-        ])
-
-        let overview = NSStackView(views: [summaryRow, metrics])
-        overview.orientation = .vertical
-        overview.alignment = .width
-        overview.spacing = 18
-
-        let openButton = Self.actionButton(
-            title: "Open Folder",
-            symbol: "folder",
-            identifier: "open-backup-folder"
-        )
-        openButton.target = self
-        openButton.action = #selector(openBackupFolderPressed)
-
-        backupMirrorSwitch.identifier = NSUserInterfaceItemIdentifier("backup-mirror-enabled")
-        backupMirrorSwitch.setAccessibilityLabel("Mirror backups to iCloud Drive")
-        backupMirrorStatus.identifier = NSUserInterfaceItemIdentifier("backup-mirror-status")
-        backupMirrorStatus.textColor = .secondaryLabelColor
-        backupMirrorStatus.maximumNumberOfLines = 2
-        backupMirrorStatus.lineBreakMode = .byTruncatingMiddle
-        let mirrorControls = NSStackView(views: [backupMirrorButton, backupMirrorSwitch])
-        mirrorControls.orientation = .horizontal
-        mirrorControls.alignment = .centerY
-        mirrorControls.spacing = 10
+        actions.orientation = .horizontal
+        actions.alignment = .centerY
+        actions.spacing = 8
 
         return page(
             .storage,
             sections: [
-                section(title: "Local Recovery", rows: [leadingBlock(overview, fillWidth: true)]),
-                section(title: "iCloud Drive", rows: [
+                section(title: "iCloud Backup", rows: [
                     settingRow(
-                        title: "Backup Mirror",
-                        detailView: backupMirrorStatus,
+                        title: "Backup Status",
+                        detailView: backupStatus,
                         symbol: "icloud",
                         tint: .systemBlue,
-                        control: mirrorControls
+                        control: NSView()
                     ),
+                    leadingBlock(facts, fillWidth: true),
+                    leadingBlock(actions),
                 ]),
-                section(title: "Local Storage", rows: [
+                section(title: "Location", rows: [
                     settingRow(
-                        title: "Backup Folder",
-                        detail: "Hourly, daily, and manual snapshots.",
+                        title: "iCloud Drive Folder",
+                        detailView: backupLocation,
                         symbol: "folder",
                         tint: .systemTeal,
-                        control: openButton
+                        control: openICloudBackupsButton
                     ),
                 ]),
             ]
@@ -597,8 +519,8 @@ final class SettingsContentView: NSVisualEffectView {
         container.addSubview(stack)
         NSLayoutConstraint.activate([
             stack.topAnchor.constraint(equalTo: container.topAnchor, constant: 28),
-            stack.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 32),
-            stack.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -32),
+            stack.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 24),
+            stack.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -24),
             stack.bottomAnchor.constraint(lessThanOrEqualTo: container.bottomAnchor, constant: -24),
         ])
         return container
@@ -668,34 +590,15 @@ final class SettingsContentView: NSVisualEffectView {
         return row
     }
 
-    private func backupMetric(
-        title: String,
-        detail: String,
-        symbol: String,
-        tint: NSColor,
-        count: NSTextField
-    ) -> NSView {
-        let icon = NSImageView(image: Self.symbol(symbol, label: title))
-        icon.contentTintColor = tint
-        icon.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 15, weight: .medium)
-
-        let titleLabel = Self.textLabel(title, size: 13, weight: .medium)
-        let detailLabel = Self.detailLabel(detail)
-        let labels = NSStackView(views: [titleLabel, detailLabel])
-        labels.orientation = .vertical
-        labels.alignment = .leading
-        labels.spacing = 1
-
-        let text = NSStackView(views: [count, labels])
-        text.orientation = .horizontal
-        text.alignment = .centerY
-        text.spacing = 9
-
-        let metric = NSStackView(views: [icon, text])
-        metric.orientation = .horizontal
-        metric.alignment = .centerY
-        metric.spacing = 8
-        return metric
+    private func backupFact(title: String, value: NSTextField) -> NSView {
+        let titleLabel = Self.detailLabel(title)
+        value.font = .systemFont(ofSize: 16, weight: .medium)
+        value.lineBreakMode = .byTruncatingTail
+        let stack = NSStackView(views: [titleLabel, value])
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 3
+        return stack
     }
 
     private func leadingBlock(_ content: NSView, fillWidth: Bool = false) -> NSView {
@@ -760,13 +663,9 @@ final class SettingsContentView: NSVisualEffectView {
 
     private static func applyCommandButtonStyle(to button: NSButton) {
         button.contentTintColor = .labelColor
-        #if compiler(>=6.2)
-            if #available(macOS 26.0, *) {
-                button.bezelStyle = .glass
-                return
-            }
-        #endif
+        button.isBordered = true
         button.bezelStyle = .rounded
+        button.controlSize = .regular
     }
 
     private static func pageHeaderIcon(for page: Page) -> NSView {
@@ -824,18 +723,6 @@ final class SettingsContentView: NSVisualEffectView {
         return container
     }
 
-    private static func metricCountLabel(
-        identifier: String,
-        accessibilityLabel: String
-    ) -> NSTextField {
-        let label = textLabel("0", size: 23, weight: .semibold)
-        label.identifier = NSUserInterfaceItemIdentifier(identifier)
-        label.alignment = .right
-        label.setAccessibilityLabel(accessibilityLabel)
-        label.widthAnchor.constraint(greaterThanOrEqualToConstant: 24).isActive = true
-        return label
-    }
-
     private static func detailLabel(_ text: String) -> NSTextField {
         let label = textLabel(text, size: 11, weight: .regular)
         label.textColor = .secondaryLabelColor
@@ -883,7 +770,9 @@ final class SettingsContentView: NSVisualEffectView {
         onNavigate?(sender.page)
     }
 
-    @objc private func openBackupFolderPressed() {
-        onOpenBackupFolder?()
-    }
+    @objc private func backUpNowPressed() { onBackUpNow?() }
+    @objc private func restoreBackupPressed() { onRestoreBackup?() }
+    @objc private func openICloudBackupsPressed() { onOpenICloudBackups?() }
+    @objc private func recheckICloudBackupsPressed() { onRecheckICloudBackups?() }
+
 }

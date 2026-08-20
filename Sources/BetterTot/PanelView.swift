@@ -208,21 +208,12 @@ final class PanelContentView: NSView {
 
         let leftSpacer = Self.flexibleSpacer()
         let rightSpacer = Self.flexibleSpacer()
-        let leftControlSpacer = NSView()
-        leftControlSpacer.translatesAutoresizingMaskIntoConstraints = false
-        leftControlSpacer.widthAnchor.constraint(equalToConstant: 32).isActive = true
-        let leftControls = NSStackView(views: [closeButton, leftControlSpacer])
-        leftControls.orientation = .horizontal
-        leftControls.spacing = 6
-        let rightControls = NSStackView(views: [pinButton, settingsButton])
-        rightControls.orientation = .horizontal
-        rightControls.spacing = 6
         let header = NSStackView(views: [
-            leftControls,
+            closeButton,
             leftSpacer,
             padStack,
             rightSpacer,
-            rightControls,
+            pinButton,
         ])
         header.orientation = .horizontal
         header.alignment = .centerY
@@ -242,6 +233,7 @@ final class PanelContentView: NSView {
             countsLabel,
             footerSpacer,
             saveIndicatorHost,
+            settingsButton,
         ])
         footer.orientation = .horizontal
         footer.alignment = .centerY

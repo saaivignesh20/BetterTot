@@ -14,6 +14,9 @@ Run `scripts/test.sh` before this checklist. Test an app bundle built with
 - [ ] Toggling a legacy `- [ ] ` or `- [x] ` line converts it to `☑` or `☐`.
 - [ ] Return on an empty bullet or checkbox removes its marker and exits the
       list.
+- [ ] Markdown headings, bold, italic, inline code, and web links style live;
+      complete delimiters are hidden, bold follows the pad color, and exported
+      text retains the original Markdown.
 - [ ] The editor is focused when opened from both the status item and shortcut.
 - [ ] Escape and outside clicks dismiss only an unpinned panel.
 - [ ] Clicking the menu-bar icon while open closes it without reopening it.
@@ -23,9 +26,13 @@ Run `scripts/test.sh` before this checklist. Test an app bundle built with
 - [ ] The close button dismisses both modes; reopening a closed pinned panel
       returns it beneath the menu-bar icon.
 - [ ] The Settings button closes the panel and opens Settings.
-- [ ] The footer reports live line, word, character, and save status.
-- [ ] Seven distinct colored pad selectors are visible, and selection does not
+- [ ] The footer reports live line, word, character, and save status, with
+      Settings at the right edge.
+- [ ] Eight distinct colored pad selectors are visible, and selection does not
       rely on color alone.
+- [ ] Control-Tab selects the next pad and Control-Shift-Tab selects the
+      previous pad; Command-Left and Command-Right navigate within text without
+      switching pads.
 - [ ] Rapidly switching pads while typing never loses or crosses text.
 - [ ] Undo after switching pads never edits the wrong pad.
 - [ ] Selection and scroll position are restored for each pad.
@@ -46,7 +53,7 @@ Run `scripts/test.sh` before this checklist. Test an app bundle built with
 ## Settings
 
 - [ ] General, Pads, Editor, Storage, and Updates are reachable from the vertical
-      navigation and fit in both light and dark appearances.
+      navigation and fit within the compact window in light and dark appearances.
 - [ ] Each settings icon remains inside one circular material container; the
       selected icon uses the accent color and inactive icons remain gray.
 - [ ] A changed global shortcut works outside BetterTot and survives relaunch.
@@ -66,9 +73,22 @@ Run `scripts/test.sh` before this checklist. Test an app bundle built with
       writing-tools cursor affordance, and disabling it removes that affordance.
 - [ ] While a Writing Tools session is active, intermediate suggestions are not
       written to the pad file; ending the session saves the accepted text.
-- [ ] Open Backup Folder reveals the expected local directory.
-- [ ] Check for Updates runs only after clicking the button, reports a useful
-      result, and never downloads or installs software.
+- [ ] Pads shows eight numbered colored circles, Color is a native pop-up, and
+      the rounded Name field has a visible focus ring and current system styling.
+- [ ] Storage contains no local-recovery, local-folder, mirror, enable, or
+      destination controls.
+- [ ] With iCloud Drive available, Back Up Now publishes to `BetterTot Backups
+      (org.bettertot.BetterTot)` and Storage shows the latest time and size.
+- [ ] With iCloud Drive unavailable, pad editing survives relaunch, no local
+      `Backups` folder is created, and the status menu reports that backup needs
+      attention.
+- [ ] Place an unknown file in the deterministic iCloud folder. Recheck blocks
+      backup and pruning, preserves the file unchanged, and shows the problem.
+- [ ] Replace `BetterTot.app`, then reinstall it without deleting Application
+      Support. Existing pads, journals, and iCloud backups are rediscovered.
+- [ ] A bundled release checks once at launch, does not check again within 24
+      hours after success, and still permits Check for Updates manually.
+- [ ] Update checks never download or install software automatically.
 
 ## Accessibility
 

@@ -26,13 +26,20 @@ final class WorkspaceStoreTests: XCTestCase {
 
     // MARK: - Workspace invariants
 
-    func testFreshWorkspaceCreatesSevenPads() async throws {
+    func testFreshWorkspaceCreatesEightPads() async throws {
+        XCTAssertEqual(WorkspaceMetadata.padCount, 8)
         let snapshot = try await makeStore().load()
-        XCTAssertEqual(snapshot.metadata.pads.count, 7)
-        XCTAssertEqual(Set(snapshot.metadata.pads.map(\.id)).count, 7)
-        XCTAssertEqual(snapshot.metadata.pads.map(\.position).sorted(), Array(0...6))
+        XCTAssertEqual(snapshot.metadata.pads.count, WorkspaceMetadata.padCount)
+        XCTAssertEqual(Set(snapshot.metadata.pads.map(\.id)).count, WorkspaceMetadata.padCount)
+        XCTAssertEqual(
+            snapshot.metadata.pads.map(\.position).sorted(),
+            Array(0..<WorkspaceMetadata.padCount)
+        )
         XCTAssertTrue(snapshot.metadata.pads.contains { $0.id == snapshot.metadata.selectedPadID })
-        XCTAssertEqual(snapshot.texts.values.filter { $0.isEmpty }.count, 7)
+        XCTAssertEqual(
+            snapshot.texts.values.filter { $0.isEmpty }.count,
+            WorkspaceMetadata.padCount
+        )
         XCTAssertFalse(snapshot.metadata.lastCleanShutdown)
     }
 
@@ -43,9 +50,9 @@ final class WorkspaceStoreTests: XCTestCase {
         meta.pads = [a, b, a] // duplicate ID and duplicate positions
         meta.selectedPadID = PadID() // dangling selection
         let repaired = meta.repaired()
-        XCTAssertEqual(repaired.pads.count, 7)
-        XCTAssertEqual(Set(repaired.pads.map(\.id)).count, 7)
-        XCTAssertEqual(repaired.pads.map(\.position), Array(0...6))
+        XCTAssertEqual(repaired.pads.count, WorkspaceMetadata.padCount)
+        XCTAssertEqual(Set(repaired.pads.map(\.id)).count, WorkspaceMetadata.padCount)
+        XCTAssertEqual(repaired.pads.map(\.position), Array(0..<WorkspaceMetadata.padCount))
         XCTAssertTrue(repaired.pads.contains { $0.id == repaired.selectedPadID })
         // deterministic: same input repairs the same way twice
         XCTAssertEqual(meta.repaired().pads.map(\.id).prefix(2), repaired.pads.map(\.id).prefix(2))
@@ -259,7 +266,7 @@ final class WorkspaceStoreTests: XCTestCase {
         try Data("{not json!!".utf8).write(to: metadataURL())
 
         let reloaded = try await makeStore().load()
-        XCTAssertEqual(reloaded.metadata.pads.count, 7)
+        XCTAssertEqual(reloaded.metadata.pads.count, WorkspaceMetadata.padCount)
         XCTAssertTrue(reloaded.texts.values.contains("precious text"),
                       "pad text survives metadata corruption")
         XCTAssertTrue(FileManager.default.fileExists(
@@ -290,7 +297,7 @@ final class WorkspaceStoreTests: XCTestCase {
         try Data("{not json".utf8).write(to: metadataURL()) // force full rebuild
 
         let reloaded = try await makeStore().load()
-        XCTAssertEqual(reloaded.metadata.pads.count, 7)
+        XCTAssertEqual(reloaded.metadata.pads.count, WorkspaceMetadata.padCount)
         XCTAssertTrue(reloaded.metadata.pads.contains { $0.id.rawValue.uuidString == strangerID })
         XCTAssertTrue(reloaded.texts.values.contains("orphaned but precious"),
                       "adopted orphan keeps its text")
@@ -298,9 +305,9 @@ final class WorkspaceStoreTests: XCTestCase {
                        "orphan file content untouched on disk")
     }
 
-    func testPadFilesBeyondSevenSurviveMetadataRebuildOnDisk() async throws {
+    func testPadFilesBeyondLimitSurviveMetadataRebuildOnDisk() async throws {
         _ = try await makeStore().load()
-        // ten pad files, only seven can be adopted
+        // Ten pad files, only the configured pad count can be adopted.
         var files: [URL] = []
         for index in 0..<10 {
             let url = padsDir().appendingPathComponent("\(UUID().uuidString).txt")
@@ -310,7 +317,7 @@ final class WorkspaceStoreTests: XCTestCase {
         try Data("{not json".utf8).write(to: metadataURL())
 
         let reloaded = try await makeStore().load()
-        XCTAssertEqual(reloaded.metadata.pads.count, 7)
+        XCTAssertEqual(reloaded.metadata.pads.count, WorkspaceMetadata.padCount)
         for url in files {
             XCTAssertTrue(FileManager.default.fileExists(atPath: url.path),
                           "unadopted pad files must never be deleted")

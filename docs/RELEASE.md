@@ -43,6 +43,23 @@ dist/release/BetterTot-<version>.pkg
 dist/release/BetterTot-<version>.sha256
 ```
 
+This artifact-only command never changes the installed application. During
+local development, build the app and installer package, safely update
+`/Applications/BetterTot.app`, and relaunch the installed copy with:
+
+```sh
+scripts/build-and-install.sh
+```
+
+The local update routine validates the source and existing bundle identifiers
+and signatures, stages the replacement under `/Applications`, and keeps the
+previous copy until the atomic replacement verifies. Because local builds are
+ad-hoc signed, signature validation detects corruption but does not establish
+publisher identity. The routine does not request elevation;
+use the normal installer package when `/Applications` is not writable.
+If macOS denies the terminal permission to ask BetterTot to quit, quit the app
+manually and rerun the command; no replacement occurs before BetterTot exits.
+
 Verify an existing artifact independently:
 
 ```sh

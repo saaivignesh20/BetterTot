@@ -118,7 +118,7 @@ extension PanelController {
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.directoryURL = store.backupsDirectory
-        panel.message = "Choose a backup folder (contains Pad 1.txt … Pad 7.txt)"
+        panel.message = "Choose a backup folder (contains Pad 1.txt … Pad \(WorkspaceMetadata.padCount).txt)"
         panel.prompt = "Restore"
         guard panel.runModal() == .OK, let directory = panel.url else { return }
 
@@ -181,6 +181,14 @@ extension PanelController {
 
     func makeManualBackup() async -> Bool {
         await withEditingSuspended { await createBackupIncludingCurrentPad() }
+    }
+
+    func createSettingsBackup() async -> Bool {
+        await makeManualBackup()
+    }
+
+    func restoreBackupFromSettings() {
+        restoreBackup(nil)
     }
 
     func restoreWorkspace(from directory: URL) async -> RestoreBackupResult {

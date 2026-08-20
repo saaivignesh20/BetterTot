@@ -29,6 +29,7 @@ enum PadColorIdentifier: String, CaseIterable, Codable {
     case teal
     case blue
     case purple
+    case pink
 
     static let fallbackPalette: [PadColorIdentifier] = [
         .yellow,
@@ -38,6 +39,7 @@ enum PadColorIdentifier: String, CaseIterable, Codable {
         .blue,
         .teal,
         .green,
+        .pink,
     ]
 }
 
@@ -141,7 +143,7 @@ struct WorkspaceMetadata: Codable {
     var pads: [PadMetadata]
     var lastCleanShutdown: Bool
 
-    static let padCount = 7
+    static let padCount = 8
     static let currentSchemaVersion = 1
 
     static func fresh(adoptingPadIDs adopted: [PadID] = [], now: Date = Date()) -> WorkspaceMetadata {
@@ -160,9 +162,8 @@ struct WorkspaceMetadata: Codable {
         )
     }
 
-    // Deterministic invariant repair (plan §7.4): exactly seven pads, unique
-    // IDs, positions 0…6, valid selected pad. Extra pad *files* on disk are
-    // never deleted here — only metadata entries beyond seven are dropped.
+    // Deterministic invariant repair (plan §7.4): fixed pad count, unique IDs,
+    // contiguous positions, valid selected pad. Extra pad files are retained.
     func repaired(now: Date = Date()) -> WorkspaceMetadata {
         var seen = Set<PadID>()
         var pads = self.pads.filter { seen.insert($0.id).inserted }

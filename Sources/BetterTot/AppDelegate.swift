@@ -2,11 +2,14 @@ import AppKit
 
 @MainActor
 protocol SettingsPresenting: AnyObject {
+    var onBackupRepositoryDidChange: (@MainActor () -> Void)? { get set }
     func present()
+    func present(_ page: SettingsContentView.Page)
     func connectPadCustomizationManager(_ manager: any PadCustomizationManaging)
 }
 
 extension SettingsPresenting {
+    func present(_ page: SettingsContentView.Page) { present() }
     func connectPadCustomizationManager(_ manager: any PadCustomizationManaging) {}
 }
 
@@ -24,6 +27,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let currentEvent: @MainActor () -> NSEvent?
         let presentStatusMenu: @MainActor (NSStatusItem) -> Void
         let presentShortcutFailureAlert: @MainActor (NSAlert) -> Void
+        let isBundledApp: @MainActor () -> Bool
+        let currentVersion: @MainActor () -> String
+        let automaticUpdateCheck: @MainActor () async throws -> UpdateCheckOutcome
+        let openURL: @MainActor (URL) -> Void
         let terminateApplication: @MainActor () -> Void
         let flushPanel: @MainActor (PanelController) async -> FlushResult
         let markCleanShutdown: @MainActor (WorkspaceStore) async -> Void
@@ -32,9 +39,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         init(
             defaults: UserDefaults = .standard,
             makeStore: @escaping @MainActor () -> WorkspaceStore = {
-                WorkspaceStore(
-                    root: WorkspaceStore.defaultRoot(),
-                    backupMirrorDirectory: SettingsKeys.activeBackupMirrorDirectory()
+                let localRoot = WorkspaceStore.defaultRoot()
+                let backupResolver = PrivateICloudDriveBackupLocationResolver()
+                let legacyMirror = SettingsKeys.storedLegacyBackupDirectory().map {
+                    $0.appendingPathComponent("BetterTot Backups", isDirectory: true)
+                }
+                var legacyBackupDirectories = [
+                    localRoot.appendingPathComponent("Backups", isDirectory: true)
+                ]
+                if let legacyMirror {
+                    legacyBackupDirectories.append(legacyMirror)
+                }
+                return WorkspaceStore(
+                    root: localRoot,
+                    backupRepositoryLocationResolver: backupResolver,
+                    legacyBackupDirectories: legacyBackupDirectories
                 )
             },
             loadStore: @escaping @MainActor (WorkspaceStore) async throws -> WorkspaceSnapshot = {
@@ -62,6 +81,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 alert.window.center()
                 alert.window.makeKeyAndOrderFront(nil)
             },
+            isBundledApp: @escaping @MainActor () -> Bool = {
+                SettingsWindowController.isBundledApp
+            },
+            currentVersion: @escaping @MainActor () -> String = {
+                SettingsWindowController.bundleVersion
+            },
+            automaticUpdateCheck: @escaping @MainActor () async throws -> UpdateCheckOutcome = {
+                guard let version = AppVersion(SettingsWindowController.bundleVersion) else {
+                    throw UpdateCheckError.invalidResponse
+                }
+                return try await GitHubUpdateChecker.live().check(currentVersion: version)
+            },
+            openURL: @escaping @MainActor (URL) -> Void = {
+                _ = NSWorkspace.shared.open($0)
+            },
             terminateApplication: @escaping @MainActor () -> Void = { NSApp.terminate(nil) },
             flushPanel: @escaping @MainActor (PanelController) async -> FlushResult = {
                 await $0.flushAll()
@@ -82,6 +116,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.currentEvent = currentEvent
             self.presentStatusMenu = presentStatusMenu
             self.presentShortcutFailureAlert = presentShortcutFailureAlert
+            self.isBundledApp = isBundledApp
+            self.currentVersion = currentVersion
+            self.automaticUpdateCheck = automaticUpdateCheck
+            self.openURL = openURL
             self.terminateApplication = terminateApplication
             self.flushPanel = flushPanel
             self.markCleanShutdown = markCleanShutdown
@@ -97,7 +135,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private(set) var statusMenu: NSMenu?
     private(set) var shortcutFailureAlert: NSAlert?
     private(set) var launchTask: Task<Void, Never>?
+    private(set) var automaticUpdateTask: Task<Void, Never>?
+    private(set) var backupPreflightTask: Task<Void, Never>?
     private var isTerminating = false
+    private var availableUpdate: AvailableRelease?
+    private var backupNeedsAttention = false
     private let dependencies: Dependencies
 
     init(dependencies: Dependencies = Dependencies()) {
@@ -164,6 +206,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         shortcutService = service
         self.store = store
+        startAutomaticUpdateCheckIfDue(controller: controller)
+        startBackupPreflight(store: store, controller: controller)
     }
 
     // A minimal main menu so app-wide key equivalents (⌘Q, ⌘,) and standard
@@ -207,20 +251,92 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             item.target = target
             menu.addItem(item)
         }
-        add("Settings…", #selector(openSettings), target: self, key: ",")
-        menu.addItem(.separator())
-        add("Create Backup Now", #selector(PanelController.createManualBackup(_:)), target: controller)
-        add("Open Backup Folder", #selector(PanelController.openBackupFolder(_:)), target: controller)
-        add("Restore Backup…", #selector(PanelController.restoreBackup(_:)), target: controller)
-        menu.addItem(.separator())
+        if backupNeedsAttention {
+            add(
+                "iCloud Backup Needs Attention...",
+                #selector(openStorageSettings),
+                target: self
+            )
+            menu.addItem(.separator())
+        }
+        if let availableUpdate {
+            add(
+                "Update to BetterTot \(availableUpdate.version)...",
+                #selector(openAvailableUpdate),
+                target: self
+            )
+            menu.addItem(.separator())
+        }
         add("Import Into Current Pad…", #selector(PanelController.importIntoCurrentPad(_:)), target: controller)
         add("Export Current Pad…", #selector(PanelController.exportCurrentPad(_:)), target: controller)
         add("Export All Pads…", #selector(PanelController.exportAllPads(_:)), target: controller)
+        menu.addItem(.separator())
+        add("Settings…", #selector(openSettings), target: self, key: ",")
         menu.addItem(.separator())
         let quit = NSMenuItem(title: "Quit BetterTot", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         quit.target = NSApp
         menu.addItem(quit)
         return menu
+    }
+
+    private func startAutomaticUpdateCheckIfDue(controller: PanelController) {
+        let state = AutomaticUpdateCheckState(defaults: dependencies.defaults)
+        guard AppVersion(dependencies.currentVersion()) != nil,
+              AutomaticUpdateCheckPolicy.shouldCheck(
+                for: .automatic,
+                isBundledApp: dependencies.isBundledApp(),
+                now: Date(),
+                lastSuccessfulAutomaticCheck: state.lastSuccessfulCheckDate
+              ) else { return }
+
+        let check = dependencies.automaticUpdateCheck
+        automaticUpdateTask = Task { @MainActor [weak self, weak controller] in
+            defer { self?.automaticUpdateTask = nil }
+            do {
+                let outcome = try await check()
+                guard !Task.isCancelled, let self else { return }
+                state.recordSuccessfulCheck(.automatic, at: Date())
+                if case .updateAvailable(let release) = outcome {
+                    availableUpdate = release
+                    if let controller {
+                        statusMenu = buildStatusMenu(controller: controller)
+                    }
+                }
+            } catch {
+                let diagnostic = error as NSError
+                NSLog(
+                    "BetterTot: automatic update check failed (%@:%ld)",
+                    diagnostic.domain,
+                    diagnostic.code
+                )
+            }
+        }
+    }
+
+    @objc private func openAvailableUpdate() {
+        guard let availableUpdate else { return }
+        dependencies.openURL(availableUpdate.pageURL)
+    }
+
+    private func startBackupPreflight(store: WorkspaceStore, controller: PanelController) {
+        backupPreflightTask = Task { @MainActor [weak self, weak controller] in
+            defer { self?.backupPreflightTask = nil }
+            let summary = await store.backupRepositorySummary()
+            guard !Task.isCancelled, let self else { return }
+            switch summary.health {
+            case .ready:
+                backupNeedsAttention = false
+            case .unavailable, .blocked:
+                backupNeedsAttention = true
+            }
+            if let controller {
+                statusMenu = buildStatusMenu(controller: controller)
+            }
+        }
+    }
+
+    @objc private func openStorageSettings() {
+        presentSettings(.storage)
     }
 
     @objc func statusItemClicked() {
@@ -238,13 +354,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func openSettings(_ sender: Any?) {
+        presentSettings(nil)
+    }
+
+    private func presentSettings(_ page: SettingsContentView.Page?) {
         guard let store, let shortcutService, let panelController else { return }
         if settingsController == nil {
             let controller = dependencies.makeSettingsController(store, shortcutService)
             controller.connectPadCustomizationManager(panelController)
+            controller.onBackupRepositoryDidChange = { [weak self] in
+                guard let self, let store = self.store,
+                      let panelController = self.panelController else { return }
+                self.startBackupPreflight(store: store, controller: panelController)
+            }
             settingsController = controller
         }
-        settingsController?.present()
+        if let page {
+            settingsController?.present(page)
+        } else {
+            settingsController?.present()
+        }
     }
 
     // Async flush before termination; never mark clean if a save may be pending.

@@ -81,12 +81,11 @@ final class AppDelegateTests: XCTestCase {
 
         let statusMenu = try XCTUnwrap(delegate?.statusMenu)
         XCTAssertEqual(statusMenu.items.map(\.title), [
-            "Settings…", "", "Create Backup Now", "Open Backup Folder", "Restore Backup…", "",
             "Import Into Current Pad…", "Export Current Pad…", "Export All Pads…", "",
-            "Quit BetterTot",
+            "Settings…", "", "Quit BetterTot",
         ])
-        XCTAssertTrue(statusMenu.items[0].target === delegate)
-        XCTAssertTrue(statusMenu.items[2].target === delegate?.panelController)
+        XCTAssertTrue(statusMenu.items[0].target === delegate?.panelController)
+        XCTAssertTrue(statusMenu.items[4].target === delegate)
         XCTAssertTrue(statusMenu.items.last?.target === NSApp)
     }
 
@@ -182,6 +181,90 @@ final class AppDelegateTests: XCTestCase {
         XCTAssertEqual(settings.presentationCount, 2)
         XCTAssertTrue(delegate?.settingsController === settings)
         XCTAssertTrue(settings.padCustomizationManager === delegate?.panelController)
+    }
+
+    func testBundledReleaseChecksAutomaticallyAndAddsUpdateMenuAction() async throws {
+        let checked = expectation(description: "automatic update checked")
+        let releaseURL = try XCTUnwrap(
+            URL(string: "https://github.com/saaivignesh20/BetterTot/releases/tag/v0.3.0")
+        )
+        var opened: [URL] = []
+        delegate = makeDelegate(
+            isBundledApp: { true },
+            currentVersion: { "0.2.0" },
+            automaticUpdateCheck: {
+                checked.fulfill()
+                return .updateAvailable(AvailableRelease(
+                    version: AppVersion("0.3.0")!,
+                    pageURL: releaseURL
+                ))
+            },
+            openURL: { opened.append($0) }
+        )
+
+        delegate?.applicationDidFinishLaunching(
+            Notification(name: NSApplication.didFinishLaunchingNotification)
+        )
+        await delegate?.launchTask?.value
+        await fulfillment(of: [checked], timeout: 1)
+        await delegate?.automaticUpdateTask?.value
+
+        let update = try XCTUnwrap(delegate?.statusMenu?.items.first {
+            $0.title == "Update to BetterTot 0.3.0..."
+        })
+        XCTAssertTrue(NSApp.sendAction(update.action, to: update.target, from: update))
+        XCTAssertEqual(opened, [releaseURL])
+        XCTAssertNotNil(
+            AutomaticUpdateCheckState(defaults: defaults).lastSuccessfulCheckDate
+        )
+    }
+
+    func testInvalidBackupRepositoryAddsPersistentAttentionMenuItem() async throws {
+        let repository = root.appendingPathComponent("Backups", isDirectory: true)
+        try FileManager.default.createDirectory(at: repository, withIntermediateDirectories: true)
+        let foreign = repository.appendingPathComponent("not-bettertot.txt")
+        try Data("keep me".utf8).write(to: foreign)
+        delegate = makeDelegate()
+
+        delegate?.applicationDidFinishLaunching(
+            Notification(name: NSApplication.didFinishLaunchingNotification)
+        )
+        await delegate?.launchTask?.value
+        await delegate?.backupPreflightTask?.value
+
+        XCTAssertTrue(delegate?.statusMenu?.items.contains {
+            $0.title == "iCloud Backup Needs Attention..."
+        } == true)
+        XCTAssertEqual(try Data(contentsOf: foreign), Data("keep me".utf8))
+    }
+
+    func testSettingsRepositoryChangeRefreshesAttentionMenu() async throws {
+        let settings = SettingsPresenterSpy()
+        delegate = makeDelegate(makeSettingsController: { _, _ in settings })
+        delegate?.applicationDidFinishLaunching(
+            Notification(name: NSApplication.didFinishLaunchingNotification)
+        )
+        await delegate?.launchTask?.value
+        await delegate?.backupPreflightTask?.value
+        delegate?.openSettings(nil)
+
+        let repository = root.appendingPathComponent("Backups", isDirectory: true)
+        let foreign = repository.appendingPathComponent("not-bettertot.txt")
+        try Data("keep me".utf8).write(to: foreign)
+        settings.signalBackupRepositoryDidChange()
+        await delegate?.backupPreflightTask?.value
+
+        XCTAssertTrue(delegate?.statusMenu?.items.contains {
+            $0.title == "iCloud Backup Needs Attention..."
+        } == true)
+
+        try FileManager.default.removeItem(at: foreign)
+        settings.signalBackupRepositoryDidChange()
+        await delegate?.backupPreflightTask?.value
+
+        XCTAssertFalse(delegate?.statusMenu?.items.contains {
+            $0.title == "iCloud Backup Needs Attention..."
+        } == true)
     }
 
     func testTerminationWithoutSetupIsImmediate() {
@@ -280,6 +363,12 @@ final class AppDelegateTests: XCTestCase {
         currentEvent: @escaping @MainActor () -> NSEvent? = { nil },
         presentStatusMenu: @escaping @MainActor (NSStatusItem) -> Void = { _ in },
         presentShortcutFailureAlert: @escaping @MainActor (NSAlert) -> Void = { _ in },
+        isBundledApp: @escaping @MainActor () -> Bool = { false },
+        currentVersion: @escaping @MainActor () -> String = { "Development" },
+        automaticUpdateCheck: @escaping @MainActor () async throws -> UpdateCheckOutcome = {
+            .noPublishedReleases
+        },
+        openURL: @escaping @MainActor (URL) -> Void = { _ in },
         makeSettingsController: @escaping @MainActor (
             WorkspaceStore,
             GlobalShortcutService
@@ -304,6 +393,10 @@ final class AppDelegateTests: XCTestCase {
             currentEvent: currentEvent,
             presentStatusMenu: presentStatusMenu,
             presentShortcutFailureAlert: presentShortcutFailureAlert,
+            isBundledApp: isBundledApp,
+            currentVersion: currentVersion,
+            automaticUpdateCheck: automaticUpdateCheck,
+            openURL: openURL,
             terminateApplication: terminateApplication,
             flushPanel: flushPanel,
             markCleanShutdown: markCleanShutdown,
@@ -370,6 +463,7 @@ private final class ShortcutServiceSpy: GlobalShortcutService {
 private final class SettingsPresenterSpy: SettingsPresenting {
     private(set) var presentationCount = 0
     private(set) weak var padCustomizationManager: (any PadCustomizationManaging)?
+    var onBackupRepositoryDidChange: (@MainActor () -> Void)?
 
     func present() {
         presentationCount += 1
@@ -377,5 +471,9 @@ private final class SettingsPresenterSpy: SettingsPresenting {
 
     func connectPadCustomizationManager(_ manager: any PadCustomizationManaging) {
         padCustomizationManager = manager
+    }
+
+    func signalBackupRepositoryDidChange() {
+        onBackupRepositoryDidChange?()
     }
 }

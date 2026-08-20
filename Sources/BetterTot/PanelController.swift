@@ -40,6 +40,7 @@ final class ScratchpadPanel: NSPanel {
 
     var onTogglePin: (() -> Void)?
     var onPadCommand: ((PadCommand) -> Void)?
+    var canSwitchPads: (() -> Bool)?
     var onToggleCheckbox: (() -> Bool)?
     var onOpenSettings: (() -> Void)?
     var onClose: (() -> Void)?
@@ -54,6 +55,16 @@ final class ScratchpadPanel: NSPanel {
            onToggleCheckbox?() == true {
             return true
         }
+        if event.keyCode == 48, canSwitchPads?() != false {
+            if modifiers == [.control, .shift] {
+                onPadCommand?(.previous)
+                return true
+            }
+            if modifiers == .control {
+                onPadCommand?(.next)
+                return true
+            }
+        }
         if super.performKeyEquivalent(with: event) { return true }
         guard event.modifierFlags.contains(.command) else { return false }
         let shift = event.modifierFlags.contains(.shift)
@@ -61,9 +72,6 @@ final class ScratchpadPanel: NSPanel {
         let control = event.modifierFlags.contains(.control)
 
         switch event.keyCode {
-        // Bare ⌘ only (plan §4.3) — ⇧⌘←/⌥⌘← etc. stay text-selection commands.
-        case 123 where !shift && !option && !control: onPadCommand?(.previous); return true
-        case 124 where !shift && !option && !control: onPadCommand?(.next); return true
         case 51 where shift && !option && !control: onPadCommand?(.clear); return true // ⇧⌘⌫
         default: break
         }
@@ -94,7 +102,8 @@ final class ScratchpadPanel: NSPanel {
 }
 
 @MainActor
-final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate, PadCustomizationManaging {
+final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate,
+    SettingsWorkspaceManaging {
     private let statusItem: NSStatusItem
     let store: WorkspaceStore
     private let defaults: UserDefaults
@@ -126,6 +135,7 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate, Pad
     }
     var currentSourceText: String { checkboxEditor.sourceText }
     var currentPlainText: String { checkboxEditor.plainText }
+    var currentVisibleText: String { checkboxEditor.visibleText }
     var padMetadata: [PadMetadata] { pads }
 
     init(
@@ -197,6 +207,10 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate, Pad
         }
         panel.onTogglePin = { [weak self] in self?.togglePin() }
         panel.onPadCommand = { [weak self] command in self?.handle(command) }
+        panel.canSwitchPads = { [weak self] in
+            guard let self else { return false }
+            return !self.textView.hasMarkedText() && !self.writingToolsInteractionIsActive
+        }
         panel.onToggleCheckbox = { [weak self] in self?.toggleCurrentCheckbox() ?? false }
         panel.onOpenSettings = { [weak self] in self?.openSettings() }
         panel.onClose = { [weak self] in self?.dismiss(reason: .explicitClose) }
@@ -308,7 +322,7 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate, Pad
     }
 
     private func switchToPad(at index: Int) {
-        guard !writingToolsInteractionIsActive else {
+        guard !writingToolsInteractionIsActive, !textView.hasMarkedText() else {
             content.updateSelection(index: selectedIndex)
             return
         }
@@ -354,7 +368,7 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate, Pad
             baseFont: SettingsKeys.editorFont(in: defaults),
             tintColor: PanelContentView.padColor(for: pad)
         )
-        content.updateTextStatistics(checkboxEditor.plainText)
+        content.updateTextStatistics(checkboxEditor.visibleText)
         content.updateSaveState(saveStates[pad.id] ?? .saved)
         let sourceSelection = NSRange(
             location: pad.selection.utf16Location,
@@ -522,7 +536,10 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate, Pad
         guard mouseMonitors.isEmpty else { return }
         let events: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown]
         if let global = NSEvent.addGlobalMonitorForEvents(matching: events, handler: { [weak self] event in
-            self?.handleOutsideClick(window: event.window, screenLocation: NSEvent.mouseLocation)
+            self?.handleOutsideClick(
+                window: event.window,
+                screenLocation: NSEvent.mouseLocation,
+                ownerBundleIdentifier: Self.targetBundleIdentifier(for: event))
         }) {
             mouseMonitors.append(global)
         }
@@ -537,13 +554,39 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate, Pad
         }
     }
 
-    func handleOutsideClick(window: NSWindow?, screenLocation: NSPoint) {
-        guard window !== panel,
-              !(window is NSPanel),
+    func handleOutsideClick(
+        window: NSWindow?,
+        screenLocation: NSPoint,
+        ownerBundleIdentifier: String? = nil
+    ) {
+        guard !belongsToPanel(window),
+              !Self.isTextInputService(ownerBundleIdentifier),
               statusItemScreenFrame?.contains(screenLocation) != true else {
             return
         }
         dismiss(reason: .outsideClick)
+    }
+
+    private func belongsToPanel(_ window: NSWindow?) -> Bool {
+        var candidate = window
+        while let current = candidate {
+            if current === panel { return true }
+            candidate = current.parent
+        }
+        return false
+    }
+
+    private static func targetBundleIdentifier(for event: NSEvent) -> String? {
+        guard let cgEvent = event.cgEvent else { return nil }
+        let processIdentifier = pid_t(
+            cgEvent.getIntegerValueField(.eventTargetUnixProcessID))
+        guard processIdentifier > 0 else { return nil }
+        return NSRunningApplication(processIdentifier: processIdentifier)?.bundleIdentifier
+    }
+
+    private static func isTextInputService(_ bundleIdentifier: String?) -> Bool {
+        bundleIdentifier == "com.apple.TextInputMenuAgent"
+            || bundleIdentifier?.hasPrefix("com.apple.inputmethod.") == true
     }
 
     private var statusItemScreenFrame: NSRect? {
@@ -565,10 +608,22 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate, Pad
 
     func textDidChange(_ notification: Notification) {
         if writingToolsInteractionIsActive {
-            content.updateTextStatistics(currentPlainText)
+            content.updateTextStatistics(currentVisibleText)
             return
         }
         recordCurrentEditorChange()
+    }
+
+    func textView(
+        _ textView: NSTextView,
+        willChangeSelectionFromCharacterRange oldSelectedCharRange: NSRange,
+        toCharacterRange newSelectedCharRange: NSRange
+    ) -> NSRange {
+        guard textView === self.textView else { return newSelectedCharRange }
+        return checkboxEditor.selectionRangeBySkippingHiddenSyntax(
+            newSelectedCharRange,
+            from: oldSelectedCharRange
+        )
     }
 
     @available(macOS 15.0, *)
@@ -603,7 +658,7 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate, Pad
         let revision = (revisions[id] ?? 0) + 1
         revisions[id] = revision
         saveStates[id] = .saving
-        content.updateTextStatistics(currentPlainText)
+        content.updateTextStatistics(currentVisibleText)
         content.updateSaveState(.saving)
         let key = PersistenceRevision(padID: id, revision: revision)
         let journalTask = Task { [store] in

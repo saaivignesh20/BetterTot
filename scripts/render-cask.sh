@@ -44,7 +44,7 @@ cask "bettertot" do
 
   url "https://github.com/$REPOSITORY/releases/download/v#{version}/BetterTot-#{version}.zip"
   name "BetterTot"
-  desc "Native macOS menu-bar scratchpad with seven fixed pads"
+  desc "Native macOS menu-bar scratchpad with eight fixed pads"
   homepage "https://github.com/$REPOSITORY"
 
   depends_on macos: ">= :ventura"

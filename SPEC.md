@@ -3,7 +3,7 @@
 ## Status
 
 BetterTot is a private/local native macOS menu-bar scratchpad. The
-current implementation provides seven fixed plain-text pads, a custom
+current implementation provides eight fixed plain-text pads, a custom
 nonactivating AppKit panel, local-first file storage, crash recovery, rolling
 backups, import/export, settings, and a configurable global shortcut.
 
@@ -18,12 +18,13 @@ roadmap.
   corruption whenever the filesystem permits it.
 - Avoid accounts, background network services, analytics, telemetry, and
   proprietary data formats.
-- Support predictable keyboard-first use across seven fixed pad slots.
+- Support predictable keyboard-first use across eight fixed pad slots.
 
 ## Non-Goals
 
-- BetterTot is not a rich-text editor. Pads are stored and edited as plain text.
-- BetterTot is not a syncing app. There is no cloud transport or remote state.
+- BetterTot is not an RTF editor. Pads remain portable plain-text Markdown.
+- BetterTot is not a live-syncing app. iCloud Drive carries rolling backups,
+  but active pads remain local and have no multi-device merge behavior.
 - BetterTot is not an encrypted vault. Stored files rely on the user's normal
   macOS account, permissions, FileVault, and backup configuration.
 - BetterTot is not a document-based macOS app. It runs as an accessory
@@ -47,6 +48,7 @@ Primary commands:
 swift run
 swift test
 scripts/bundle.sh
+scripts/build-and-install.sh
 scripts/test.sh
 scripts/release.sh
 ```
@@ -57,6 +59,14 @@ menu-bar behavior, and signs the bundle. Its default ad-hoc signature is for
 local use; a Developer ID identity enables Hardened Runtime and timestamped
 signing. Launch-at-login support is only enabled when BetterTot is running from
 an app bundle.
+
+`scripts/build-and-install.sh` is the local package-and-update routine. It
+builds `dist/BetterTot.app`, creates the matching versioned `.pkg`, validates
+the bundle identifier and signature, stages a replacement on the destination
+filesystem, quits the running app, atomically swaps `/Applications/BetterTot.app`,
+verifies the installed copy, and relaunches it. A failed validation or staged
+replacement preserves the existing installation. The routine never modifies
+Application Support data. Release and CI artifact generation do not invoke it.
 
 `scripts/release.sh` runs the tests and creates a versioned ZIP, unsigned macOS
 installer package, and shared SHA-256 checksum. The app inside both artifacts
@@ -81,6 +91,8 @@ docs/MANUAL_TESTING.md                Manual app acceptance checklist
 docs/PRIVACY.md                       Privacy and local-storage notes
 docs/RELEASE.md                       Local and tagged-build release runbook
 scripts/bundle.sh                     Universal app bundle builder
+scripts/build-and-install.sh          Local package, install, and relaunch routine
+scripts/install-local.sh              Validated staged application replacement
 scripts/package-installer.sh          Unsigned /Applications installer builder
 scripts/release.sh                    ZIP, installer, checksum, and verification
 scripts/verify-release.sh             Artifact integrity and signature checks
@@ -138,21 +150,22 @@ Tests/BetterTotTests/*.swift          XCTest coverage
 
 Status menu actions:
 
-- Settings
-- Create Backup Now
-- Open Backup Folder
-- Restore Backup
 - Import Into Current Pad
 - Export Current Pad
 - Export All Pads
+- Settings
 - Quit BetterTot
+
+The menu conditionally adds `iCloud Backup Needs Attention` when preflight
+cannot safely use the repository and `Update to BetterTot <version>` when an
+automatic release check finds a newer version. Backup and restore commands live
+only in Settings.
 
 ### Scratchpad Panel
 
 The editor is a borderless, floating, nonactivating `NSPanel` containing:
 
-- A compact header with Close, seven independent colored pad buttons, Pin, and
-  Settings. Pin is immediately beside Settings.
+- A compact header with Close, eight independent colored pad buttons, and Pin.
 - A scrollable plain-text `NSTextView`.
 - A status footer with text statistics and local-save state.
 - A flat semantic background clipped to a continuous rounded silhouette.
@@ -171,10 +184,10 @@ Panel behavior:
 - Explicitly closing a pinned panel clears its pinned state, so the next open
   returns beneath the menu-bar item.
 - Opening Settings from an attached panel dismisses the popover first.
-- A compact header contains Close, seven colored scratchpad selectors, Pin,
-  and Settings. Inactive selectors are rings and the active selector is filled.
-- A footer shows live line, word, and character counts together with the
-  current local-save state (`Saving`, `Saved`, recovery pending, or failure).
+- A compact header contains Close, eight colored scratchpad selectors, and Pin.
+  Inactive selectors are rings and the active selector is filled.
+- A footer shows list controls, live line/word/character counts, local-save
+  state (`Saving`, `Saved`, recovery pending, or failure), and Settings.
 - The panel uses semantic colors so its flat appearance follows the active
   macOS light or dark appearance without showing the desktop through it.
 - Clicking the status item is excluded from outside-click handling so one click
@@ -192,6 +205,10 @@ Panel behavior:
 - Return continues plain `- ` lines without changing their marker.
 - Typing `* ` starts bullet mode: the editor renders `• ` while persistence,
   copying, and export retain the portable Markdown `* ` marker.
+- Markdown headings, bold, italic, inline code, and `http`/`https` links receive
+  live native styling. Complete syntax delimiters collapse visually but remain
+  in the underlying plain text for editing, undo, persistence, and export.
+- Bold Markdown uses the selected pad color; links retain the system link color.
 - Footer controls toggle bulleted, numbered, or checkbox formatting across the
   current line or selected lines. Numbered lists increment on Return.
 - Checkboxes are persisted and exported as Markdown task-list markers:
@@ -215,8 +232,8 @@ Panel behavior:
 
 ### Pad Slots
 
-- There are exactly seven logical pads.
-- Pads are addressed by fixed positions `0...6` internally. The panel displays
+- There are exactly eight logical pads.
+- Pads are addressed by fixed positions `0...7` internally. The panel displays
   colored dots; numeric identities remain in tooltips, accessibility labels,
   keyboard shortcuts, announcements, and exported file names.
 - Each pad has an independent text buffer, selection, scroll offset, content
@@ -225,8 +242,8 @@ Panel behavior:
   pending text save, load the incoming pad, and announce the selected pad to
   VoiceOver.
 - The model includes optional `name` and `colorIdentifier` fields. Recognized
-  color identifiers override the deterministic seven-color fallback palette.
-- The Pads settings page edits one selected slot at a time using the same seven
+  color identifiers override the deterministic eight-color fallback palette.
+- The Pads settings page edits one selected slot at a time using the same eight
   colored dots shown in the panel, a single-line name field, and fixed color
   swatches.
 - Pad names are trimmed, limited to 24 user-perceived characters, and cannot
@@ -254,9 +271,9 @@ Panel/editor shortcuts:
 
 | Shortcut | Behavior |
 | --- | --- |
-| `Command-1` ... `Command-7` | Select pad 1 ... 7 |
-| `Command-Left` | Previous pad |
-| `Command-Right` | Next pad |
+| `Command-1` ... `Command-8` | Select pad 1 ... 8 |
+| `Control-Shift-Tab` | Previous pad |
+| `Control-Tab` | Next pad |
 | `Shift-Command-C` | Copy entire current pad |
 | `Shift-Command-Delete` | Clear current pad through undoable text editing |
 | `Command-P` | Pin or unpin panel |
@@ -269,14 +286,15 @@ Panel/editor shortcuts:
 | `Command-Z` / `Shift-Command-Z` | Undo / redo |
 | `Command-X/C/V/A` | Standard cut, copy, paste, select all |
 
-Bare `Command-Left` and `Command-Right` intentionally switch pads, which
-shadows the normal line-start and line-end caret navigation in the editor.
+Bare `Command-Left` and `Command-Right` retain the text system's native
+line-start and line-end caret navigation in the editor.
 
 ## Settings
 
 Settings are stored in standard app `UserDefaults`.
 
-The settings window uses a fixed-size vertical sidebar with five pages:
+The settings window uses a compact `600 × 460` layout with a fixed vertical
+sidebar and five pages:
 `General`, `Pads`, `Editor`, `Storage`, and `Updates`. Each page icon sits in a
 circular material container. The selected icon uses the system accent color
 while inactive icons remain gray; the row itself stays transparent. Switching
@@ -286,7 +304,8 @@ Supported settings:
 
 - Launch at login, via `SMAppService.mainApp`, enabled only in a bundled app.
 - Global shortcut.
-- Pad name and color.
+- Pad selection through eight numbered colored circles, pad name through a
+  rounded system text field, and color through a native pop-up button.
 - Check spelling while typing.
 - Smart quotes.
 - Smart dashes.
@@ -294,16 +313,19 @@ Supported settings:
   Macs running macOS 15.1 or later.
 - Editor font name and size.
 
-The settings window also displays backup counts for hourly, daily, and manual
-backup tiers, provides a button to open the local backup folder, and offers an
-optional user-selected iCloud Drive mirror. Local recovery remains active when
-the mirror is enabled or unavailable.
+Storage is the only backup control surface. It shows iCloud repository health,
+the latest backup date and size, and the deterministic path. It provides
+`Back Up Now`, `Restore`, `Open in iCloud Drive`, and `Recheck`. There is no
+folder chooser, mirror switch, local-backup destination, or local recovery
+section. Local journals remain an internal crash-recovery mechanism.
 
-The Updates page displays the installed version/build and performs a check only
-after the user presses `Check for Updates`. It requests the latest public
-GitHub release through an ephemeral `URLSession`, validates semantic versions,
-response size, and the HTTPS GitHub release URL, and never downloads or
-installs software. Overlapping checks are rejected.
+The Updates page displays the installed version/build and retains a manual
+`Check for Updates` action. Bundled semantic-version builds also check once at
+launch when no successful automatic check has completed in the previous 24
+hours. Checks request the latest public GitHub release through an ephemeral
+`URLSession`, validate semantic versions, response size, and the HTTPS GitHub
+release URL, and never download or install software. Overlapping manual checks
+are rejected; failed automatic checks are not recorded as successful.
 
 Shortcut recording behavior:
 
@@ -354,9 +376,9 @@ Current schema version: `1`.
 
 Workspace invariants:
 
-- Exactly seven pad metadata records.
+- Exactly eight pad metadata records.
 - Unique pad IDs.
-- Positions normalized to `0...6`.
+- Positions normalized to `0...7`.
 - Selected pad ID must refer to an existing pad.
 - Metadata repair may drop extra metadata records but must not delete extra pad
   files from disk.
@@ -382,13 +404,17 @@ BetterTot/
 |   `-- recovered/
 |       |-- <pad-uuid>-<timestamp>.txt
 |       `-- <pad-uuid>-<timestamp>.corrupt
-`-- Backups/
-    |-- hourly/
-    |   `-- <yyyyMMdd-HHmmss>/
-    |-- daily/
-    |   `-- <yyyyMMdd-HHmmss>/
-    `-- manual/
-        `-- <yyyyMMdd-HHmmss>/
+```
+
+Backups are outside the local application-data root:
+
+```text
+~/Library/Mobile Documents/com~apple~CloudDocs/
+`-- BetterTot Backups (org.bettertot.BetterTot)/
+    |-- repository.json
+    |-- hourly/<yyyyMMdd-HHmmss>/
+    |-- daily/<yyyyMMdd-HHmmss>/
+    `-- manual/<yyyyMMdd-HHmmss>/
 ```
 
 Pad text files:
@@ -409,7 +435,7 @@ Metadata:
 ## Persistence and Recovery
 
 `WorkspaceStore` is an actor and is the single writer for pad files, journals,
-metadata, backups, and export-all operations.
+metadata, iCloud backups, and export-all operations.
 
 ### Load
 
@@ -486,6 +512,7 @@ Pad 4.txt
 Pad 5.txt
 Pad 6.txt
 Pad 7.txt
+Pad 8.txt
 workspace.json
 ```
 
@@ -494,34 +521,24 @@ Backup rules:
 - Backups copy pad files by pad position.
 - Missing source pad files produce empty backup files.
 - Only timestamp-named directories are counted, aged, or pruned.
-- User-created or renamed folders inside backup tiers are ignored and not
-  deleted by pruning.
+- Unknown files, renamed folders, symlinks, malformed tiers, or a mismatched
+  ownership manifest block all backup writes and pruning without modifying the
+  offending content.
 - Auto-backups are write-driven rather than timer-driven.
 - Hourly and daily backups are created when the newest backup in that tier is
   older than one hour or one day respectively.
-
-Optional backup mirror rules:
-
-- The user explicitly chooses a filesystem folder, normally in iCloud Drive.
-- BetterTot creates `BetterTot Backups/{hourly,daily,manual}/` inside it.
-- Enabling the mirror copies existing snapshots; completed future snapshots
-  are copied after the local backup succeeds.
-- Copies use a hidden temporary sibling followed by a move into place.
-- Each completed mirror copy carries a hidden BetterTot ownership marker;
-  retention never deletes unmarked user-created folders.
-- Existing destination snapshots are not overwritten.
-- Mirrored hourly and daily tiers use the same 24-snapshot and 14-snapshot
-  retention limits as local storage; manual snapshots are not pruned.
-- Mirror failures are surfaced in Settings and logged without note content.
-- A failed destination change restores the previous working mirror and does
-  not replace its persisted setting.
-- A mirror failure never invalidates a local save or local backup.
-- Root folders, non-file URLs, and destinations resolving inside the local
-  backup directory are rejected.
-- Turning the mirror off or changing its folder cancels queued and active
-  copies before they are published; it does not delete completed mirrored files.
-- This is one-way backup mirroring, not multi-device scratchpad sync or
-  conflict resolution.
+- Snapshots are assembled in a hidden temporary sibling and moved into view
+  only after every pad and metadata file is written.
+- BetterTot never creates the `Mobile Documents` or `com~apple~CloudDocs`
+  ancestors. Missing or unwritable iCloud Drive reports an unavailable state;
+  normal local editing remains operational.
+- An absent or empty deterministic app folder is claimed with the atomic
+  schema-v1 `repository.json` ownership manifest.
+- Legacy local backups and the former selected mirror are copied into the
+  repository non-destructively during load. A completion record prevents
+  migrated snapshots from being resurrected after retention or user deletion.
+  Source data is never deleted; migration waits while iCloud is unavailable.
+- This is backup synchronization, not live multi-device pad synchronization.
 
 ## Import, Export, and Restore
 
@@ -547,7 +564,7 @@ Export all pads:
 
 - Uses a directory picker.
 - Commits all edited pads before export.
-- Writes `Pad 1.txt` through `Pad 7.txt`.
+- Writes `Pad 1.txt` through `Pad 8.txt`.
 - Copies workspace metadata as `metadata.json` when available.
 
 Restore backup:
@@ -568,12 +585,13 @@ Restore backup:
 
 Privacy posture:
 
-- No background or automatic network requests.
-- A user-initiated update check requests public release metadata from
-  `api.github.com`; no note or workspace data is included.
+- Bundled release builds request public release metadata from `api.github.com`
+  at most once per 24 hours and when the user manually checks; no note or
+  workspace data is included.
 - No analytics, telemetry, advertising SDKs, or accounts.
 - No collection of note content, clipboard content, or file content.
-- Data is stored locally in plain files.
+- Active data is stored locally and backups are stored in iCloud Drive; both
+  use plain files.
 
 Logging policy:
 
@@ -624,10 +642,12 @@ Current automated coverage is concentrated in:
   orphan adoption, torn journal handling, unreadable pad preservation, empty
   commit durability, legacy migration, clean-shutdown marker, and selection
   clamping.
-- `BackupTests`: manual backups, hourly/daily pruning, manual retention,
-  same-second backup collisions, stray backup folders, commit-triggered
-  auto-backups, iCloud Drive mirror copying and failure isolation, recursive
-  symlink rejection, and export-all layout.
+- `BackupTests`: deterministic iCloud resolution, unavailable and foreign
+  repository containment, non-destructive legacy migration, latest date/size
+  summaries, manual backups, hourly/daily pruning, same-second collisions,
+  commit-triggered auto-backups, and export-all layout.
+- `AutomaticUpdateCheckPolicyTests`: bundled-build gating, 24-hour throttling,
+  manual-check independence, and successful-check persistence.
 - `RestoreTests`: restore-by-position behavior, missing file skips, and
   unreadable existing file reporting.
 - `ShortcutTests`: shortcut validation, display formatting, Codable round trips,
@@ -676,7 +696,7 @@ Line coverage: 89.13% (5181/5813), minimum 80.00%.
   pad deletion; an explicit "erase history" action does not exist.
 - Notarization and clean-Mac Gatekeeper acceptance are intentionally outside
   the current private/local distribution scope.
-- The layered seven-pad application icon is generated deterministically from
+- The layered application icon is generated deterministically from
   `Assets/AppIcon.svg` and embedded in release bundles as `BetterTot.icns`.
 
 ## Contribution Constraints
@@ -685,7 +705,7 @@ Line coverage: 89.13% (5181/5813), minimum 80.00%.
   explicitly changes it.
 - Never log note text, clipboard text, imported file contents, exported file
   contents, or recovered file contents.
-- Keep the seven-pad invariant unless both storage and UI specs are updated.
+- Keep the eight-pad invariant unless both storage and UI specs are updated.
 - Treat `WorkspaceStore` as the single disk writer for workspace data.
 - Preserve crash recovery semantics when changing editor, journal, or commit
   behavior.

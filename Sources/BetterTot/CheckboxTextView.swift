@@ -309,12 +309,86 @@ final class CheckboxTextView: NSTextView {
         serializeCurrentText().plainText
     }
 
+    var visibleText: String {
+        let text = attributedString()
+        let string = text.string as NSString
+        let fullRange = NSRange(location: 0, length: text.length)
+        var result = ""
+        text.enumerateAttributes(in: fullRange) { attributes, range, _ in
+            if attributes[MarkdownStyling.hiddenSyntaxAttribute] != nil { return }
+            if let attachment = attributes[.attachment] as? NSTextAttachment,
+               let cell = attachment.attachmentCell as? CheckboxAttachmentCell {
+                result += cell.isChecked ? "☑" : "☐"
+            } else {
+                result += string.substring(with: range)
+            }
+        }
+        return result
+    }
+
     func sourceRange(forDisplayRange range: NSRange) -> NSRange {
         serializeCurrentText().map.sourceRange(forDisplayRange: range)
     }
 
     func displayRange(forSourceRange range: NSRange) -> NSRange {
         serializeCurrentText().map.displayRange(forSourceRange: range)
+    }
+
+    func selectionRangeBySkippingHiddenSyntax(
+        _ proposed: NSRange,
+        from previous: NSRange
+    ) -> NSRange {
+        guard proposed.length == 0,
+              previous.length == 0,
+              proposed.location != previous.location,
+              proposed.location < attributedString().length,
+              let hiddenRange = hiddenSyntaxRange(at: proposed.location) else {
+            return proposed
+        }
+        return NSRange(
+            location: proposed.location > previous.location
+                ? NSMaxRange(hiddenRange)
+                : hiddenRange.location,
+            length: 0
+        )
+    }
+
+    func sourceSafeRange(forVisibleSelection selection: NSRange) -> NSRange {
+        guard selection.location != NSNotFound, selection.length > 0 else { return selection }
+        let lowerBound = selection.location
+        let upperBound = NSMaxRange(selection)
+        let leading = lowerBound > 0 ? hiddenSyntaxRange(at: lowerBound - 1) : nil
+        let trailing = upperBound < attributedString().length
+            ? hiddenSyntaxRange(at: upperBound)
+            : nil
+
+        if let leading,
+           NSMaxRange(leading) == lowerBound,
+           let trailing,
+           trailing.location == upperBound {
+            return NSRange(
+                location: leading.location,
+                length: NSMaxRange(trailing) - leading.location
+            )
+        }
+
+        let string = attributedString().string as NSString
+        let lineRange = string.lineRange(for: selection)
+        var lineContentEnd = NSMaxRange(lineRange)
+        while lineContentEnd > lineRange.location,
+              [0x0A, 0x0D].contains(string.character(at: lineContentEnd - 1)) {
+            lineContentEnd -= 1
+        }
+        if let leading,
+           leading.location == lineRange.location,
+           NSMaxRange(leading) == lowerBound,
+           upperBound == lineContentEnd {
+            return NSRange(
+                location: leading.location,
+                length: upperBound - leading.location
+            )
+        }
+        return selection
     }
 
     @discardableResult
@@ -372,6 +446,13 @@ final class CheckboxTextView: NSTextView {
             cell.tintColor = tintColor
         }
         applyCheckboxHangingIndents(baseFont: baseFont)
+        if let textStorage {
+            MarkdownStyling.apply(
+                to: textStorage,
+                baseFont: baseFont,
+                tintColor: tintColor
+            )
+        }
         needsDisplay = true
         window?.invalidateCursorRects(for: self)
     }
@@ -444,6 +525,13 @@ final class CheckboxTextView: NSTextView {
     }
 
     override func didChangeText() {
+        if let textStorage {
+            MarkdownStyling.apply(
+                to: textStorage,
+                baseFont: editorBaseFont,
+                tintColor: checkboxTintColor
+            )
+        }
         super.didChangeText()
         window?.invalidateCursorRects(for: self)
     }
@@ -477,7 +565,7 @@ final class CheckboxTextView: NSTextView {
     }
 
     override func copy(_ sender: Any?) {
-        let selection = selectedRange()
+        let selection = sourceSafeRange(forVisibleSelection: selectedRange())
         guard selection.location != NSNotFound, selection.length > 0 else { return }
         let selected = attributedString().attributedSubstring(from: selection)
         let serialized = Self.serialize(selected)
@@ -486,8 +574,9 @@ final class CheckboxTextView: NSTextView {
     }
 
     override func cut(_ sender: Any?) {
-        let selection = selectedRange()
+        let selection = sourceSafeRange(forVisibleSelection: selectedRange())
         guard selection.location != NSNotFound, selection.length > 0 else { return }
+        setSelectedRange(selection)
         copy(sender)
         replaceCharacters(in: selection, withSourceText: "")
     }
@@ -607,6 +696,7 @@ final class CheckboxTextView: NSTextView {
             inputLocation = NSMaxRange(lineRange)
         }
 
+        MarkdownStyling.apply(to: output, baseFont: baseFont, tintColor: tintColor)
         return CheckboxTextProjection(
             attributedString: output,
             canonicalSource: canonicalSource,
@@ -744,6 +834,19 @@ final class CheckboxTextView: NSTextView {
         if let string = value as? String { return string }
         if let attributed = value as? NSAttributedString { return attributed.string }
         return nil
+    }
+
+    private func hiddenSyntaxRange(at characterIndex: Int) -> NSRange? {
+        let text = attributedString()
+        guard characterIndex >= 0, characterIndex < text.length else { return nil }
+        var range = NSRange()
+        guard text.attribute(
+            MarkdownStyling.hiddenSyntaxAttribute,
+            at: characterIndex,
+            longestEffectiveRange: &range,
+            in: NSRange(location: 0, length: text.length)
+        ) != nil else { return nil }
+        return range
     }
 
     private func checkboxCharacterIndex(atWindowPoint windowPoint: NSPoint) -> Int? {

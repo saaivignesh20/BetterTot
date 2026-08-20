@@ -181,6 +181,165 @@ final class CheckboxInteractionTests: XCTestCase {
         )
     }
 
+    func testMarkdownRendersWithoutChangingStoredSource() throws {
+        let textView = try XCTUnwrap(controller.textView as? CheckboxTextView)
+        let source = "# Heading\n**bold** *italic* `code` [link](https://example.com)\n- [ ] **task**"
+
+        controller.applyToCurrentPad(source, replacing: true)
+
+        XCTAssertEqual(textView.sourceText, source)
+        let rendered = textView.attributedString()
+        let display = rendered.string as NSString
+        let headingFont = try XCTUnwrap(rendered.attribute(
+            .font,
+            at: display.range(of: "Heading").location,
+            effectiveRange: nil
+        ) as? NSFont)
+        let boldFont = try XCTUnwrap(rendered.attribute(
+            .font,
+            at: display.range(of: "bold").location,
+            effectiveRange: nil
+        ) as? NSFont)
+        let italicFont = try XCTUnwrap(rendered.attribute(
+            .font,
+            at: display.range(of: "italic").location,
+            effectiveRange: nil
+        ) as? NSFont)
+        let codeFont = try XCTUnwrap(rendered.attribute(
+            .font,
+            at: display.range(of: "code").location,
+            effectiveRange: nil
+        ) as? NSFont)
+        let boldColor = try XCTUnwrap(rendered.attribute(
+            .foregroundColor,
+            at: display.range(of: "bold").location,
+            effectiveRange: nil
+        ) as? NSColor)
+        let linkRange = display.range(of: "link")
+        let hiddenMarkerFont = try XCTUnwrap(rendered.attribute(
+            .font,
+            at: 0,
+            effectiveRange: nil
+        ) as? NSFont)
+        let hiddenMarkerColor = try XCTUnwrap(rendered.attribute(
+            .foregroundColor,
+            at: 0,
+            effectiveRange: nil
+        ) as? NSColor)
+
+        XCTAssertGreaterThan(headingFont.pointSize, boldFont.pointSize)
+        XCTAssertTrue(boldFont.fontDescriptor.symbolicTraits.contains(.bold))
+        XCTAssertTrue(italicFont.fontDescriptor.symbolicTraits.contains(.italic))
+        XCTAssertTrue(codeFont.fontDescriptor.symbolicTraits.contains(.monoSpace))
+        XCTAssertEqual(
+            boldColor,
+            PanelContentView.padColor(for: controller.padMetadata[0])
+        )
+        XCTAssertLessThan(hiddenMarkerFont.pointSize, 1)
+        XCTAssertEqual(hiddenMarkerColor.alphaComponent, 0)
+        XCTAssertEqual(
+            rendered.attribute(.link, at: linkRange.location, effectiveRange: nil) as? URL,
+            URL(string: "https://example.com")
+        )
+        XCTAssertNotNil(rendered.attribute(
+            .attachment,
+            at: display.range(of: "\u{FFFC}").location,
+            effectiveRange: nil
+        ))
+        XCTAssertEqual(textView.visibleText, "Heading\nbold italic code link\n☐ task")
+        XCTAssertEqual(
+            textView.sourceSafeRange(forVisibleSelection: display.range(of: "bold")),
+            display.range(of: "**bold**")
+        )
+        textView.setSelectedRange(display.range(of: "bold"))
+        textView.copy(nil)
+        XCTAssertEqual(NSPasteboard.general.string(forType: .string), "**bold**")
+    }
+
+    func testCompletingMarkdownDelimiterRefreshesLiveStyling() throws {
+        let textView = try XCTUnwrap(controller.textView as? CheckboxTextView)
+        controller.applyToCurrentPad("**live*", replacing: true)
+
+        textView.replaceCharacters(
+            in: NSRange(location: textView.attributedString().length, length: 0),
+            withSourceText: "*"
+        )
+
+        let rendered = textView.attributedString()
+        let liveRange = (rendered.string as NSString).range(of: "live")
+        let font = try XCTUnwrap(rendered.attribute(
+            .font,
+            at: liveRange.location,
+            effectiveRange: nil
+        ) as? NSFont)
+        XCTAssertTrue(font.fontDescriptor.symbolicTraits.contains(.bold))
+        XCTAssertEqual(textView.sourceText, "**live**")
+
+        textView.replaceCharacters(
+            in: NSRange(location: textView.attributedString().length - 1, length: 1),
+            withSourceText: ""
+        )
+        let revealedFont = try XCTUnwrap(textView.attributedString().attribute(
+            .font,
+            at: 0,
+            effectiveRange: nil
+        ) as? NSFont)
+        XCTAssertGreaterThan(revealedFont.pointSize, 1)
+        XCTAssertEqual(textView.sourceText, "**live*")
+    }
+
+    func testMarkdownCodeSuppressesLinksAndParenthesizedURLsStayWhole() throws {
+        let textView = try XCTUnwrap(controller.textView as? CheckboxTextView)
+        let source = "`[literal](https://example.com)` [wiki](https://en.wikipedia.org/wiki/Foo_(bar))"
+
+        controller.applyToCurrentPad(source, replacing: true)
+
+        let rendered = textView.attributedString()
+        let display = rendered.string as NSString
+        let destinationRange = display.range(of: "https://en.wikipedia.org/wiki/Foo_(bar)")
+        XCTAssertNil(rendered.attribute(
+            .link,
+            at: display.range(of: "literal").location,
+            effectiveRange: nil
+        ))
+        XCTAssertEqual(
+            rendered.attribute(
+                .link,
+                at: display.range(of: "wiki").location,
+                effectiveRange: nil
+            ) as? URL,
+            URL(string: "https://en.wikipedia.org/wiki/Foo_(bar)")
+        )
+        let hiddenDestinationFont = try XCTUnwrap(rendered.attribute(
+            .font,
+            at: destinationRange.location,
+            effectiveRange: nil
+        ) as? NSFont)
+        let hiddenDestinationColor = try XCTUnwrap(rendered.attribute(
+            .foregroundColor,
+            at: destinationRange.location,
+            effectiveRange: nil
+        ) as? NSColor)
+        XCTAssertLessThan(hiddenDestinationFont.pointSize, 1)
+        XCTAssertEqual(hiddenDestinationColor.alphaComponent, 0)
+        let labelEnd = NSMaxRange(display.range(of: "wiki"))
+        XCTAssertEqual(
+            textView.selectionRangeBySkippingHiddenSyntax(
+                NSRange(location: labelEnd + 1, length: 0),
+                from: NSRange(location: labelEnd, length: 0)
+            ),
+            NSRange(location: display.length, length: 0)
+        )
+        XCTAssertEqual(
+            textView.selectionRangeBySkippingHiddenSyntax(
+                NSRange(location: display.length - 1, length: 0),
+                from: NSRange(location: display.length, length: 0)
+            ),
+            NSRange(location: labelEnd, length: 0)
+        )
+        XCTAssertEqual(textView.sourceText, source)
+    }
+
     func testTypingMarkerTerminatingSpaceCreatesAttachmentBeforePersistence() throws {
         let textView = try XCTUnwrap(controller.textView as? CheckboxTextView)
         textView.string = "- [ ]"

@@ -1083,22 +1083,18 @@ final class SettingsWindowTests: XCTestCase {
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
-        var expected: NSColor?
+        var expected: CGColor?
         view.effectiveAppearance.performAsCurrentDrawingAppearance {
             expected = NSColor.controlAccentColor
                 .withAlphaComponent(alpha)
-                .usingColorSpace(.sRGB)
+                .cgColor
         }
         guard let cgColor = view.layer?.backgroundColor,
-              let color = NSColor(cgColor: cgColor)?.usingColorSpace(.sRGB),
               let expected else {
-            XCTFail("Expected an RGB accent circle color", file: file, line: line)
+            XCTFail("Expected an accent layer color", file: file, line: line)
             return
         }
-        XCTAssertEqual(color.redComponent, expected.redComponent, accuracy: 0.01, file: file, line: line)
-        XCTAssertEqual(color.greenComponent, expected.greenComponent, accuracy: 0.01, file: file, line: line)
-        XCTAssertEqual(color.blueComponent, expected.blueComponent, accuracy: 0.01, file: file, line: line)
-        XCTAssertEqual(color.alphaComponent, expected.alphaComponent, accuracy: 0.01, file: file, line: line)
+        XCTAssertEqual(cgColor, expected, file: file, line: line)
     }
 
     private func allSubviews(of view: NSView) -> [NSView] {

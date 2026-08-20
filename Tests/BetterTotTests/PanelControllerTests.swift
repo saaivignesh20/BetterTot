@@ -307,6 +307,7 @@ final class PanelControllerTests: XCTestCase {
             keyCode: 48, characters: "\t", modifiers: [.control])))
         XCTAssertEqual(controller.currentPadPosition, 0)
         controller.textView.unmarkText()
+        controller.applyToCurrentPad("copy then clear", replacing: true)
 
         XCTAssertTrue(panel.performKeyEquivalent(with: keyEvent(
             keyCode: 20, characters: "3", modifiers: [.command])))

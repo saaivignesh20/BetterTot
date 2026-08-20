@@ -623,10 +623,52 @@ final class PanelControllerTests: XCTestCase {
         XCTAssertFalse(panel.isVisible)
     }
 
+    func testStandaloneTextSystemPanelClickIsNotHandledAsOutsideClick() {
+        controller.show()
+        let correctionPanel = NSPanel(
+            contentRect: NSRect(x: 0, y: 0, width: 100, height: 40),
+            styleMask: .borderless,
+            backing: .buffered,
+            defer: false
+        )
+
+        controller.handleOutsideClick(window: correctionPanel, screenLocation: .zero)
+
+        XCTAssertTrue(panel.isVisible)
+    }
+
+    func testWindowOwnerResolverUsesFrontmostWindowAtClickPoint() {
+        let frontmost: [String: Any] = [
+            kCGWindowBounds as String: CGRectCreateDictionaryRepresentation(
+                CGRect(x: 10, y: 10, width: 100, height: 100)
+            ),
+            kCGWindowOwnerPID as String: NSNumber(value: 42),
+        ]
+        let behind: [String: Any] = [
+            kCGWindowBounds as String: CGRectCreateDictionaryRepresentation(
+                CGRect(x: 0, y: 0, width: 200, height: 200)
+            ),
+            kCGWindowOwnerPID as String: NSNumber(value: 99),
+        ]
+
+        XCTAssertEqual(
+            PanelController.windowOwnerProcessIdentifier(
+                at: CGPoint(x: 50, y: 50),
+                in: [frontmost, behind]
+            ),
+            42
+        )
+        XCTAssertNil(PanelController.windowOwnerProcessIdentifier(
+            at: CGPoint(x: 500, y: 500),
+            in: [frontmost, behind]
+        ))
+    }
+
     func testTextInputServiceClickIsNotHandledAsOutsideClick() {
         let outsidePoint = NSPoint(x: -10_000, y: -10_000)
         for bundleIdentifier in [
             "com.apple.TextInputMenuAgent",
+            "com.apple.TextInputUI.xpc.CursorUIViewService",
             "com.apple.inputmethod.PluginIM",
         ] {
             controller.show()

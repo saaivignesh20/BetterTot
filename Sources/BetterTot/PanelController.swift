@@ -560,6 +560,7 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate,
         ownerBundleIdentifier: String? = nil
     ) {
         guard !belongsToPanel(window),
+              !(window is NSPanel),
               !Self.isTextInputService(ownerBundleIdentifier),
               statusItemScreenFrame?.contains(screenLocation) != true else {
             return
@@ -577,15 +578,39 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate,
     }
 
     private static func targetBundleIdentifier(for event: NSEvent) -> String? {
-        guard let cgEvent = event.cgEvent else { return nil }
-        let processIdentifier = pid_t(
-            cgEvent.getIntegerValueField(.eventTargetUnixProcessID))
-        guard processIdentifier > 0 else { return nil }
+        guard let point = event.cgEvent?.location,
+              let windows = CGWindowListCopyWindowInfo(
+                [.optionOnScreenOnly, .excludeDesktopElements],
+                kCGNullWindowID
+              ) as? [[String: Any]],
+              let processIdentifier = windowOwnerProcessIdentifier(
+                at: point,
+                in: windows
+              ) else {
+            return nil
+        }
         return NSRunningApplication(processIdentifier: processIdentifier)?.bundleIdentifier
+    }
+
+    static func windowOwnerProcessIdentifier(
+        at point: CGPoint,
+        in windows: [[String: Any]]
+    ) -> pid_t? {
+        for window in windows {
+            guard let boundsDictionary = window[kCGWindowBounds as String] as? NSDictionary,
+                  let bounds = CGRect(dictionaryRepresentation: boundsDictionary),
+                  bounds.contains(point),
+                  let owner = window[kCGWindowOwnerPID as String] as? NSNumber else {
+                continue
+            }
+            return pid_t(owner.int32Value)
+        }
+        return nil
     }
 
     private static func isTextInputService(_ bundleIdentifier: String?) -> Bool {
         bundleIdentifier == "com.apple.TextInputMenuAgent"
+            || bundleIdentifier?.hasPrefix("com.apple.TextInputUI.") == true
             || bundleIdentifier?.hasPrefix("com.apple.inputmethod.") == true
     }
 

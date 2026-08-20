@@ -51,8 +51,9 @@ final class BackupTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(
             atPath: localData.appendingPathComponent("Backups").path
         ))
+        let padURL = await store.padURL(snapshot.metadata.pads[0].id)
         XCTAssertEqual(
-            try String(contentsOf: await store.padURL(snapshot.metadata.pads[0].id)),
+            try String(contentsOf: padURL),
             "still saved"
         )
     }

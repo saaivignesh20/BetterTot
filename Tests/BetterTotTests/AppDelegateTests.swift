@@ -212,7 +212,8 @@ final class AppDelegateTests: XCTestCase {
         let update = try XCTUnwrap(delegate?.statusMenu?.items.first {
             $0.title == "Update to BetterTot 0.3.0..."
         })
-        XCTAssertTrue(NSApp.sendAction(update.action, to: update.target, from: update))
+        let action = try XCTUnwrap(update.action)
+        XCTAssertTrue(NSApp.sendAction(action, to: update.target, from: update))
         XCTAssertEqual(opened, [releaseURL])
         XCTAssertNotNil(
             AutomaticUpdateCheckState(defaults: defaults).lastSuccessfulCheckDate

@@ -168,23 +168,27 @@ final class SettingsSidebarButton: NSButton {
         let selected = state == .on
         let titleColor: NSColor
         let iconColor: NSColor
-        let iconTint: NSColor
-        let rowTint: NSColor?
+        let layerTint: NSColor
+        let iconTintAlpha: CGFloat
+        let rowTintAlpha: CGFloat?
         if selected {
             titleColor = .labelColor
             iconColor = .selectedControlTextColor
-            iconTint = SettingsContentView.pageAccentColor.withAlphaComponent(0.82)
-            rowTint = SettingsContentView.pageAccentColor.withAlphaComponent(0.20)
+            layerTint = SettingsContentView.pageAccentColor
+            iconTintAlpha = 0.82
+            rowTintAlpha = 0.20
         } else if isHovering {
             titleColor = .labelColor
             iconColor = .labelColor
-            iconTint = NSColor.labelColor.withAlphaComponent(0.08)
-            rowTint = NSColor.labelColor.withAlphaComponent(0.05)
+            layerTint = .labelColor
+            iconTintAlpha = 0.08
+            rowTintAlpha = 0.05
         } else {
             titleColor = .secondaryLabelColor
             iconColor = .secondaryLabelColor
-            iconTint = NSColor.labelColor.withAlphaComponent(0.04)
-            rowTint = nil
+            layerTint = .labelColor
+            iconTintAlpha = 0.04
+            rowTintAlpha = nil
         }
 
         iconView.contentTintColor = iconColor
@@ -197,8 +201,8 @@ final class SettingsSidebarButton: NSButton {
         var rowCGColor: CGColor?
         var iconCGColor: CGColor?
         effectiveAppearance.performAsCurrentDrawingAppearance {
-            rowCGColor = rowTint?.cgColor
-            iconCGColor = iconTint.cgColor
+            rowCGColor = rowTintAlpha.map { layerTint.withAlphaComponent($0).cgColor }
+            iconCGColor = layerTint.withAlphaComponent(iconTintAlpha).cgColor
         }
         CATransaction.begin()
         CATransaction.setDisableActions(true)

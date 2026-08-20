@@ -193,7 +193,14 @@ enum MarkdownStyling {
         trait: NSFontTraitMask,
         size: CGFloat? = nil
     ) -> NSFont {
-        let converted = NSFontManager.shared.convert(baseFont, toHaveTrait: trait)
+        let manager = NSFontManager.shared
+        var converted = manager.convert(baseFont, toHaveTrait: trait)
+        if manager.traits(of: converted).intersection(trait).isEmpty {
+            converted = manager.convert(
+                NSFont.systemFont(ofSize: baseFont.pointSize),
+                toHaveTrait: trait
+            )
+        }
         guard let size else { return converted }
         return NSFont(descriptor: converted.fontDescriptor, size: size) ?? converted
     }

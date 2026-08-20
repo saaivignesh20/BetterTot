@@ -194,11 +194,17 @@ final class SettingsSidebarButton: NSButton {
         )
         titleLabel.textColor = titleColor
         setAccessibilityValue(selected ? 1 : 0)
+        var rowCGColor: CGColor?
+        var iconCGColor: CGColor?
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            rowCGColor = rowTint?.cgColor
+            iconCGColor = iconTint.cgColor
+        }
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        layer?.backgroundColor = rowTint?.cgColor
+        layer?.backgroundColor = rowCGColor
         iconMaterial.layer?.backgroundColor = nil
-        iconTintView.layer?.backgroundColor = iconTint.cgColor
+        iconTintView.layer?.backgroundColor = iconCGColor
         CATransaction.commit()
     }
 }

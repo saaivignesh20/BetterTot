@@ -317,6 +317,9 @@ final class PanelControllerTests: XCTestCase {
         XCTAssertTrue(panel.performKeyEquivalent(with: keyEvent(
             keyCode: 28, characters: "8", modifiers: [.command])))
         XCTAssertEqual(controller.currentPadPosition, 7)
+        XCTAssertTrue(panel.performKeyEquivalent(with: keyEvent(
+            keyCode: 18, characters: "1", modifiers: [.command])))
+        XCTAssertEqual(controller.currentPadPosition, 0)
 
         XCTAssertTrue(panel.performKeyEquivalent(with: keyEvent(
             keyCode: 8, characters: "c", modifiers: [.command, .shift])))

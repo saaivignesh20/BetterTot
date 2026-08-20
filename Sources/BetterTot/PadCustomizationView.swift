@@ -81,6 +81,7 @@ final class PadCustomizationView: NSView, NSTextFieldDelegate {
         colorSelector.imagePosition = .imageLeading
         colorSelector.target = self
         colorSelector.action = #selector(selectColor(_:))
+        colorSelector.setAccessibilityRole(.popUpButton)
         colorSelector.setAccessibilityLabel("Pad color")
         colorSelector.widthAnchor.constraint(equalToConstant: 238).isActive = true
         configureColorMenu()

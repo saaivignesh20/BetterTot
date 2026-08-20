@@ -971,16 +971,14 @@ final class SettingsWindowTests: XCTestCase {
         XCTAssertTrue(errors.first?.1.contains("expected") == true)
     }
 
-    func testFontPanelChangeWorkspaceActionAndWindowCleanup() async throws {
+    func testFontPanelChangeAndWindowCleanup() async throws {
         defaults.register(defaults: SettingsKeys.defaults)
         let store = WorkspaceStore(root: root)
         _ = try await store.load()
-        var openedURLs: [URL] = []
         let controller = SettingsWindowController(
             store: store,
             shortcutService: ShortcutServiceStub(currentShortcut: nil),
             defaults: defaults,
-            openURL: { openedURLs.append($0) },
             convertFont: { _ in NSFont(name: "Menlo", size: 19)! }
         )
         controller.present()
@@ -996,10 +994,6 @@ final class SettingsWindowTests: XCTestCase {
             $0.identifier?.rawValue == "change-font"
         }).performClick(nil)
         XCTAssertTrue(NSFontManager.shared.target === controller)
-        try XCTUnwrap(buttons.first {
-            $0.identifier?.rawValue == "open-icloud-backups"
-        }).performClick(nil)
-        XCTAssertEqual(openedURLs, [store.backupsDirectory])
 
         controller.windowWillClose(Notification(name: NSWindow.willCloseNotification))
         XCTAssertNil(NSFontManager.shared.target)

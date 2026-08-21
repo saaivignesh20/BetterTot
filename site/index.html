@@ -1,14 +1,14 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#171719">
+  <meta name="theme-color" content="#141416">
   <meta name="description" content="BetterTot is a fast, local-first scratchpad for the macOS menu bar.">
   <meta property="og:title" content="BetterTot">
   <meta property="og:description" content="Eight scratchpads. One shortcut. No workflow.">
-  <meta property="og:image" content="https://raw.githubusercontent.com/saaivignesh20/BetterTot/main/Assets/BetterTot-screenshot.png">
-  <title>BetterTot — macOS menu-bar scratchpad</title>
+  <meta property="og:image" content="https://raw.githubusercontent.com/saaivignesh20/BetterTot/main/Assets/BetterTot-demo-still.png">
+  <title>BetterTot - macOS menu-bar scratchpad</title>
   <link rel="icon" href="assets/AppIcon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -19,88 +19,100 @@
       <span>BetterTot</span>
     </a>
     <nav aria-label="Primary navigation">
-      <a href="#features">Features</a>
-      <a href="#install">Install</a>
-      <a href="https://github.com/saaivignesh20/BetterTot">GitHub</a>
+      <a class="source-link" href="https://github.com/saaivignesh20/BetterTot">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path fill="currentColor" d="M12 .297c-6.63 0-12 5.373-12 12c0 5.303 3.438 9.8 8.205 11.385c.6.113.82-.258.82-.577c0-.285-.01-1.04-.015-2.04c-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729c1.205.084 1.838 1.236 1.838 1.236c1.07 1.835 2.809 1.305 3.495.998c.108-.776.417-1.305.76-1.605c-2.665-.3-5.466-1.332-5.466-5.93c0-1.31.465-2.38 1.235-3.22c-.135-.303-.54-1.523.105-3.176c0 0 1.005-.322 3.3 1.23c.96-.267 1.98-.399 3-.405c1.02.006 2.04.138 3 .405c2.28-1.552 3.285-1.23 3.285-1.23c.645 1.653.24 2.873.12 3.176c.765.84 1.23 1.91 1.23 3.22c0 4.61-2.805 5.625-5.475 5.92c.42.36.81 1.096.81 2.22c0 1.606-.015 2.896-.015 3.286c0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+        <span>Source</span>
+      </a>
+      <a class="nav-download" href="https://github.com/saaivignesh20/BetterTot/releases/latest">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M12 15V3m9 12v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10l5 5l5-5"/></g></svg>
+        <span>Download</span>
+      </a>
     </nav>
   </header>
 
   <main id="top">
     <section class="hero" aria-labelledby="hero-title">
-      <div class="hero-copy">
-        <div class="pad-dots" aria-label="Eight color-coded scratchpads">
-          <span class="yellow"></span><span class="orange"></span>
-          <span class="red"></span><span class="purple"></span>
-          <span class="blue"></span><span class="cyan"></span>
-          <span class="green"></span><span class="pink"></span>
+      <div class="hero-inner">
+        <div class="hero-copy">
+          <div class="pad-dots" aria-hidden="true">
+            <span class="yellow"></span><span class="orange"></span>
+            <span class="red"></span><span class="purple"></span>
+            <span class="blue"></span><span class="cyan"></span>
+            <span class="green"></span><span class="pink"></span>
+          </div>
+          <h1 id="hero-title">BetterTot</h1>
+          <p class="hero-line">A scratchpad that waits in your menu bar.</p>
+          <p class="hero-detail">Eight pads, live Markdown, and no account. Open it, write, move on.</p>
+          <div class="hero-actions">
+            <a class="button primary" href="https://github.com/saaivignesh20/BetterTot/releases/latest">
+              <svg aria-hidden="true" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M12 15V3m9 12v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10l5 5l5-5"/></g></svg>
+              <span>Download for macOS</span>
+            </a>
+          </div>
+          <p class="release-note">Version 0.3.1 &middot; macOS 13+ &middot; Apache 2.0</p>
         </div>
-        <h1 id="hero-title">BetterTot</h1>
-        <p class="hero-line">Eight scratchpads. One shortcut. No workflow.</p>
-        <p class="hero-detail">A native, local-first scratchpad that stays in your macOS menu bar until you need it.</p>
-        <div class="hero-actions">
-          <a class="button primary" href="https://github.com/saaivignesh20/BetterTot/releases/latest">Download for macOS</a>
-          <a class="button secondary" href="https://github.com/saaivignesh20/BetterTot">View source</a>
-        </div>
-        <p class="release-note">macOS 13+ · Apache 2.0 · No BetterTot account</p>
+
+        <figure class="product-demo">
+          <picture>
+            <source media="(prefers-reduced-motion: reduce)" srcset="assets/BetterTot-demo-still.png">
+            <img src="assets/BetterTot-demo.gif" alt="BetterTot opening a pad and creating a native checklist" width="720" height="622">
+          </picture>
+        </figure>
       </div>
-      <img class="hero-product" src="assets/BetterTot-demo.gif" alt="BetterTot showing native checklists, pad colors, and live text statistics">
     </section>
 
-    <section class="feature-band" id="features" aria-labelledby="features-title">
+    <section class="features" aria-labelledby="features-title">
       <div class="section-inner">
-        <p class="eyebrow">Built for quick capture</p>
-        <h2 id="features-title">A scratchpad, not a filing system.</h2>
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Quick notes, properly done</p>
+            <h2 id="features-title">Only what a scratchpad needs.</h2>
+          </div>
+        </div>
         <div class="feature-grid">
           <article>
-            <h3>Always one shortcut away</h3>
-            <p>Open BetterTot globally, switch between eight pads, then dismiss it without leaving your current app.</p>
+            <span class="feature-icon keyboard">
+              <svg aria-hidden="true" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M10 8h.01M12 12h.01M14 8h.01M16 12h.01M18 8h.01M6 8h.01M7 16h10m-9-4h.01"/><rect width="20" height="16" x="2" y="4" rx="2"/></g></svg>
+            </span>
+            <h3>One shortcut away</h3>
+            <p>Open BetterTot globally, switch pads, and return to the app already in front of you.</p>
           </article>
           <article>
-            <h3>Markdown without the clutter</h3>
-            <p>Headings, emphasis, links, code, lists, and checkboxes style live while the portable source stays intact.</p>
+            <span class="feature-icon notebook">
+              <svg aria-hidden="true" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M13.4 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7.4M2 6h4m-4 4h4m-4 4h4m-4 4h4"/><path d="M21.378 5.626a1 1 0 1 0-3.004-3.004l-5.01 5.012a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506z"/></g></svg>
+            </span>
+            <h3>Markdown, quietly</h3>
+            <p>Headings, emphasis, lists, and checkboxes render cleanly while portable source stays intact.</p>
           </article>
           <article>
-            <h3>Local-first by design</h3>
-            <p>Plain-text pads, atomic saves, crash recovery, and no analytics. Editing never depends on a network.</p>
-          </article>
-          <article>
-            <h3>Backed up to iCloud Drive</h3>
-            <p>Rolling backups use one predictable app-owned folder and survive ordinary updates and reinstalls.</p>
+            <span class="feature-icon cloud">
+              <svg aria-hidden="true" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="m17 15l-5.5 5.5L9 18"/><path d="M5.516 16.07A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 3.501 7.327"/></g></svg>
+            </span>
+            <h3>Local first</h3>
+            <p>Atomic saves and recovery stay on your Mac, with rolling backups in iCloud Drive.</p>
           </article>
         </div>
       </div>
     </section>
 
-    <section class="workflow-band" aria-labelledby="workflow-title">
-      <div class="section-inner workflow-layout">
-        <div>
-          <p class="eyebrow">Native macOS behavior</p>
-          <h2 id="workflow-title">Small enough to stay out of the way.</h2>
-        </div>
-        <ul class="workflow-list">
-          <li><strong>Pin by dragging.</strong> Keep a pad visible when you need a temporary working surface.</li>
-          <li><strong>Use real controls.</strong> Native checkboxes, spelling, undo, and optional Apple Writing Tools.</li>
-          <li><strong>Keep your shortcuts.</strong> Standard Command-Arrow text navigation remains untouched.</li>
-          <li><strong>Own your text.</strong> Import, export, or read every pad without BetterTot.</li>
-        </ul>
-      </div>
-    </section>
-
-    <section class="install-band" id="install" aria-labelledby="install-title">
+    <section class="install" id="install" aria-labelledby="install-title">
       <div class="section-inner install-layout">
-        <div>
-          <p class="eyebrow">Install BetterTot 0.3.1</p>
-          <h2 id="install-title">Download, verify, install.</h2>
-          <p>Choose the installer package or ZIP from GitHub Releases. Compare its SHA-256 value with the published checksum before opening it.</p>
-          <a class="button primary light" href="https://github.com/saaivignesh20/BetterTot/releases/latest">Open latest release</a>
+        <div class="install-copy">
+          <span class="install-icon">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M12 15V3m9 12v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10l5 5l5-5"/></g></svg>
+          </span>
+          <div>
+            <p class="eyebrow">BetterTot 0.3.1</p>
+            <h2 id="install-title">Download. Verify. Install.</h2>
+            <p>Choose the installer package or ZIP from GitHub Releases and compare it with the published SHA-256 checksum.</p>
+          </div>
         </div>
-        <div class="install-steps">
-          <ol>
-            <li>Open the checksum-verified <code>.pkg</code> and attempt installation normally.</li>
-            <li>If macOS blocks it, open <strong>System Settings → Privacy &amp; Security</strong>.</li>
-            <li>Under <strong>Security</strong>, choose <strong>Open Anyway</strong>, authenticate, and confirm.</li>
-          </ol>
-          <p class="warning"><strong>Unsigned release:</strong> the app is ad-hoc signed, the package is unsigned, and neither is notarized. Never disable Gatekeeper globally.</p>
+        <div class="install-action">
+          <a class="button primary" href="https://github.com/saaivignesh20/BetterTot/releases/latest">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M12 15V3m9 12v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10l5 5l5-5"/></g></svg>
+            <span>Get BetterTot</span>
+          </a>
+          <p>The release is ad-hoc signed and not notarized. If macOS blocks it, use <strong>System Settings &gt; Privacy &amp; Security &gt; Open Anyway</strong>. Never disable Gatekeeper globally.</p>
         </div>
       </div>
     </section>

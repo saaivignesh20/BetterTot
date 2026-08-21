@@ -1,3 +1,11 @@
+@font-face {
+  font-display: swap;
+  font-family: "DM Sans";
+  font-style: normal;
+  font-weight: 400 700;
+  src: url("fonts/DM-Sans-Variable.woff2") format("woff2");
+}
+
 :root {
   color-scheme: light;
   --ink: #18181b;
@@ -13,7 +21,7 @@
   --blue: #2d6ecf;
   --green: #26834b;
   --display: "American Typewriter", "Iowan Old Style", Georgia, serif;
-  --body: "Avenir Next", Avenir, "Helvetica Neue", sans-serif;
+  --body: "DM Sans", "Helvetica Neue", sans-serif;
 }
 
 * { box-sizing: border-box; }
@@ -88,10 +96,33 @@ svg {
 .nav-download { background: var(--ink); color: var(--white); }
 .nav-download:hover { background: #303035; }
 
+.star-count {
+  align-items: center;
+  border-left: 1px solid var(--line);
+  display: inline-flex;
+  gap: 4px;
+  margin-left: 2px;
+  padding-left: 8px;
+}
+
+.star-count svg { height: 13px; width: 13px; }
+
 .hero {
   background: var(--night);
   color: var(--white);
+  isolation: isolate;
   overflow: hidden;
+  position: relative;
+}
+
+.hero::before {
+  background-image: url("assets/BetterTot-grain.png");
+  content: "";
+  inset: 0;
+  opacity: 0.035;
+  pointer-events: none;
+  position: absolute;
+  z-index: -1;
 }
 
 .hero-inner {
@@ -133,7 +164,8 @@ h3,
 p { margin-top: 0; }
 
 h1,
-h2 { font-family: var(--display); font-weight: 600; }
+h2,
+h3 { font-family: var(--display); font-weight: 600; }
 
 h1 {
   font-size: 62px;
@@ -142,8 +174,9 @@ h1 {
 }
 
 .hero-line {
+  font-family: var(--display);
   font-size: 24px;
-  font-weight: 650;
+  font-weight: 600;
   line-height: 1.25;
   margin-bottom: 8px;
 }
@@ -320,7 +353,7 @@ footer { background: var(--paper); border-top: 1px solid var(--line); }
 
 @media (max-width: 760px) {
   .site-header { padding: 0 16px; }
-  .source-link span { display: none; }
+  .source-label { display: none; }
   .source-link { padding-left: 9px; padding-right: 9px; }
   .hero-inner { padding-left: 18px; padding-right: 18px; }
   h1 { font-size: 48px; }

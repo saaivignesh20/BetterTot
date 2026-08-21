@@ -19,9 +19,13 @@
       <span>BetterTot</span>
     </a>
     <nav aria-label="Primary navigation">
-      <a class="source-link" href="https://github.com/saaivignesh20/BetterTot">
+      <a class="source-link" href="https://github.com/saaivignesh20/BetterTot" aria-label="BetterTot on GitHub, 2 stars">
         <svg aria-hidden="true" viewBox="0 0 24 24"><path fill="currentColor" d="M12 .297c-6.63 0-12 5.373-12 12c0 5.303 3.438 9.8 8.205 11.385c.6.113.82-.258.82-.577c0-.285-.01-1.04-.015-2.04c-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729c1.205.084 1.838 1.236 1.838 1.236c1.07 1.835 2.809 1.305 3.495.998c.108-.776.417-1.305.76-1.605c-2.665-.3-5.466-1.332-5.466-5.93c0-1.31.465-2.38 1.235-3.22c-.135-.303-.54-1.523.105-3.176c0 0 1.005-.322 3.3 1.23c.96-.267 1.98-.399 3-.405c1.02.006 2.04.138 3 .405c2.28-1.552 3.285-1.23 3.285-1.23c.645 1.653.24 2.873.12 3.176c.765.84 1.23 1.91 1.23 3.22c0 4.61-2.805 5.625-5.475 5.92c.42.36.81 1.096.81 2.22c0 1.606-.015 2.896-.015 3.286c0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
-        <span>Source</span>
+        <span class="source-label">GitHub</span>
+        <span class="star-count">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.12 2.12 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.12 2.12 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.12 2.12 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.12 2.12 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.12 2.12 0 0 0 1.597-1.16z"/></svg>
+          <span id="github-stars">2</span>
+        </span>
       </a>
       <a class="nav-download" href="https://github.com/saaivignesh20/BetterTot/releases/latest">
         <svg aria-hidden="true" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M12 15V3m9 12v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10l5 5l5-5"/></g></svg>
@@ -41,8 +45,8 @@
             <span class="green"></span><span class="pink"></span>
           </div>
           <h1 id="hero-title">BetterTot</h1>
-          <p class="hero-line">A scratchpad that waits in your menu bar.</p>
-          <p class="hero-detail">Eight pads, live Markdown, and no account. Open it, write, move on.</p>
+          <p class="hero-line">Quick notes without a detour.</p>
+          <p class="hero-detail">Eight color-coded pads with live Markdown, checklists, and no account setup.</p>
           <div class="hero-actions">
             <a class="button primary" href="https://github.com/saaivignesh20/BetterTot/releases/latest">
               <svg aria-hidden="true" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M12 15V3m9 12v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10l5 5l5-5"/></g></svg>
@@ -128,5 +132,21 @@
       </nav>
     </div>
   </footer>
+  <script>
+    const starCount = document.querySelector("#github-stars");
+    const githubLink = document.querySelector(".source-link");
+
+    fetch("https://api.github.com/repos/saaivignesh20/BetterTot")
+      .then((response) => {
+        if (!response.ok) throw new Error(`GitHub returned ${response.status}`);
+        return response.json();
+      })
+      .then(({ stargazers_count: count }) => {
+        if (!Number.isSafeInteger(count) || count < 0) throw new Error("Invalid GitHub star count");
+        starCount.textContent = new Intl.NumberFormat("en", { notation: "compact" }).format(count);
+        githubLink.setAttribute("aria-label", `BetterTot on GitHub, ${count} stars`);
+      })
+      .catch((error) => console.warn("Could not refresh GitHub stars:", error));
+  </script>
 </body>
 </html>

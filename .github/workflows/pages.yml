@@ -9,6 +9,8 @@ on:
       - "site/**"
       - "Assets/AppIcon.svg"
       - "Assets/BetterTot-demo.gif"
+      - "Assets/BetterTot-demo-still.png"
+      - "Assets/BetterTot-grain.png"
       - ".github/workflows/pages.yml"
 
 permissions:
@@ -30,12 +32,14 @@ jobs:
 
       - name: Stage static site
         run: |
-          mkdir -p _site/assets
+          mkdir -p _site/assets _site/fonts
           cp site/index.html site/styles.css _site/
+          cp site/fonts/* _site/fonts/
           cp \
             Assets/AppIcon.svg \
             Assets/BetterTot-demo.gif \
             Assets/BetterTot-demo-still.png \
+            Assets/BetterTot-grain.png \
             _site/assets/
 
       - name: Upload Pages artifact

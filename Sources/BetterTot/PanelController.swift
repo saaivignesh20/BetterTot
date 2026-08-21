@@ -562,6 +562,7 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate,
         guard !belongsToPanel(window),
               !(window is NSPanel),
               !Self.isTextInputService(ownerBundleIdentifier),
+              !panel.frame.contains(screenLocation),
               statusItemScreenFrame?.contains(screenLocation) != true else {
             return
         }

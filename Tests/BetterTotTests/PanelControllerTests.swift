@@ -637,6 +637,17 @@ final class PanelControllerTests: XCTestCase {
         XCTAssertTrue(panel.isVisible)
     }
 
+    func testGlobalTextSystemClickInsidePanelIsNotHandledAsOutsideClick() {
+        controller.show()
+
+        controller.handleOutsideClick(
+            window: nil,
+            screenLocation: NSPoint(x: panel.frame.midX, y: panel.frame.midY)
+        )
+
+        XCTAssertTrue(panel.isVisible)
+    }
+
     func testWindowOwnerResolverUsesFrontmostWindowAtClickPoint() {
         let frontmost: [String: Any] = [
             kCGWindowBounds as String: CGRectCreateDictionaryRepresentation(

@@ -296,7 +296,7 @@ line-start and line-end caret navigation in the editor.
 
 Settings are stored in standard app `UserDefaults`.
 
-The settings window uses a compact `600 × 460` layout with a fixed vertical
+The settings window uses a compact `660 × 460` layout with a fixed vertical
 sidebar and five pages:
 `General`, `Pads`, `Editor`, `Storage`, and `Updates`. Each page icon sits in a
 circular material container. The selected icon uses the system accent color

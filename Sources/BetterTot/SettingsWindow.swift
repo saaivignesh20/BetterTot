@@ -82,7 +82,7 @@ enum SettingsKeys {
 
 @MainActor
 final class SettingsWindowController: NSWindowController, NSWindowDelegate {
-    private static let contentSize = NSSize(width: 600, height: 460)
+    private static let contentSize = NSSize(width: 660, height: 460)
     private static let idleUpdateStatus =
         "Updates are checked automatically. You can also check now."
 

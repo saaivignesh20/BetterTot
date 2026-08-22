@@ -124,7 +124,7 @@ final class SettingsWindowTests: XCTestCase {
     }
 
     func testSettingsPageHeadersUseCircularAccentIcons() {
-        let windowSize = NSSize(width: 600, height: 460)
+        let windowSize = NSSize(width: 660, height: 460)
         let view = SettingsContentView(frame: NSRect(origin: .zero, size: windowSize))
         view.layoutSubtreeIfNeeded()
         let headerIcons = allSubviews(of: view).filter {
@@ -176,14 +176,14 @@ final class SettingsWindowTests: XCTestCase {
 
         window.contentView?.layoutSubtreeIfNeeded()
 
-        XCTAssertEqual(window.contentView?.frame.width, 600)
-        XCTAssertEqual(window.contentMinSize, NSSize(width: 600, height: 460))
-        XCTAssertEqual(window.contentMaxSize, NSSize(width: 600, height: 460))
+        XCTAssertEqual(window.contentView?.frame.width, 660)
+        XCTAssertEqual(window.contentMinSize, NSSize(width: 660, height: 460))
+        XCTAssertEqual(window.contentMaxSize, NSSize(width: 660, height: 460))
         XCTAssertFalse(window.styleMask.contains(.resizable))
     }
 
     func testSettingsPagesRenderAtWindowSize() throws {
-        let windowSize = NSSize(width: 600, height: 460)
+        let windowSize = NSSize(width: 660, height: 460)
         let window = NSWindow(
             contentRect: NSRect(origin: .zero, size: windowSize),
             styleMask: [.titled, .closable],

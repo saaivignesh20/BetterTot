@@ -26,9 +26,10 @@ final class WorkspaceStoreTests: XCTestCase {
 
     // MARK: - Workspace invariants
 
-    func testFreshWorkspaceCreatesEightPads() async throws {
-        XCTAssertEqual(WorkspaceMetadata.padCount, 8)
-        let snapshot = try await makeStore().load()
+    func testFreshWorkspaceCreatesSevenPads() async throws {
+        XCTAssertEqual(WorkspaceMetadata.padCount, 7)
+        let store = makeStore()
+        let snapshot = try await store.load()
         XCTAssertEqual(snapshot.metadata.pads.count, WorkspaceMetadata.padCount)
         XCTAssertEqual(Set(snapshot.metadata.pads.map(\.id)).count, WorkspaceMetadata.padCount)
         XCTAssertEqual(
@@ -41,6 +42,101 @@ final class WorkspaceStoreTests: XCTestCase {
             WorkspaceMetadata.padCount
         )
         XCTAssertFalse(snapshot.metadata.lastCleanShutdown)
+    }
+
+    func testLegacyEighthPadRemainsExportableWhileHiddenFromTheActiveSet() async throws {
+        let pads = (0..<8).map { PadMetadata.empty(position: $0) }
+        let removedPad = pads[7]
+        let metadata = WorkspaceMetadata(
+            schemaVersion: WorkspaceMetadata.currentSchemaVersion,
+            selectedPadID: removedPad.id,
+            pads: pads,
+            lastCleanShutdown: false
+        )
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        try encoder.encode(metadata).write(to: metadataURL(), options: .atomic)
+        try FileManager.default.createDirectory(
+            at: padsDir(),
+            withIntermediateDirectories: true
+        )
+        let removedPadURL = padsDir().appendingPathComponent(
+            "\(removedPad.id.rawValue.uuidString).txt"
+        )
+        try "legacy eighth pad".write(
+            to: removedPadURL,
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let store = makeStore()
+        let snapshot = try await store.load()
+
+        XCTAssertEqual(snapshot.metadata.pads.count, 8)
+        XCTAssertTrue(snapshot.metadata.pads.contains { $0.id == removedPad.id })
+        XCTAssertEqual(snapshot.metadata.selectedPadID, snapshot.metadata.pads[0].id)
+        XCTAssertEqual(
+            try String(contentsOf: removedPadURL, encoding: .utf8),
+            "legacy eighth pad"
+        )
+
+        let export = root.appendingPathComponent("export", isDirectory: true)
+        try FileManager.default.createDirectory(at: export, withIntermediateDirectories: true)
+        try await store.exportAllPads(to: export)
+        XCTAssertEqual(
+            try String(contentsOf: export.appendingPathComponent("Pad 8.txt"), encoding: .utf8),
+            "legacy eighth pad"
+        )
+
+        let reloaded = try await makeStore().load()
+        XCTAssertEqual(reloaded.metadata.pads.count, 8)
+        XCTAssertEqual(
+            try String(contentsOf: removedPadURL, encoding: .utf8),
+            "legacy eighth pad"
+        )
+    }
+
+    func testOrphanedEighthPadIsReattachedAfterInterruptedMigration() async throws {
+        let metadata = WorkspaceMetadata.fresh()
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        try encoder.encode(metadata).write(to: metadataURL(), options: .atomic)
+        try FileManager.default.createDirectory(
+            at: padsDir(),
+            withIntermediateDirectories: true
+        )
+        let orphanID = PadID()
+        try "reattached legacy pad".write(
+            to: padsDir().appendingPathComponent("\(orphanID.rawValue.uuidString).txt"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let snapshot = try await makeStore().load()
+
+        XCTAssertEqual(snapshot.metadata.pads.count, 8)
+        XCTAssertEqual(snapshot.metadata.pads[7].id, orphanID)
+        XCTAssertEqual(snapshot.texts[orphanID], "reattached legacy pad")
+    }
+
+    func testMetadataRebuildRetainsAllEightLegacyPadFiles() async throws {
+        try FileManager.default.createDirectory(
+            at: padsDir(),
+            withIntermediateDirectories: true
+        )
+        let contents = (0..<8).map { "legacy pad \($0 + 1)" }
+        for content in contents {
+            try content.write(
+                to: padsDir().appendingPathComponent("\(UUID().uuidString).txt"),
+                atomically: true,
+                encoding: .utf8
+            )
+        }
+
+        let snapshot = try await makeStore().load()
+
+        XCTAssertEqual(snapshot.metadata.pads.count, 8)
+        XCTAssertEqual(Set(snapshot.texts.values), Set(contents))
     }
 
     func testRepairFixesDuplicatePositionsAndIDs() {

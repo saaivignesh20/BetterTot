@@ -231,7 +231,7 @@ enum BackupRepositoryValidation {
             return "BetterTot could not inspect its iCloud backup folder."
         }
         let allowedSnapshotFiles = Set(
-            (1...WorkspaceMetadata.padCount).map { "Pad \($0).txt" }
+            (1...WorkspaceMetadata.compatibleBackupPadCount).map { "Pad \($0).txt" }
                 + ["workspace.json", ".bettertot-backup"]
         )
         for snapshot in snapshots {

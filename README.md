@@ -19,7 +19,7 @@
   <img src="./Assets/BetterTot-demo.gif" alt="BetterTot list controls, native checkboxes, and live text statistics" width="720">
 </p>
 
-BetterTot keeps eight lightweight text pads one shortcut away. It is a native
+BetterTot keeps seven lightweight text pads one shortcut away. It is a native
 AppKit application with no BetterTot account or analytics.
 
 > [!IMPORTANT]
@@ -65,7 +65,7 @@ bundle and do not want to update the installed application.
 
 ## Features
 
-- [x] Eight color-coded scratchpads available from the menu bar
+- [x] Seven color-coded scratchpads available from the menu bar
 - [x] Custom pad names and colors with immediate panel updates
 - [x] Global, configurable keyboard shortcut
 - [x] Pinning by dragging, with position restored between launches
@@ -87,7 +87,7 @@ bundle and do not want to update the installed application.
 | Shortcut | Action |
 |---|---|
 | `Option-Command-Space` | Toggle BetterTot |
-| `Command-1` ... `Command-8` | Select a pad |
+| `Command-1` ... `Command-7` | Select a pad |
 | `Control-Shift-Tab` / `Control-Tab` | Select the previous / next pad |
 | `Shift-Command-C` | Copy the entire pad |
 | `Shift-Command-Delete` | Clear the pad |

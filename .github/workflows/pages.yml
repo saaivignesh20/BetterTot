@@ -29,10 +29,13 @@ jobs:
       - name: Configure Pages
         uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
 
+      - name: Test download counter
+        run: node --test site/downloads.test.mjs
+
       - name: Stage static site
         run: |
           mkdir -p _site/assets _site/fonts
-          cp site/index.html site/styles.css _site/
+          cp site/index.html site/styles.css site/downloads.js _site/
           cp site/fonts/* _site/fonts/
           cp \
             Assets/AppIcon.svg \

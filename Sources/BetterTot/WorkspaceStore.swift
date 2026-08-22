@@ -113,7 +113,7 @@ actor WorkspaceStore {
         if let data = try? Data(contentsOf: metadataURL) {
             if let meta = try? Self.decoder.decode(WorkspaceMetadata.self, from: data),
                meta.schemaVersion == WorkspaceMetadata.currentSchemaVersion {
-                return meta
+                return retainingCompatiblePadFiles(in: meta)
             }
             // Preserve the unreadable file; never let bad metadata cost pad text.
             let corrupt = root.appendingPathComponent("workspace.json.corrupt")
@@ -121,13 +121,39 @@ actor WorkspaceStore {
             try? FileManager.default.copyItem(at: metadataURL, to: corrupt)
             NSLog("BetterTot: workspace.json unreadable, rebuilding from pad files")
         }
-        let adopted = ((try? FileManager.default.contentsOfDirectory(
-            at: padsDir, includingPropertiesForKeys: nil)) ?? [])
-            .filter { $0.pathExtension == "txt" }
+        return .fresh(adoptingPadIDs: padFileIDs())
+    }
+
+    private func retainingCompatiblePadFiles(in metadata: WorkspaceMetadata) -> WorkspaceMetadata {
+        guard metadata.pads.count < WorkspaceMetadata.compatibleBackupPadCount else {
+            return metadata
+        }
+        let known = Set(metadata.pads.map(\.id))
+        let available = padFileIDs().filter { !known.contains($0) }
+        guard !available.isEmpty else { return metadata }
+
+        var retained = metadata
+        for id in available.prefix(WorkspaceMetadata.compatibleBackupPadCount - metadata.pads.count) {
+            retained.pads.append(.empty(position: retained.pads.count, id: id))
+        }
+        return retained
+    }
+
+    private func padFileIDs() -> [PadID] {
+        let keys: Set<URLResourceKey> = [.isRegularFileKey, .isSymbolicLinkKey]
+        return ((try? FileManager.default.contentsOfDirectory(
+            at: padsDir,
+            includingPropertiesForKeys: Array(keys),
+            options: [.skipsHiddenFiles]
+        )) ?? [])
+            .filter { url in
+                guard url.pathExtension == "txt",
+                      let values = try? url.resourceValues(forKeys: keys) else { return false }
+                return values.isRegularFile == true && values.isSymbolicLink != true
+            }
             .compactMap { UUID(uuidString: $0.deletingPathExtension().lastPathComponent) }
             .map(PadID.init(rawValue:))
             .sorted { $0.rawValue.uuidString < $1.rawValue.uuidString }
-        return .fresh(adoptingPadIDs: adopted)
     }
 
     // Phase 0 spike stored a single root-level pad.txt; adopt it as a pad.
@@ -278,6 +304,31 @@ actor WorkspaceStore {
 
     func currentMetadata() -> WorkspaceMetadata? {
         metadata
+    }
+
+    func retainLegacyPadForRestore() throws -> PadMetadata {
+        guard let current = metadata else {
+            throw CocoaError(.fileNoSuchFile)
+        }
+        if let retained = current.pads.first(where: {
+            $0.position == WorkspaceMetadata.compatibleBackupPadCount - 1
+        }) {
+            return retained
+        }
+        guard current.pads.count == WorkspaceMetadata.padCount else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+
+        let retained = PadMetadata.empty(position: current.pads.count)
+        let candidate = WorkspaceMetadata(
+            schemaVersion: current.schemaVersion,
+            selectedPadID: current.selectedPadID,
+            pads: current.pads + [retained],
+            lastCleanShutdown: current.lastCleanShutdown
+        )
+        try writeMetadata(candidate)
+        metadata = candidate
+        return retained
     }
 
     // MARK: - File helpers

@@ -124,7 +124,7 @@ final class SettingsWindowTests: XCTestCase {
     }
 
     func testSettingsPageHeadersUseCircularAccentIcons() {
-        let windowSize = NSSize(width: 520, height: 460)
+        let windowSize = NSSize(width: 600, height: 460)
         let view = SettingsContentView(frame: NSRect(origin: .zero, size: windowSize))
         view.layoutSubtreeIfNeeded()
         let headerIcons = allSubviews(of: view).filter {
@@ -162,14 +162,28 @@ final class SettingsWindowTests: XCTestCase {
         )
         defer { controller.close() }
         let window = try XCTUnwrap(controller.window)
+        let view = try XCTUnwrap(window.contentView as? SettingsContentView)
 
-        XCTAssertEqual(window.contentView?.frame.size, NSSize(width: 520, height: 460))
-        XCTAssertEqual(window.minSize, NSSize(width: 520, height: 460))
+        view.setBackupSummary(BackupRepositorySummary(
+            health: .ready,
+            directory: URL(fileURLWithPath: "/Users/example/Library/Mobile Documents/"
+                + String(repeating: "BetterTot/", count: 20)),
+            canOpenDirectory: true,
+            latestBackupDate: nil,
+            latestBackupSizeBytes: nil,
+            counts: [:]
+        ))
+
+        window.contentView?.layoutSubtreeIfNeeded()
+
+        XCTAssertEqual(window.contentView?.frame.size, NSSize(width: 600, height: 460))
+        XCTAssertEqual(window.contentMinSize, NSSize(width: 600, height: 460))
+        XCTAssertEqual(window.contentMaxSize, NSSize(width: 600, height: 460))
         XCTAssertFalse(window.styleMask.contains(.resizable))
     }
 
     func testSettingsPagesRenderAtWindowSize() throws {
-        let windowSize = NSSize(width: 520, height: 460)
+        let windowSize = NSSize(width: 600, height: 460)
         let window = NSWindow(
             contentRect: NSRect(origin: .zero, size: windowSize),
             styleMask: [.titled, .closable],
@@ -473,6 +487,9 @@ final class SettingsWindowTests: XCTestCase {
             padButtons.map { $0.identifier?.rawValue },
             (1...WorkspaceMetadata.padCount).map { "settings-pad-selector-\($0)" }
         )
+        XCTAssertFalse(padButtons.contains {
+            $0.identifier?.rawValue == "settings-pad-selector-8"
+        })
         XCTAssertEqual(padButtons.map { $0.accessibilityRole() }, Array(
             repeating: .radioButton,
             count: WorkspaceMetadata.padCount

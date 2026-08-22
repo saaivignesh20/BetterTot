@@ -136,7 +136,8 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate,
     var currentSourceText: String { checkboxEditor.sourceText }
     var currentPlainText: String { checkboxEditor.plainText }
     var currentVisibleText: String { checkboxEditor.visibleText }
-    var padMetadata: [PadMetadata] { pads }
+    var padMetadata: [PadMetadata] { Array(pads.prefix(WorkspaceMetadata.padCount)) }
+    var restorablePadCount: Int { pads.count }
 
     init(
         statusItem: NSStatusItem,
@@ -149,7 +150,9 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate,
         self.defaults = defaults
         self.pads = snapshot.metadata.pads.sorted { $0.position < $1.position }
         self.texts = snapshot.texts
-        self.selectedIndex = pads.firstIndex { $0.id == snapshot.metadata.selectedPadID } ?? 0
+        self.selectedIndex = pads.prefix(WorkspaceMetadata.padCount).firstIndex {
+            $0.id == snapshot.metadata.selectedPadID
+        } ?? 0
         self.revisions = snapshot.revisions
 
         let editor = CheckboxTextView.makeScrollable()
@@ -164,7 +167,7 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate,
 
         content = PanelContentView(
             scrollView: scrollView,
-            pads: pads,
+            pads: Array(pads.prefix(WorkspaceMetadata.padCount)),
             selectedIndex: selectedIndex
         )
 
@@ -282,7 +285,7 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate,
         var updatedPads = pads
         updatedPads[index] = updatedPad
         pads = updatedPads
-        content.updatePads(updatedPads)
+        content.updatePads(Array(updatedPads.prefix(WorkspaceMetadata.padCount)))
 
         if index == selectedIndex {
             textView.setAccessibilityLabel(updatedPad.accessibilityName)
@@ -309,9 +312,10 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate,
         case .select(let index):
             switchToPad(at: index)
         case .previous:
-            switchToPad(at: (selectedIndex + pads.count - 1) % pads.count)
+            switchToPad(at: (selectedIndex + WorkspaceMetadata.padCount - 1)
+                % WorkspaceMetadata.padCount)
         case .next:
-            switchToPad(at: (selectedIndex + 1) % pads.count)
+            switchToPad(at: (selectedIndex + 1) % WorkspaceMetadata.padCount)
         case .copyAll:
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()
@@ -326,7 +330,9 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate,
             content.updateSelection(index: selectedIndex)
             return
         }
-        guard pads.indices.contains(index), index != selectedIndex else {
+        guard (0..<WorkspaceMetadata.padCount).contains(index),
+              pads.indices.contains(index),
+              index != selectedIndex else {
             content.updateSelection(index: selectedIndex)
             return
         }
@@ -850,6 +856,19 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate,
 
     func selectPad(at index: Int) {
         switchToPad(at: index)
+    }
+
+    func retainLegacyPadForRestore() async -> Bool {
+        guard pads.count < WorkspaceMetadata.compatibleBackupPadCount else { return true }
+        do {
+            let retained = try await store.retainLegacyPadForRestore()
+            pads = pads + [retained]
+            texts[retained.id] = ""
+            revisions[retained.id] = 0
+            return true
+        } catch {
+            return false
+        }
     }
 
     // Routes through shouldChangeText/didChangeText so imports are undoable

@@ -264,7 +264,7 @@ extension WorkspaceStore {
 
     private func isSafeLegacySnapshot(_ directory: URL) -> Bool {
         let allowed = Set(
-            (1...WorkspaceMetadata.padCount).map { "Pad \($0).txt" }
+            (1...WorkspaceMetadata.compatibleBackupPadCount).map { "Pad \($0).txt" }
                 + ["workspace.json", ".bettertot-backup"]
         )
         guard let files = try? FileManager.default.contentsOfDirectory(

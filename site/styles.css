@@ -73,7 +73,8 @@ svg {
   display: flex;
 }
 
-.source-link {
+.source-link,
+.download-link {
   align-items: center;
   border-radius: 6px;
   color: #b7b8bd;
@@ -86,7 +87,10 @@ svg {
   text-decoration: none;
 }
 
-.source-link:hover { color: var(--white); }
+.source-link:hover,
+.download-link:hover { color: var(--white); }
+
+.download-link svg { height: 14px; width: 14px; }
 
 .star-count {
   align-items: center;
@@ -320,7 +324,8 @@ footer {
 @media (max-width: 900px) {
   .site-header { padding: 0 16px; }
   .source-label { display: none; }
-  .source-link { padding-left: 9px; padding-right: 9px; }
+  .source-link,
+  .download-link { padding-left: 9px; padding-right: 9px; }
   .hero-inner {
     display: block;
     padding: 32px 16px 0;

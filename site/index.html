@@ -27,6 +27,10 @@
           <span id="github-stars">2</span>
         </span>
       </a>
+      <a class="download-link" href="https://github.com/saaivignesh20/BetterTot/releases" aria-label="5 GitHub release downloads" title="GitHub release downloads">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M12 15V3m9 12v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10l5 5l5-5"/></g></svg>
+        <span id="github-downloads">5</span>
+      </a>
     </nav>
   </header>
 
@@ -62,8 +66,8 @@
     <section class="product-details" aria-labelledby="details-title">
       <div class="section-inner details-layout">
         <div class="details-intro">
-          <h2 id="details-title">Eight pads. No folders.</h2>
-          <p>Give each one a name and color. Switch with Command-1 through Command-8.</p>
+          <h2 id="details-title">Seven pads, no folders.</h2>
+          <p>Give each one a name and color. Switch with Command-1 through Command-7.</p>
         </div>
         <div class="detail-list">
           <article>
@@ -92,9 +96,13 @@
       </nav>
     </div>
   </footer>
-  <script>
+  <script type="module">
+    import { totalReleaseDownloads } from "./downloads.js";
+
     const starCount = document.querySelector("#github-stars");
     const githubLink = document.querySelector(".source-link");
+    const downloadCount = document.querySelector("#github-downloads");
+    const downloadLink = document.querySelector(".download-link");
     const demoImage = document.querySelector("#demo-image");
     const demoSource = document.querySelector("#demo-source");
     const demoToggle = document.querySelector("#demo-toggle");
@@ -122,6 +130,18 @@
         githubLink.setAttribute("aria-label", `BetterTot on GitHub, ${count} stars`);
       })
       .catch((error) => console.warn("Could not refresh GitHub stars:", error));
+
+    fetch("https://api.github.com/repos/saaivignesh20/BetterTot/releases?per_page=100")
+      .then((response) => {
+        if (!response.ok) throw new Error(`GitHub returned ${response.status}`);
+        return response.json();
+      })
+      .then(totalReleaseDownloads)
+      .then((count) => {
+        downloadCount.textContent = new Intl.NumberFormat("en", { notation: "compact" }).format(count);
+        downloadLink.setAttribute("aria-label", `${count} GitHub release downloads`);
+      })
+      .catch((error) => console.warn("Could not refresh GitHub downloads:", error));
   </script>
 </body>
 </html>

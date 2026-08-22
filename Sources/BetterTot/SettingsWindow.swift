@@ -82,6 +82,7 @@ enum SettingsKeys {
 
 @MainActor
 final class SettingsWindowController: NSWindowController, NSWindowDelegate {
+    private static let contentSize = NSSize(width: 600, height: 460)
     private static let idleUpdateStatus =
         "Updates are checked automatically. You can also check now."
 
@@ -166,7 +167,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         }
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 520, height: 460),
+            contentRect: NSRect(origin: .zero, size: Self.contentSize),
             styleMask: [.titled, .closable, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -177,7 +178,8 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         window.titlebarSeparatorStyle = .none
         window.isOpaque = false
         window.backgroundColor = .clear
-        window.minSize = NSSize(width: 520, height: 460)
+        window.contentMinSize = Self.contentSize
+        window.contentMaxSize = Self.contentSize
         window.isMovableByWindowBackground = true
         super.init(window: window)
         window.delegate = self
@@ -244,6 +246,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
             self?.updatePadAppearance(id, name: name, colorIdentifier: colorIdentifier)
         }
         window?.contentView = settingsView
+        window?.setContentSize(Self.contentSize)
     }
 
     private var editorSwitchKeys: [(NSSwitch, String)] {

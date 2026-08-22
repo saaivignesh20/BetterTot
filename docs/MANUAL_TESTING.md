@@ -28,7 +28,7 @@ Run `scripts/test.sh` before this checklist. Test an app bundle built with
 - [ ] The Settings button closes the panel and opens Settings.
 - [ ] The footer reports live line, word, character, and save status, with
       Settings at the right edge.
-- [ ] Eight distinct colored pad selectors are visible, and selection does not
+- [ ] Seven distinct colored pad selectors are visible, and selection does not
       rely on color alone.
 - [ ] Control-Tab selects the next pad and Control-Shift-Tab selects the
       previous pad; Command-Left and Command-Right navigate within text without
@@ -73,7 +73,7 @@ Run `scripts/test.sh` before this checklist. Test an app bundle built with
       writing-tools cursor affordance, and disabling it removes that affordance.
 - [ ] While a Writing Tools session is active, intermediate suggestions are not
       written to the pad file; ending the session saves the accepted text.
-- [ ] Pads shows eight numbered colored circles, Color is a native pop-up, and
+- [ ] Pads shows seven numbered colored circles, Color is a native pop-up, and
       the rounded Name field has a visible focus ring and current system styling.
 - [ ] Storage contains no local-recovery, local-folder, mirror, enable, or
       destination controls.

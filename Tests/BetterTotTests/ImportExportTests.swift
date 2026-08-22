@@ -215,12 +215,16 @@ final class ImportExportTests: XCTestCase {
         try FileManager.default.createDirectory(at: restore, withIntermediateDirectories: true)
         try "incoming".write(
             to: restore.appendingPathComponent("Pad 1.txt"), atomically: true, encoding: .utf8)
+        try "legacy incoming".write(
+            to: restore.appendingPathComponent("Pad 8.txt"), atomically: true, encoding: .utf8)
         try? FileManager.default.removeItem(at: store.backupsDirectory)
         try Data().write(to: store.backupsDirectory)
 
         let failedResult = await controller.restoreWorkspace(from: restore)
         XCTAssertEqual(failedResult, .safetyBackupFailed)
         XCTAssertNotEqual(controller.textView.string, "incoming")
+        let unchangedMetadata = await store.currentMetadata()
+        XCTAssertEqual(unchangedMetadata?.pads.count, 7)
     }
 
     func testRestoreWorkflowReturnsUnreadablePositionsAfterSuccessfulRestore() async throws {
@@ -236,6 +240,34 @@ final class ImportExportTests: XCTestCase {
         XCTAssertEqual(result, .restored(skipped: [1]))
         XCTAssertEqual(controller.textView.string, "incoming")
         await controller.flushAll()
+    }
+
+    func testLegacyEighthPadIsRestoredAndExportedWithoutReturningToTheUI() async throws {
+        let (controller, store, snapshot) = try await makeController()
+        XCTAssertEqual(snapshot.metadata.pads.count, 7)
+        XCTAssertEqual(controller.padMetadata.count, 7)
+
+        let restore = root.appendingPathComponent("legacy-restore", isDirectory: true)
+        try FileManager.default.createDirectory(at: restore, withIntermediateDirectories: true)
+        try "restored eighth pad".write(
+            to: restore.appendingPathComponent("Pad 8.txt"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let restoreResult = await controller.restoreWorkspace(from: restore)
+        XCTAssertEqual(restoreResult, .restored(skipped: []))
+        let retainedMetadata = await store.currentMetadata()
+        XCTAssertEqual(retainedMetadata?.pads.count, 8)
+        XCTAssertEqual(controller.padMetadata.count, 7)
+
+        let export = root.appendingPathComponent("legacy-export", isDirectory: true)
+        try FileManager.default.createDirectory(at: export, withIntermediateDirectories: true)
+        try await controller.writeAllPads(to: export)
+        XCTAssertEqual(
+            try String(contentsOf: export.appendingPathComponent("Pad 8.txt"), encoding: .utf8),
+            "restored eighth pad"
+        )
     }
 
     func testRestoreReportsPersistenceFailureAndRetainsJournal() async throws {

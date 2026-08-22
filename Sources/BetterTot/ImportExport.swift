@@ -192,7 +192,14 @@ extension PanelController {
     }
 
     func restoreWorkspace(from directory: URL) async -> RestoreBackupResult {
-        let padFiles = (1...WorkspaceMetadata.padCount).map {
+        let legacyPad = directory.appendingPathComponent(
+            "Pad \(WorkspaceMetadata.compatibleBackupPadCount).txt"
+        )
+        let hasLegacyPad = FileManager.default.fileExists(atPath: legacyPad.path)
+        let restoreCount = hasLegacyPad
+            ? WorkspaceMetadata.compatibleBackupPadCount
+            : restorablePadCount
+        let padFiles = (1...restoreCount).map {
             directory.appendingPathComponent("Pad \($0).txt")
         }
         guard padFiles.contains(where: { FileManager.default.fileExists(atPath: $0.path) }) else {
@@ -200,6 +207,9 @@ extension PanelController {
         }
         return await withEditingSuspended {
             guard await createBackupIncludingCurrentPad() else { return .safetyBackupFailed }
+            if hasLegacyPad, !(await retainLegacyPadForRestore()) {
+                return .persistenceFailed
+            }
             guard let skipped = await restore(from: padFiles) else { return .persistenceFailed }
             return .restored(skipped: skipped)
         }

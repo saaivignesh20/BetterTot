@@ -575,6 +575,7 @@ final class SettingsContentView: NSVisualEffectView {
     ) -> NSView {
         let icon = Self.iconWell(symbol: symbol, label: title, tint: tint, size: 30)
         let titleLabel = Self.textLabel(title, size: 14, weight: .medium)
+        detailView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         let labelStack = NSStackView(views: [titleLabel, detailView])
         labelStack.orientation = .vertical
         labelStack.alignment = .leading

@@ -39,7 +39,6 @@ enum PadColorIdentifier: String, CaseIterable, Codable {
         .blue,
         .teal,
         .green,
-        .pink,
     ]
 }
 
@@ -143,11 +142,13 @@ struct WorkspaceMetadata: Codable {
     var pads: [PadMetadata]
     var lastCleanShutdown: Bool
 
-    static let padCount = 8
+    static let padCount = 7
+    static let compatibleBackupPadCount = 8
     static let currentSchemaVersion = 1
 
     static func fresh(adoptingPadIDs adopted: [PadID] = [], now: Date = Date()) -> WorkspaceMetadata {
-        let pads = (0..<padCount).map { position in
+        let retainedCount = max(padCount, min(adopted.count, compatibleBackupPadCount))
+        let pads = (0..<retainedCount).map { position in
             PadMetadata.empty(
                 position: position,
                 id: position < adopted.count ? adopted[position] : PadID(),
@@ -162,16 +163,16 @@ struct WorkspaceMetadata: Codable {
         )
     }
 
-    // Deterministic invariant repair (plan §7.4): fixed pad count, unique IDs,
-    // contiguous positions, valid selected pad. Extra pad files are retained.
+    // Seven pads stay active. One legacy eighth record remains available to
+    // backup, restore, and export without returning to the UI.
     func repaired(now: Date = Date()) -> WorkspaceMetadata {
         var seen = Set<PadID>()
         var pads = self.pads.filter { seen.insert($0.id).inserted }
         pads.sort {
             ($0.position, $0.id.rawValue.uuidString) < ($1.position, $1.id.rawValue.uuidString)
         }
-        if pads.count > Self.padCount {
-            pads = Array(pads.prefix(Self.padCount))
+        if pads.count > Self.compatibleBackupPadCount {
+            pads = Array(pads.prefix(Self.compatibleBackupPadCount))
         }
         while pads.count < Self.padCount {
             pads.append(.empty(position: pads.count, now: now))
@@ -182,7 +183,7 @@ struct WorkspaceMetadata: Codable {
         var repaired = self
         repaired.schemaVersion = Self.currentSchemaVersion
         repaired.pads = pads
-        if !pads.contains(where: { $0.id == selectedPadID }) {
+        if !pads.prefix(Self.padCount).contains(where: { $0.id == selectedPadID }) {
             repaired.selectedPadID = pads[0].id
         }
         return repaired

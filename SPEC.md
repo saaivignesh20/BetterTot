@@ -3,7 +3,7 @@
 ## Status
 
 BetterTot is a private/local native macOS menu-bar scratchpad. The
-current implementation provides eight fixed plain-text pads, a custom
+current implementation provides seven fixed plain-text pads, a custom
 nonactivating AppKit panel, local-first file storage, crash recovery, rolling
 backups, import/export, settings, and a configurable global shortcut.
 
@@ -18,7 +18,7 @@ roadmap.
   corruption whenever the filesystem permits it.
 - Avoid accounts, background network services, analytics, telemetry, and
   proprietary data formats.
-- Support predictable keyboard-first use across eight fixed pad slots.
+- Support predictable keyboard-first use across seven fixed pad slots.
 
 ## Non-Goals
 
@@ -165,7 +165,7 @@ only in Settings.
 
 The editor is a borderless, floating, nonactivating `NSPanel` containing:
 
-- A compact header with Close, eight independent colored pad buttons, and Pin.
+- A compact header with Close, seven independent colored pad buttons, and Pin.
 - A scrollable plain-text `NSTextView`.
 - A status footer with text statistics and local-save state.
 - A flat semantic background clipped to a continuous rounded silhouette.
@@ -184,7 +184,7 @@ Panel behavior:
 - Explicitly closing a pinned panel clears its pinned state, so the next open
   returns beneath the menu-bar item.
 - Opening Settings from an attached panel dismisses the popover first.
-- A compact header contains Close, eight colored scratchpad selectors, and Pin.
+- A compact header contains Close, seven colored scratchpad selectors, and Pin.
   Inactive selectors are rings and the active selector is filled.
 - A footer shows list controls, live line/word/character counts, local-save
   state (`Saving`, `Saved`, recovery pending, or failure), and Settings.
@@ -232,8 +232,8 @@ Panel behavior:
 
 ### Pad Slots
 
-- There are exactly eight logical pads.
-- Pads are addressed by fixed positions `0...7` internally. The panel displays
+- There are exactly seven logical pads.
+- Pads are addressed by fixed positions `0...6` internally. The panel displays
   colored dots; numeric identities remain in tooltips, accessibility labels,
   keyboard shortcuts, announcements, and exported file names.
 - Each pad has an independent text buffer, selection, scroll offset, content
@@ -242,8 +242,8 @@ Panel behavior:
   pending text save, load the incoming pad, and announce the selected pad to
   VoiceOver.
 - The model includes optional `name` and `colorIdentifier` fields. Recognized
-  color identifiers override the deterministic eight-color fallback palette.
-- The Pads settings page edits one selected slot at a time using the same eight
+  color identifiers override the deterministic seven-color fallback palette.
+- The Pads settings page edits one selected slot at a time using the same seven
   colored dots shown in the panel, a single-line name field, and fixed color
   swatches.
 - Pad names are trimmed, limited to 24 user-perceived characters, and cannot
@@ -255,6 +255,9 @@ Panel behavior:
   IDs, keyboard shortcuts, backup/export filenames, or content storage paths.
 - Appearance edits are atomically written to `workspace.json` and then applied
   to the live panel without reloading text or replacing undo state.
+- An upgraded workspace may retain its former eighth pad as a hidden compatibility
+  record. It remains available to backup, restore, and Export All, but never
+  appears in the panel, Settings, or keyboard navigation.
 
 ## Keyboard Behavior
 
@@ -271,7 +274,7 @@ Panel/editor shortcuts:
 
 | Shortcut | Behavior |
 | --- | --- |
-| `Command-1` ... `Command-8` | Select pad 1 ... 8 |
+| `Command-1` ... `Command-7` | Select pad 1 ... 7 |
 | `Control-Shift-Tab` | Previous pad |
 | `Control-Tab` | Next pad |
 | `Shift-Command-C` | Copy entire current pad |
@@ -304,7 +307,7 @@ Supported settings:
 
 - Launch at login, via `SMAppService.mainApp`, enabled only in a bundled app.
 - Global shortcut.
-- Pad selection through eight numbered colored circles, pad name through a
+- Pad selection through seven numbered colored circles, pad name through a
   rounded system text field, and color through a native pop-up button.
 - Check spelling while typing.
 - Smart quotes.
@@ -376,12 +379,13 @@ Current schema version: `1`.
 
 Workspace invariants:
 
-- Exactly eight pad metadata records.
+- Exactly seven active pad metadata records, with at most one retained hidden
+  legacy record.
 - Unique pad IDs.
-- Positions normalized to `0...7`.
-- Selected pad ID must refer to an existing pad.
-- Metadata repair may drop extra metadata records but must not delete extra pad
-  files from disk.
+- Active positions normalized to `0...6`; a retained legacy record uses `7`.
+- Selected pad ID must refer to an active pad.
+- Metadata repair may drop records beyond the retained legacy slot but must not
+  delete extra pad files from disk.
 
 ## Storage Layout
 
@@ -512,7 +516,6 @@ Pad 4.txt
 Pad 5.txt
 Pad 6.txt
 Pad 7.txt
-Pad 8.txt
 workspace.json
 ```
 
@@ -524,6 +527,8 @@ Backup rules:
 - Unknown files, renamed folders, symlinks, malformed tiers, or a mismatched
   ownership manifest block all backup writes and pruning without modifying the
   offending content.
+- Upgraded workspaces may also contain `Pad 8.txt`; it is retained for restore
+  and export compatibility.
 - Auto-backups are write-driven rather than timer-driven.
 - Hourly and daily backups are created when the newest backup in that tier is
   older than one hour or one day respectively.
@@ -564,7 +569,8 @@ Export all pads:
 
 - Uses a directory picker.
 - Commits all edited pads before export.
-- Writes `Pad 1.txt` through `Pad 8.txt`.
+- Writes `Pad 1.txt` through `Pad 7.txt`, plus a retained legacy `Pad 8.txt`
+  when present.
 - Copies workspace metadata as `metadata.json` when available.
 
 Restore backup:
@@ -575,6 +581,8 @@ Restore backup:
 - Commits all edited pads and creates a manual safety backup before restoring.
 - If the safety backup fails, restore is cancelled and current data remains.
 - Restores by position, not by UUID.
+- Restoring `Pad 8.txt` into a seven-pad workspace creates the hidden legacy
+  record before applying its content.
 - Missing files are skipped silently.
 - Existing unreadable files are reported and leave their pads unchanged.
 - Restored text is committed before success is reported.
@@ -705,7 +713,7 @@ Line coverage: 89.13% (5181/5813), minimum 80.00%.
   explicitly changes it.
 - Never log note text, clipboard text, imported file contents, exported file
   contents, or recovered file contents.
-- Keep the eight-pad invariant unless both storage and UI specs are updated.
+- Keep the seven-pad invariant unless both storage and UI specs are updated.
 - Treat `WorkspaceStore` as the single disk writer for workspace data.
 - Preserve crash recovery semantics when changing editor, journal, or commit
   behavior.

@@ -216,6 +216,9 @@ final class BackupTests: XCTestCase {
         try Data("legacy note".utf8).write(
             to: legacySnapshot.appendingPathComponent("Pad 1.txt")
         )
+        try Data("retired eighth pad".utf8).write(
+            to: legacySnapshot.appendingPathComponent("Pad 8.txt")
+        )
         let cloudDrive = root.appendingPathComponent("CloudDocs", isDirectory: true)
         try FileManager.default.createDirectory(at: cloudDrive, withIntermediateDirectories: true)
         let location = PrivateICloudDriveBackupLocationResolver(
@@ -232,11 +235,21 @@ final class BackupTests: XCTestCase {
         let migrated = location.directory.appendingPathComponent(
             "manual/20260102-030405/Pad 1.txt"
         )
+        let migratedEighthPad = location.directory.appendingPathComponent(
+            "manual/20260102-030405/Pad 8.txt"
+        )
 
         XCTAssertEqual(summary.totalCount, 1)
         XCTAssertEqual(try Data(contentsOf: migrated), Data("legacy note".utf8))
+        XCTAssertEqual(
+            try Data(contentsOf: migratedEighthPad),
+            Data("retired eighth pad".utf8)
+        )
         XCTAssertTrue(FileManager.default.fileExists(
             atPath: legacySnapshot.appendingPathComponent("Pad 1.txt").path
+        ))
+        XCTAssertTrue(FileManager.default.fileExists(
+            atPath: legacySnapshot.appendingPathComponent("Pad 8.txt").path
         ))
     }
 
@@ -344,6 +357,31 @@ final class BackupTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(
             atPath: location.directory.appendingPathComponent(".DS_Store").path
         ))
+    }
+
+    func testLegacyEighthPadDoesNotBlockICloudRepository() async throws {
+        let cloudDrive = root.appendingPathComponent("CloudDocs", isDirectory: true)
+        try FileManager.default.createDirectory(at: cloudDrive, withIntermediateDirectories: true)
+        let location = PrivateICloudDriveBackupLocationResolver(
+            cloudDriveRoot: cloudDrive
+        ).resolve()
+        let snapshot = location.directory.appendingPathComponent(
+            "manual/20260102-030405",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(at: snapshot, withIntermediateDirectories: true)
+        try Data("retired eighth pad".utf8).write(
+            to: snapshot.appendingPathComponent("Pad 8.txt")
+        )
+        let store = WorkspaceStore(
+            root: root.appendingPathComponent("Application Support"),
+            backupRepositoryLocation: location
+        )
+
+        let summary = await store.backupRepositorySummary()
+
+        XCTAssertEqual(summary.health, .ready)
+        XCTAssertEqual(summary.totalCount, 1)
     }
 
     func testManualBackupContainsAllPadsAsReadableText() async throws {

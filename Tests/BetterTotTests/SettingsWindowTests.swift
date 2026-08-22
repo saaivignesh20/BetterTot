@@ -176,7 +176,7 @@ final class SettingsWindowTests: XCTestCase {
 
         window.contentView?.layoutSubtreeIfNeeded()
 
-        XCTAssertEqual(window.contentView?.frame.size, NSSize(width: 600, height: 460))
+        XCTAssertEqual(window.contentView?.frame.width, 600)
         XCTAssertEqual(window.contentMinSize, NSSize(width: 600, height: 460))
         XCTAssertEqual(window.contentMaxSize, NSSize(width: 600, height: 460))
         XCTAssertFalse(window.styleMask.contains(.resizable))

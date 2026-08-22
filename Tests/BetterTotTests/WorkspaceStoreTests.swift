@@ -403,7 +403,7 @@ final class WorkspaceStoreTests: XCTestCase {
 
     func testPadFilesBeyondLimitSurviveMetadataRebuildOnDisk() async throws {
         _ = try await makeStore().load()
-        // Ten pad files, only the configured pad count can be adopted.
+        // Ten pad files, including the single legacy-compatible pad, can be adopted.
         var files: [URL] = []
         for index in 0..<10 {
             let url = padsDir().appendingPathComponent("\(UUID().uuidString).txt")
@@ -413,7 +413,7 @@ final class WorkspaceStoreTests: XCTestCase {
         try Data("{not json".utf8).write(to: metadataURL())
 
         let reloaded = try await makeStore().load()
-        XCTAssertEqual(reloaded.metadata.pads.count, WorkspaceMetadata.padCount)
+        XCTAssertEqual(reloaded.metadata.pads.count, WorkspaceMetadata.compatibleBackupPadCount)
         for url in files {
             XCTAssertTrue(FileManager.default.fileExists(atPath: url.path),
                           "unadopted pad files must never be deleted")

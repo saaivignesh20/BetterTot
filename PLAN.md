@@ -1757,7 +1757,7 @@ control surface and contains:
 * `Back Up Now`
 * `Restore Backup...`
 * `Open in iCloud Drive`
-* `Recheck`
+* Automatic health refresh when Settings opens or regains focus
 
 Disable backup and restore commands while the repository is unavailable,
 invalid, migrating, or busy. `Open Folder` remains enabled for invalid-content
@@ -1856,7 +1856,7 @@ surfaces without intentionally breaking the eight-pad workspace format. Reserve
 | BT-030-10 | Migrate legacy backups without loss | Existing local backups are copied before the previous mirror; migration is resumable and idempotent; byte-identical snapshots deduplicate; different same-name snapshots receive deterministic hash suffixes; source data is never deleted automatically. |
 | BT-030-11 | Survive updates and reinstalls | Replacing or updating `BetterTot.app` preserves and rediscovers all snapshots; a fresh installation with empty preferences finds the repository from its fixed path and manifest; a new installation ID does not hide or prune snapshots from previous installations. |
 | BT-030-12 | Keep editing independent of iCloud | Pad saves, journals, switching, launch, and termination work while iCloud is unavailable; `Back Up Now` reports failure without changing pad data; destructive import or restore stops before mutation when its verified safety snapshot cannot be published. |
-| BT-030-13 | Make Storage the backup control center | Storage shows repository health, fixed path, counts, migration state, and actionable errors; it contains `Back Up Now`, `Restore Backup...`, `Open in iCloud Drive`, and `Recheck`; there is no local destination, mirror switch, or folder chooser. |
+| BT-030-13 | Make Storage the backup control center | Storage shows repository health, fixed path, counts, migration state, and actionable errors; it contains `Back Up Now`, `Restore Backup...`, and `Open in iCloud Drive`, and refreshes health when Settings opens or regains focus; there is no local destination, mirror switch, or folder chooser. |
 | BT-030-14 | Route Settings backup actions through live editor state | `Back Up Now` and restore first commit pending text from every edited pad; controls disable while unavailable, invalid, migrating, or busy; invalid-folder recovery can still open the existing folder. |
 | BT-030-15 | Share one menu command router | Main and status menus invoke one command layer; titles, enabled states, selected pad checkmarks, and pin state update through menu validation; command behavior matches keyboard and footer actions. |
 | BT-030-16 | Replace status-menu backup commands with useful tools | The status menu contains show/hide, pin/unpin, eight named scratchpads, copy entire pad, grouped import/export, Settings, and Quit; it contains no create/open/restore backup command; destructive clear is absent. |

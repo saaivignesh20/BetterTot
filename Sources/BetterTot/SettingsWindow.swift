@@ -82,7 +82,7 @@ enum SettingsKeys {
 
 @MainActor
 final class SettingsWindowController: NSWindowController, NSWindowDelegate {
-    private static let contentSize = NSSize(width: 660, height: 460)
+    private static let contentSize = NSSize(width: 800, height: 460)
     private static let idleUpdateStatus =
         "Updates are checked automatically. You can also check now."
 
@@ -240,7 +240,6 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         settingsView.onBackUpNow = { [weak self] in self?.backUpNow() }
         settingsView.onRestoreBackup = { [weak self] in self?.restoreBackup() }
         settingsView.onOpenICloudBackups = { [weak self] in self?.openICloudBackups() }
-        settingsView.onRecheckICloudBackups = { [weak self] in self?.recheckICloudBackups() }
         settingsView.padCustomizationView.onUpdateRequested = {
             [weak self] id, name, colorIdentifier in
             self?.updatePadAppearance(id, name: name, colorIdentifier: colorIdentifier)
@@ -435,7 +434,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
             if !created {
                 showError(
                     "Could not back up to iCloud Drive.",
-                    "Check that iCloud Drive is available, then use Recheck."
+                    "Check that iCloud Drive is available, then try again."
                 )
             }
         }
@@ -450,19 +449,6 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         openURL(store.backupsDirectory)
     }
 
-    private func recheckICloudBackups() {
-        guard backupTask == nil else { return }
-        if let backupSummary {
-            settingsView.setBackupSummary(backupSummary, busy: true)
-        }
-        backupTask = Task { @MainActor [weak self] in
-            guard let self else { return }
-            defer { backupTask = nil }
-            let summary = await store.backupRepositorySummary()
-            guard !Task.isCancelled else { return }
-            applyBackupSummary(summary)
-        }
-    }
 
     private func applyBackupSummary(
         _ summary: BackupRepositorySummary,
@@ -585,6 +571,13 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     }
 
     // MARK: - Window lifecycle
+
+    func windowDidBecomeKey(_ notification: Notification) {
+        guard isPresented else { return }
+        Task { @MainActor [weak self] in
+            await self?.refreshBackupSummary()
+        }
+    }
 
     func windowDidResignKey(_ notification: Notification) {
         endRecording()

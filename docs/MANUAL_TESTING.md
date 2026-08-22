@@ -82,8 +82,9 @@ Run `scripts/test.sh` before this checklist. Test an app bundle built with
 - [ ] With iCloud Drive unavailable, pad editing survives relaunch, no local
       `Backups` folder is created, and the status menu reports that backup needs
       attention.
-- [ ] Place an unknown file in the deterministic iCloud folder. Recheck blocks
-      backup and pruning, preserves the file unchanged, and shows the problem.
+- [ ] Place an unknown file in the deterministic iCloud folder. Automatic
+      Settings refresh blocks backup and pruning, preserves the file unchanged,
+      and shows the problem after the window regains focus.
 - [ ] Replace `BetterTot.app`, then reinstall it without deleting Application
       Support. Existing pads, journals, and iCloud backups are rediscovered.
 - [ ] A bundled release checks once at launch, does not check again within 24

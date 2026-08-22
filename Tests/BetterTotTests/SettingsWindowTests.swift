@@ -72,7 +72,6 @@ final class SettingsWindowTests: XCTestCase {
             "backup-now",
             "restore-backup",
             "open-icloud-backups",
-            "recheck-icloud-backups",
             "check-for-updates",
             "view-update",
         ]
@@ -84,7 +83,15 @@ final class SettingsWindowTests: XCTestCase {
             })
             XCTAssertEqual(button.contentTintColor, .labelColor, identifier)
             XCTAssertTrue(button.isBordered, identifier)
-            XCTAssertEqual(button.bezelStyle, .rounded, identifier)
+            #if compiler(>=6.2)
+                if #available(macOS 26.0, *) {
+                    XCTAssertEqual(button.bezelStyle, .glass, identifier)
+                } else {
+                    XCTAssertEqual(button.bezelStyle, .rounded, identifier)
+                }
+            #else
+                XCTAssertEqual(button.bezelStyle, .rounded, identifier)
+            #endif
         }
     }
 
@@ -99,7 +106,7 @@ final class SettingsWindowTests: XCTestCase {
         XCTAssertTrue(identifiers.contains("backup-now"))
         XCTAssertTrue(identifiers.contains("restore-backup"))
         XCTAssertTrue(identifiers.contains("open-icloud-backups"))
-        XCTAssertTrue(identifiers.contains("recheck-icloud-backups"))
+        XCTAssertFalse(identifiers.contains("recheck-icloud-backups"))
         XCTAssertFalse(identifiers.contains("backup-mirror-enabled"))
         XCTAssertFalse(identifiers.contains("choose-backup-mirror"))
         XCTAssertFalse(identifiers.contains("open-backup-folder"))
@@ -124,7 +131,7 @@ final class SettingsWindowTests: XCTestCase {
     }
 
     func testSettingsPageHeadersUseCircularAccentIcons() {
-        let windowSize = NSSize(width: 660, height: 460)
+        let windowSize = NSSize(width: 800, height: 460)
         let view = SettingsContentView(frame: NSRect(origin: .zero, size: windowSize))
         view.layoutSubtreeIfNeeded()
         let headerIcons = allSubviews(of: view).filter {
@@ -176,14 +183,14 @@ final class SettingsWindowTests: XCTestCase {
 
         window.contentView?.layoutSubtreeIfNeeded()
 
-        XCTAssertEqual(window.contentView?.frame.width, 660)
-        XCTAssertEqual(window.contentMinSize, NSSize(width: 660, height: 460))
-        XCTAssertEqual(window.contentMaxSize, NSSize(width: 660, height: 460))
+        XCTAssertEqual(window.contentView?.frame.width, 800)
+        XCTAssertEqual(window.contentMinSize, NSSize(width: 800, height: 460))
+        XCTAssertEqual(window.contentMaxSize, NSSize(width: 800, height: 460))
         XCTAssertFalse(window.styleMask.contains(.resizable))
     }
 
     func testSettingsPagesRenderAtWindowSize() throws {
-        let windowSize = NSSize(width: 660, height: 460)
+        let windowSize = NSSize(width: 800, height: 460)
         let window = NSWindow(
             contentRect: NSRect(origin: .zero, size: windowSize),
             styleMask: [.titled, .closable],

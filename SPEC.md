@@ -296,7 +296,7 @@ line-start and line-end caret navigation in the editor.
 
 Settings are stored in standard app `UserDefaults`.
 
-The settings window uses a compact `660 × 460` layout with a fixed vertical
+The settings window uses an `800 × 460` layout with a fixed vertical
 sidebar and five pages:
 `General`, `Pads`, `Editor`, `Storage`, and `Updates`. Each page icon sits in a
 circular material container. The selected icon uses the system accent color
@@ -318,7 +318,7 @@ Supported settings:
 
 Storage is the only backup control surface. It shows iCloud repository health,
 the latest backup date and size, and the deterministic path. It provides
-`Back Up Now`, `Restore`, `Open in iCloud Drive`, and `Recheck`. There is no
+`Back Up Now`, `Restore`, and `Open in iCloud Drive`. There is no
 folder chooser, mirror switch, local-backup destination, or local recovery
 section. Local journals remain an internal crash-recovery mechanism.
 

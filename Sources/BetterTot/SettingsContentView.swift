@@ -3,6 +3,7 @@ import AppKit
 final class SettingsContentView: NSVisualEffectView {
     static var pageAccentColor: NSColor { .controlAccentColor }
     typealias Page = SettingsPage
+    private static let liquidGlassButtonsEnabled = true
 
     let launchAtLogin = NSSwitch()
     let spellChecking = NSSwitch()
@@ -35,11 +36,6 @@ final class SettingsContentView: NSVisualEffectView {
         symbol: "folder",
         identifier: "open-icloud-backups"
     )
-    let recheckICloudBackupsButton = SettingsContentView.actionButton(
-        title: "Recheck",
-        symbol: "arrow.clockwise",
-        identifier: "recheck-icloud-backups"
-    )
     let checkUpdatesButton = SettingsContentView.actionButton(
         title: "Check for Updates",
         symbol: "arrow.clockwise",
@@ -60,7 +56,6 @@ final class SettingsContentView: NSVisualEffectView {
     var onBackUpNow: (() -> Void)?
     var onRestoreBackup: (() -> Void)?
     var onOpenICloudBackups: (() -> Void)?
-    var onRecheckICloudBackups: (() -> Void)?
 
     private let pageHost = NSView()
     private let updateProgress = NSProgressIndicator()
@@ -110,7 +105,6 @@ final class SettingsContentView: NSVisualEffectView {
         backupNowButton.isEnabled = ready && !busy
         restoreBackupButton.isEnabled = summary.totalCount > 0 && !busy
         openICloudBackupsButton.isEnabled = summary.canOpenDirectory && !busy
-        recheckICloudBackupsButton.isEnabled = !busy
         backupNowButton.title = busy ? "Backing Up..." : "Back Up Now"
         backupStatus.setAccessibilityValue(backupStatus.stringValue)
     }
@@ -391,12 +385,9 @@ final class SettingsContentView: NSVisualEffectView {
         restoreBackupButton.action = #selector(restoreBackupPressed)
         openICloudBackupsButton.target = self
         openICloudBackupsButton.action = #selector(openICloudBackupsPressed)
-        recheckICloudBackupsButton.target = self
-        recheckICloudBackupsButton.action = #selector(recheckICloudBackupsPressed)
         let actions = NSStackView(views: [
             backupNowButton,
             restoreBackupButton,
-            recheckICloudBackupsButton,
         ])
         actions.orientation = .horizontal
         actions.alignment = .centerY
@@ -665,7 +656,15 @@ final class SettingsContentView: NSVisualEffectView {
     private static func applyCommandButtonStyle(to button: NSButton) {
         button.contentTintColor = .labelColor
         button.isBordered = true
-        button.bezelStyle = .rounded
+        #if compiler(>=6.2)
+            if Self.liquidGlassButtonsEnabled, #available(macOS 26.0, *) {
+                button.bezelStyle = .glass
+            } else {
+                button.bezelStyle = .rounded
+            }
+        #else
+            button.bezelStyle = .rounded
+        #endif
         button.controlSize = .regular
     }
 
@@ -774,6 +773,5 @@ final class SettingsContentView: NSVisualEffectView {
     @objc private func backUpNowPressed() { onBackUpNow?() }
     @objc private func restoreBackupPressed() { onRestoreBackup?() }
     @objc private func openICloudBackupsPressed() { onOpenICloudBackups?() }
-    @objc private func recheckICloudBackupsPressed() { onRecheckICloudBackups?() }
 
 }

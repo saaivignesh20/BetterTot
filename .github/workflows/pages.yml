@@ -10,6 +10,10 @@ on:
       - "Assets/AppIcon.svg"
       - "Assets/BetterTot-demo.gif"
       - "Assets/BetterTot-demo-still.png"
+      - "Assets/BetterTot-feature-capture.png"
+      - "Assets/BetterTot-feature-pads.png"
+      - "Assets/BetterTot-feature-markdown.png"
+      - "Assets/BetterTot-feature-backups.png"
       - ".github/workflows/pages.yml"
 
 permissions:
@@ -41,6 +45,10 @@ jobs:
             Assets/AppIcon.svg \
             Assets/BetterTot-demo.gif \
             Assets/BetterTot-demo-still.png \
+            Assets/BetterTot-feature-capture.png \
+            Assets/BetterTot-feature-pads.png \
+            Assets/BetterTot-feature-markdown.png \
+            Assets/BetterTot-feature-backups.png \
             _site/assets/
 
       - name: Upload Pages artifact

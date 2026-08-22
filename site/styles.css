@@ -107,15 +107,18 @@ svg {
 }
 
 .hero-inner {
+  align-items: center;
+  display: grid;
+  gap: 64px;
+  grid-template-columns: minmax(320px, 0.85fr) minmax(440px, 1.15fr);
   margin: 0 auto;
   max-width: 1040px;
-  padding: 42px 22px 0;
-  text-align: center;
+  padding: 64px 22px;
+  text-align: left;
 }
 
 .hero-copy {
-  margin: 0 auto;
-  max-width: 620px;
+  max-width: 460px;
 }
 
 h1,
@@ -151,7 +154,6 @@ h1 {
 
 .hero-actions {
   display: flex;
-  justify-content: center;
 }
 
 .button {
@@ -178,9 +180,9 @@ h1 {
 }
 
 .product-demo {
-  margin: 28px auto 0;
+  margin: 0 0 0 auto;
   position: relative;
-  width: min(520px, calc(100vw - 32px));
+  width: min(540px, 100%);
 }
 
 .product-demo picture,
@@ -315,15 +317,20 @@ footer {
   outline-offset: 3px;
 }
 
-@media (max-width: 760px) {
+@media (max-width: 900px) {
   .site-header { padding: 0 16px; }
   .source-label { display: none; }
   .source-link { padding-left: 9px; padding-right: 9px; }
-  .hero-inner { padding: 32px 16px 0; }
+  .hero-inner {
+    display: block;
+    padding: 32px 16px 0;
+    text-align: center;
+  }
   h1 { font-size: 42px; }
   .hero-line { font-size: 20px; }
   .hero-detail { font-size: 16px; margin-left: auto; margin-right: auto; max-width: 340px; }
-  .product-demo { margin-top: 24px; width: min(420px, calc(100vw - 32px)); }
+  .hero-actions { justify-content: center; }
+  .product-demo { margin: 24px auto 0; width: min(420px, calc(100vw - 32px)); }
   .section-inner { padding: 44px 18px; }
   .details-layout { gap: 30px; grid-template-columns: 1fr; }
   h2 { font-size: 30px; }

@@ -245,6 +245,27 @@ h1 {
 .hero-demo-body p { color: #e3e3e5; font-size: 14px; margin: 0 0 13px; }
 .hero-demo-cursor { color: #a6a7ad !important; margin-top: 32px !important; }
 
+@media (min-width: 901px) {
+  .product-demo { width: min(620px, 100%); }
+  .mac-menubar { border-radius: 11px 11px 0 0; font-size: 12px; min-height: 48px; padding: 0 18px; }
+  .menubar-left, .menubar-right { gap: 16px; }
+  .menubar-left { gap: 14px; }
+  .apple-mark { font-size: 18px; }
+  .menubar-symbol { font-size: 16px; }
+  .menubar-bettertot { border-radius: 6px; height: 28px; width: 30px; }
+  .menubar-bettertot i { height: 12px; width: 12px; }
+  .hero-popover { max-width: 520px; width: 82%; }
+  .hero-popover .tot-toolbar { gap: 16px; min-height: 58px; padding-left: 18px; padding-right: 18px; }
+  .hero-popover .close-dot { height: 22px; width: 22px; }
+  .hero-popover .color-dots { gap: 18px; }
+  .hero-popover .dot { height: 18px; width: 18px; }
+  .hero-popover .toolbar-icon { font-size: 24px; }
+  .hero-demo-body { min-height: 320px; padding: 30px 32px; }
+  .hero-demo-body p { font-size: 16px; margin-bottom: 16px; }
+  .hero-demo-cursor { margin-top: 44px !important; }
+  .hero-popover .tot-footer { min-height: 48px; }
+}
+
 .section-inner {
   margin: 0 auto;
   max-width: 1040px;

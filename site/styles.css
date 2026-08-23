@@ -74,6 +74,7 @@ svg {
 .footer-inner nav {
   align-items: center;
   display: flex;
+  min-width: 0;
 }
 
 .source-link {
@@ -136,6 +137,7 @@ svg {
 
 .hero-copy {
   max-width: 460px;
+  min-width: 0;
 }
 
 h1,
@@ -222,19 +224,20 @@ h1 {
 
 .product-demo {
   margin: 0 0 0 auto;
+  min-width: 0;
   position: relative;
   width: min(540px, 100%);
 }
 
-.mac-demo { color: #f3f3f4; filter: drop-shadow(0 22px 30px rgba(0, 0, 0, 0.32)); }
+.mac-demo { color: #f3f3f4; filter: drop-shadow(0 22px 30px rgba(0, 0, 0, 0.32)); min-width: 0; width: 100%; }
 .mac-menubar { align-items: center; background: rgba(30, 30, 32, 0.96); border: 1px solid #45464b; border-radius: 9px 9px 0 0; display: flex; font-size: 10px; font-weight: 500; justify-content: space-between; min-height: 34px; padding: 0 12px; }
-.menubar-left, .menubar-right { align-items: center; display: flex; gap: 12px; white-space: nowrap; }
+.menubar-left, .menubar-right { align-items: center; display: flex; gap: 12px; min-width: 0; white-space: nowrap; }
 .menubar-left { gap: 11px; }
 .apple-mark { font-size: 15px; line-height: 1; }
 .menubar-symbol { color: #c3c4c8; font-size: 12px; line-height: 1; }
 .menubar-bettertot { align-items: center; background: #34363a; border-radius: 4px; display: inline-flex; height: 20px; justify-content: center; width: 22px; }
 .menubar-bettertot i { background: #ffda3e; border-radius: 50%; display: block; height: 9px; width: 9px; }
-.hero-popover { background: #151619; border: 1px solid #484a50; border-radius: 0 0 13px 13px; margin-left: auto; margin-right: 4px; max-width: 420px; overflow: visible; position: relative; width: 78%; }
+.hero-popover { background: #151619; border: 1px solid #484a50; border-radius: 0 0 13px 13px; margin-left: auto; margin-right: 4px; max-width: 420px; min-width: 0; overflow: visible; position: relative; width: 78%; }
 .hero-popover-pointer { border-bottom: 7px solid #484a50; border-left: 7px solid transparent; border-right: 7px solid transparent; height: 0; position: absolute; right: 48px; top: -8px; width: 0; }
 .hero-popover-pointer::after { border-bottom: 6px solid #151619; border-left: 6px solid transparent; border-right: 6px solid transparent; content: ""; left: -6px; position: absolute; top: 2px; }
 .hero-popover .tot-toolbar { min-height: 44px; }
@@ -326,19 +329,6 @@ h2 {
   overflow: hidden;
   width: 100%;
 }
-
-.virtual-menubar {
-  align-items: center;
-  background: #26272a;
-  color: #a9a9b0;
-  display: flex;
-  font-size: 9px;
-  justify-content: space-between;
-  min-height: 28px;
-  padding: 0 13px;
-}
-
-.menubar-app { color: #e7e7e9; font-weight: 700; }
 
 .tot-popover { margin: 0; }
 
@@ -531,19 +521,32 @@ footer {
 }
 
 @media (max-width: 900px) {
-  .site-header { padding: 0 16px; }
+  .site-header { gap: 8px; overflow: hidden; padding: 0 16px; }
+  .site-header nav { flex: 0 0 auto; }
+  .source-link { font-size: 12px; gap: 5px; min-height: 36px; padding-left: 8px; padding-right: 8px; }
+  .star-count { gap: 2px; padding-left: 5px; }
   .source-label { display: none; }
-  .source-link { padding-left: 9px; padding-right: 9px; }
   .hero-inner {
     display: block;
+    overflow: hidden;
     padding: 32px 16px 0;
     text-align: center;
   }
+  .hero-copy,
+  .product-demo { max-width: 358px; }
+  .hero-copy { margin-left: auto; margin-right: auto; }
   h1 { font-size: 42px; }
   .hero-line { font-size: 20px; }
   .hero-detail { font-size: 16px; margin-left: auto; margin-right: auto; max-width: 340px; }
   .hero-actions { align-items: center; }
-  .product-demo { margin: 24px auto 0; width: min(420px, calc(100vw - 32px)); }
+  .product-demo { margin: 24px auto 0; width: 100%; }
+  .mac-menubar { gap: 8px; overflow: hidden; padding-left: 8px; padding-right: 8px; }
+  .menubar-left { gap: 8px; overflow: hidden; }
+  .menubar-left span:nth-of-type(n + 3),
+  .menubar-right .menubar-symbol { display: none; }
+  .menubar-right { flex-shrink: 0; font-size: 9px; gap: 7px; }
+  .menubar-right > span:first-child { display: none; }
+  .hero-popover { margin-left: 0; margin-right: 0; width: 100%; }
   .section-inner { padding: 44px 18px; }
   .feature-layout,
   .feature-layout-reverse,

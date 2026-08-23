@@ -26,6 +26,8 @@
 
 * { box-sizing: border-box; }
 
+.icon-defs { height: 0; position: absolute; width: 0; }
+
 html { scroll-behavior: smooth; }
 
 body {
@@ -442,8 +444,11 @@ h2 {
 
 .check.checked { background: #ffda3e; color: #17181b; font-size: 12px; font-weight: 800; }
 
-.footer-lines { font-size: 22px; line-height: 0.6; transform: scaleX(1.1); }
-.footer-list { font-size: 8px; font-weight: 700; line-height: 0.8; }
+.footer-tools { align-items: center; display: flex; gap: 12px; }
+.footer-tool { align-items: center; color: #a9a9b0; display: inline-flex; height: 22px; justify-content: center; width: 22px; }
+.footer-tool svg { height: 20px; width: 20px; }
+.footer-stats { flex: 1; text-align: center; white-space: nowrap; }
+.footer-settings { margin-left: auto; }
 
 .pad-content { min-height: 190px; }
 .pad-label { align-items: center; display: flex; gap: 9px; margin-bottom: 20px; }
@@ -579,6 +584,10 @@ footer {
   .menubar-right { flex-shrink: 0; font-size: 9px; gap: 7px; }
   .menubar-right > span:first-child { display: none; }
   .hero-popover { margin-left: 0; margin-right: 0; width: 100%; }
+  .footer-tools { gap: 7px; }
+  .footer-tool { height: 19px; width: 19px; }
+  .footer-tool svg { height: 18px; width: 18px; }
+  .footer-stats { font-size: 10px; }
   .section-inner { padding: 44px 18px; }
   .feature-layout,
   .feature-layout-reverse,

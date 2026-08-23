@@ -13,6 +13,13 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <svg class="icon-defs" aria-hidden="true">
+    <symbol id="icon-list" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h.01M3 12h.01M3 19h.01M8 5h13M8 12h13M8 19h13"/></symbol>
+    <symbol id="icon-list-ordered" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5h10m-10 7h10m-10 7h10M4 4h1v5M4 9h2m.5 11H3.4c0-1 2.6-1.925 2.6-3.5a1.5 1.5 0 0 0-2.6-1.02"/></symbol>
+    <symbol id="icon-list-checks" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5h8m-8 7h8m-8 7h8M3 17l2 2l4-4M3 7l2 2l4-4"/></symbol>
+    <symbol id="icon-settings" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0a2.34 2.34 0 0 0 3.319 1.915a2.34 2.34 0 0 1 2.33 4.033a2.34 2.34 0 0 0 0 3.831a2.34 2.34 0 0 1-2.33 4.033a2.34 2.34 0 0 0-3.319 1.915a2.34 2.34 0 0 1-4.659 0a2.34 2.34 0 0 0-3.32-1.915a2.34 2.34 0 0 1-2.33-4.033a2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></g></symbol>
+    <symbol id="icon-pin" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 17v5M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4a1 1 0 0 1 1 1z"/></symbol>
+  </svg>
   <header class="site-header">
     <a class="brand" href="#top" aria-label="BetterTot home">
       <img src="assets/AppIcon.svg" alt="" width="32" height="32">
@@ -52,7 +59,7 @@
             <div class="hero-popover hero-clean-popover">
               <div class="tot-toolbar"><span class="close-dot">&times;</span><span class="color-dots"><i class="dot dot-yellow active"></i><i class="dot dot-orange"></i><i class="dot dot-red"></i><i class="dot dot-purple"></i><i class="dot dot-blue"></i><i class="dot dot-cyan"></i><i class="dot dot-green"></i></span><span class="toolbar-icon">&#9673;</span><span class="toolbar-icon">&#9881;</span></div>
               <div class="hero-demo-body"><p><span class="check checked">&#10003;</span>Plan the release</p><p><span class="check"></span>Review the checklist</p><p class="hero-demo-cursor">A thought captured while it is still warm.</p></div>
-              <div class="tot-footer"><span class="footer-lines">&#9776;</span><span class="footer-list">1<br>2<br>3</span><span>3 lines &middot; 14 words &middot; 76 characters</span></div>
+              <div class="tot-footer"><span class="footer-tools"><span class="footer-tool" role="img" aria-label="Bulleted list" title="Bulleted list"><svg><use href="#icon-list"/></svg></span><span class="footer-tool" role="img" aria-label="Numbered list" title="Numbered list"><svg><use href="#icon-list-ordered"/></svg></span><span class="footer-tool" role="img" aria-label="Checklist" title="Checklist"><svg><use href="#icon-list-checks"/></svg></span></span><span class="footer-stats">3 lines &middot; 14 words &middot; 76 characters</span><span class="footer-tool footer-settings" role="img" aria-label="Settings" title="Settings"><svg><use href="#icon-settings"/></svg></span></div>
             </div>
           </div>
         </figure>
@@ -76,7 +83,7 @@
               <div class="hero-popover-pointer"></div>
               <div class="tot-toolbar"><span class="close-dot">&times;</span><span class="color-dots"><i class="dot dot-yellow active"></i><i class="dot dot-orange"></i><i class="dot dot-red"></i><i class="dot dot-purple"></i><i class="dot dot-blue"></i><i class="dot dot-cyan"></i><i class="dot dot-green"></i></span><span class="toolbar-icon">&#9673;</span><span class="toolbar-icon">&#9881;</span></div>
               <div class="hero-demo-body"><p><span class="check checked">&#10003;</span>Plan the release</p><p><span class="check"></span>Review the checklist</p><p class="hero-demo-cursor">A thought captured while it is still warm.</p></div>
-              <div class="tot-footer"><span class="footer-lines">&#9776;</span><span class="footer-list">1<br>2<br>3</span><span>3 lines &middot; 14 words &middot; 76 characters</span></div>
+              <div class="tot-footer"><span class="footer-tools"><span class="footer-tool" role="img" aria-label="Bulleted list" title="Bulleted list"><svg><use href="#icon-list"/></svg></span><span class="footer-tool" role="img" aria-label="Numbered list" title="Numbered list"><svg><use href="#icon-list-ordered"/></svg></span><span class="footer-tool" role="img" aria-label="Checklist" title="Checklist"><svg><use href="#icon-list-checks"/></svg></span></span><span class="footer-stats">3 lines &middot; 14 words &middot; 76 characters</span><span class="footer-tool footer-settings" role="img" aria-label="Settings" title="Settings"><svg><use href="#icon-settings"/></svg></span></div>
             </div>
           </div>
         </figure>
@@ -95,7 +102,7 @@
             <div class="tot-popover">
               <div class="tot-toolbar"><span class="close-dot">&times;</span><span class="color-dots"><i class="dot dot-yellow active"></i><i class="dot dot-orange"></i><i class="dot dot-red"></i><i class="dot dot-purple"></i><i class="dot dot-blue"></i><i class="dot dot-cyan"></i><i class="dot dot-green"></i></span><span class="toolbar-icon">&#9673;</span><span class="toolbar-icon">&#9881;</span></div>
               <div class="pad-content"><div class="pad-label"><span class="mini-dot dot-yellow"></span><strong>01</strong><span>Release notes</span></div><p>Keep each project close without a folder tree.</p><p>Switch pads with <kbd>Command&nbsp;1</kbd> through <kbd>Command&nbsp;7</kbd>.</p></div>
-              <div class="tot-footer"><span class="footer-lines">&#9776;</span><span class="footer-list">1<br>2<br>3</span><span>2 lines &middot; 17 words</span></div>
+              <div class="tot-footer"><span class="footer-tools"><span class="footer-tool" role="img" aria-label="Bulleted list" title="Bulleted list"><svg><use href="#icon-list"/></svg></span><span class="footer-tool" role="img" aria-label="Numbered list" title="Numbered list"><svg><use href="#icon-list-ordered"/></svg></span><span class="footer-tool" role="img" aria-label="Checklist" title="Checklist"><svg><use href="#icon-list-checks"/></svg></span></span><span class="footer-stats">2 lines &middot; 17 words</span><span class="footer-tool footer-settings" role="img" aria-label="Settings" title="Settings"><svg><use href="#icon-settings"/></svg></span></div>
             </div>
           </div>
         </figure>
@@ -114,7 +121,7 @@
             <div class="tot-popover">
               <div class="tot-toolbar"><span class="close-dot">&times;</span><span class="color-dots"><i class="dot dot-yellow active"></i><i class="dot dot-orange"></i><i class="dot dot-red"></i><i class="dot dot-purple"></i><i class="dot dot-blue"></i><i class="dot dot-cyan"></i><i class="dot dot-green"></i></span><span class="toolbar-icon">&#9673;</span><span class="toolbar-icon">&#9881;</span></div>
               <div class="markdown-body"><h3>Things to ship</h3><p class="markdown-rule"></p><p><span class="check checked">&#10003;</span>Finish the README</p><p><span class="check"></span>Publish the preview</p><p><span class="bullet"></span>Keep the thought moving</p></div>
-              <div class="tot-footer"><span class="footer-lines">&#9776;</span><span class="footer-list">1<br>2<br>3</span><span>4 lines &middot; 13 words</span></div>
+              <div class="tot-footer"><span class="footer-tools"><span class="footer-tool" role="img" aria-label="Bulleted list" title="Bulleted list"><svg><use href="#icon-list"/></svg></span><span class="footer-tool" role="img" aria-label="Numbered list" title="Numbered list"><svg><use href="#icon-list-ordered"/></svg></span><span class="footer-tool" role="img" aria-label="Checklist" title="Checklist"><svg><use href="#icon-list-checks"/></svg></span></span><span class="footer-stats">4 lines &middot; 13 words</span><span class="footer-tool footer-settings" role="img" aria-label="Settings" title="Settings"><svg><use href="#icon-settings"/></svg></span></div>
             </div>
           </div>
         </figure>

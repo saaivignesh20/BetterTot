@@ -229,15 +229,15 @@ h1 {
   width: min(540px, 100%);
 }
 
-.mac-demo { color: #f3f3f4; filter: drop-shadow(0 22px 30px rgba(0, 0, 0, 0.32)); min-width: 0; width: 100%; }
-.mac-menubar { align-items: center; background: rgba(30, 30, 32, 0.96); border: 1px solid #45464b; border-radius: 9px 9px 0 0; display: flex; font-size: 10px; font-weight: 500; justify-content: space-between; min-height: 34px; padding: 0 12px; }
+.mac-demo { color: #f3f3f4; filter: drop-shadow(0 24px 38px rgba(0, 0, 0, 0.24)); min-width: 0; width: 100%; }
+.mac-menubar { align-items: center; backdrop-filter: blur(18px); background: rgba(30, 30, 32, 0.86); border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 9px 9px 0 0; display: flex; font-size: 10px; font-weight: 500; justify-content: space-between; min-height: 34px; padding: 0 12px; }
 .menubar-left, .menubar-right { align-items: center; display: flex; gap: 12px; min-width: 0; white-space: nowrap; }
 .menubar-left { gap: 11px; }
 .apple-mark { font-size: 15px; line-height: 1; }
 .menubar-symbol { color: #c3c4c8; font-size: 12px; line-height: 1; }
 .menubar-bettertot { align-items: center; background: #34363a; border-radius: 4px; display: inline-flex; height: 20px; justify-content: center; width: 22px; }
 .menubar-bettertot i { background: #ffda3e; border-radius: 50%; display: block; height: 9px; width: 9px; }
-.hero-popover { background: #151619; border: 1px solid #484a50; border-radius: 0 0 13px 13px; margin-left: auto; margin-right: 4px; max-width: 420px; min-width: 0; overflow: visible; position: relative; width: 78%; }
+.hero-popover { background: rgba(21, 22, 25, 0.96); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 0 0 13px 13px; box-shadow: 0 22px 44px rgba(0, 0, 0, 0.2), inset 0 1px rgba(255, 255, 255, 0.04); margin-left: auto; margin-right: 4px; max-width: 420px; min-width: 0; overflow: visible; position: relative; width: 78%; }
 .hero-clean-visual { background: transparent; border: 0; box-shadow: none; max-width: 520px; margin-left: auto; }
 .hero-clean-popover { border-radius: 16px; margin: 0; max-width: none; width: 100%; }
 .hero-clean-popover .hero-popover-pointer { display: none; }
@@ -347,10 +347,10 @@ h2 {
 }
 
 .feature-visual {
-  background: #17181b;
-  border: 1px solid #3a3c41;
+  background: rgba(23, 24, 27, 0.96);
+  border: 1px solid rgba(58, 60, 65, 0.72);
   border-radius: 16px;
-  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 22px 48px rgba(0, 0, 0, 0.16);
   color: #f2f2f3;
   overflow: hidden;
   width: 100%;

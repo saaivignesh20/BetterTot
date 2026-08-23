@@ -55,15 +55,11 @@
             <source id="demo-source" media="(prefers-reduced-motion: reduce)" srcset="assets/BetterTot-demo-still.png">
             <img id="demo-image" src="assets/BetterTot-demo.gif" alt="BetterTot opening a pad and creating a native checklist" width="720" height="622">
           </picture>
-          <button class="demo-toggle" id="demo-toggle" type="button" aria-label="Pause demo" data-paused="false" title="Pause demo" hidden>
-            <svg class="pause-icon" aria-hidden="true" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><rect fill="currentColor" width="5" height="18" x="14" y="3" rx="1"/><rect fill="currentColor" width="5" height="18" x="5" y="3" rx="1"/></g></svg>
-            <svg class="play-icon" aria-hidden="true" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/></svg>
-          </button>
         </figure>
       </div>
     </section>
 
-    <section class="feature-section feature-section-dark" aria-labelledby="capture-title">
+    <section class="feature-section feature-section-paper" aria-labelledby="capture-title">
       <div class="section-inner feature-layout">
         <div class="feature-copy">
           <p class="feature-kicker">01 / Instant capture</p>
@@ -143,22 +139,6 @@
     const githubLink = document.querySelector(".source-link");
     const downloadCount = document.querySelector("#github-downloads");
     const downloadLink = document.querySelector(".download-link");
-    const demoImage = document.querySelector("#demo-image");
-    const demoSource = document.querySelector("#demo-source");
-    const demoToggle = document.querySelector("#demo-toggle");
-
-    if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      demoToggle.hidden = false;
-      demoToggle.addEventListener("click", () => {
-        const paused = demoToggle.dataset.paused === "false";
-        demoToggle.dataset.paused = String(paused);
-        demoToggle.setAttribute("aria-label", paused ? "Play demo" : "Pause demo");
-        demoToggle.setAttribute("title", paused ? "Play demo" : "Pause demo");
-        demoSource.media = paused ? "all" : "(prefers-reduced-motion: reduce)";
-        demoImage.src = paused ? "assets/BetterTot-demo-still.png" : "assets/BetterTot-demo.gif";
-      });
-    }
-
     fetch("https://api.github.com/repos/saaivignesh20/BetterTot")
       .then((response) => {
         if (!response.ok) throw new Error(`GitHub returned ${response.status}`);

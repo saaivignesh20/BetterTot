@@ -108,7 +108,7 @@ svg {
 .star-count svg { height: 13px; width: 13px; }
 
 .hero {
-  background: #171819;
+  background: var(--night);
   color: var(--white);
   overflow: hidden;
 }
@@ -216,35 +216,6 @@ h1 {
 .product-demo img {
   height: auto;
   object-fit: contain;
-}
-
-.demo-toggle {
-  align-items: center;
-  background: rgba(17, 18, 20, 0.9);
-  border: 1px solid #47494e;
-  border-radius: 50%;
-  bottom: 12px;
-  color: var(--white);
-  cursor: pointer;
-  display: flex;
-  height: 44px;
-  justify-content: center;
-  opacity: 1;
-  position: absolute;
-  right: 12px;
-  width: 44px;
-}
-
-.demo-toggle:hover { background: #25272a; }
-.demo-toggle svg { height: 16px; width: 16px; }
-.demo-toggle .play-icon { display: none; }
-.demo-toggle[data-paused="true"] .pause-icon { display: none; }
-.demo-toggle[data-paused="true"] .play-icon { display: block; }
-
-@media (hover: hover) {
-  .demo-toggle { opacity: 0; }
-  .product-demo:hover .demo-toggle,
-  .demo-toggle:focus-visible { opacity: 1; }
 }
 
 .section-inner {
@@ -422,5 +393,4 @@ footer {
 
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
-  .demo-toggle { display: none; }
 }

@@ -161,6 +161,8 @@ h1 {
 
 .hero-actions {
   display: flex;
+  align-items: center;
+  gap: 14px;
 }
 
 .button {
@@ -199,6 +201,12 @@ h1 {
   color: var(--night-soft);
   font-size: 13px;
   margin: 10px 0 0;
+}
+
+.download-count {
+  color: var(--night-soft);
+  font-size: 13px;
+  white-space: nowrap;
 }
 
 .product-demo {

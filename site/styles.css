@@ -232,7 +232,7 @@ h1 {
 .section-inner {
   margin: 0 auto;
   max-width: 1040px;
-  padding: 64px 22px;
+  padding: 48px 22px;
 }
 
 .feature-section {
@@ -252,7 +252,7 @@ h1 {
 .feature-layout {
   align-items: center;
   display: grid;
-  gap: clamp(42px, 8vw, 104px);
+  gap: clamp(28px, 6vw, 72px);
   grid-template-columns: minmax(260px, 0.8fr) minmax(0, 1.2fr);
 }
 
@@ -299,7 +299,9 @@ h2 {
 
 .feature-art {
   margin: 0;
+  max-width: 520px;
   min-width: 0;
+  width: 100%;
 }
 
 .feature-art img {

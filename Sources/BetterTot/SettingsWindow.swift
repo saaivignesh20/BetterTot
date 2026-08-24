@@ -6,6 +6,7 @@ enum SettingsKeys {
     static let smartQuotes = "smartQuotes"
     static let smartDashes = "smartDashes"
     static let writingTools = "writingTools"
+    static let showStatistics = "showStatistics"
     static let fontName = "editorFontName"
     static let fontSize = "editorFontSize"
     static let globalShortcut = "globalShortcut"
@@ -62,6 +63,7 @@ enum SettingsKeys {
         smartQuotes: false,
         smartDashes: false,
         writingTools: false,
+        showStatistics: true,
         fontName: "AmericanTypewriter",
         fontSize: 14.0,
     ]
@@ -220,7 +222,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     }
 
     private func buildContent() {
-        for (control, key) in editorSwitchKeys {
+        for (control, key) in preferenceSwitchKeys {
             control.target = self
             control.action = #selector(editorSwitchChanged(_:))
             control.identifier = NSUserInterfaceItemIdentifier(key)
@@ -248,8 +250,9 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         window?.setContentSize(Self.contentSize)
     }
 
-    private var editorSwitchKeys: [(NSSwitch, String)] {
+    private var preferenceSwitchKeys: [(NSSwitch, String)] {
         [
+            (settingsView.showStatistics, SettingsKeys.showStatistics),
             (settingsView.spellChecking, SettingsKeys.spellChecking),
             (settingsView.smartQuotes, SettingsKeys.smartQuotes),
             (settingsView.smartDashes, SettingsKeys.smartDashes),
@@ -258,7 +261,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     }
 
     private func refresh() {
-        for (control, key) in editorSwitchKeys {
+        for (control, key) in preferenceSwitchKeys {
             control.state = defaults.bool(forKey: key) ? .on : .off
         }
         settingsView.shortcutButton.title =
@@ -505,7 +508,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     @objc private func checkForUpdatesPressed() {
         guard updateTask == nil else { return }
         availableReleaseURL = nil
-        settingsView.viewUpdateButton.isHidden = true
+        settingsView.setViewUpdateButtonVisible(false)
         setUpdateStatus("Checking for updates…", announce: true)
         settingsView.setCheckingForUpdates(true)
 
@@ -542,7 +545,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
                 "Version \(release.version) is available.",
                 announce: true
             )
-            settingsView.viewUpdateButton.isHidden = false
+            settingsView.setViewUpdateButtonVisible(true)
         }
     }
 
@@ -592,7 +595,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         settingsView.setCheckingForUpdates(false)
         if wasCheckingForUpdates {
             availableReleaseURL = nil
-            settingsView.viewUpdateButton.isHidden = true
+            settingsView.setViewUpdateButtonVisible(false)
             setUpdateStatus(Self.idleUpdateStatus, announce: false)
         }
         if NSFontManager.shared.target === self {

@@ -167,8 +167,8 @@ The editor is a borderless, floating, nonactivating `NSPanel` containing:
 
 - A compact header with Close, seven independent colored pad buttons, and Pin.
 - A scrollable plain-text `NSTextView`.
-- A status footer with text statistics and local-save state.
-- A flat semantic background clipped to a continuous rounded silhouette.
+- A status footer with optional text statistics and local-save state.
+- A native blurred popover background clipped to a continuous rounded silhouette.
 
 Panel behavior:
 
@@ -186,10 +186,13 @@ Panel behavior:
 - Opening Settings from an attached panel dismisses the popover first.
 - A compact header contains Close, seven colored scratchpad selectors, and Pin.
   Inactive selectors are rings and the active selector is filled.
-- A footer shows list controls, live line/word/character counts, local-save
-  state (`Saving`, `Saved`, recovery pending, or failure), and Settings.
-- The panel uses semantic colors so its flat appearance follows the active
-  macOS light or dark appearance without showing the desktop through it.
+- A footer shows list controls, optional live line/word/character counts,
+  local-save state (`Saving`, `Saved`, recovery pending, or failure), and
+  Settings. The compact display labels the final count as `chars`.
+- General settings can hide the statistics label without disabling list,
+  save-state, or Settings controls.
+- The panel uses AppKit's active popover material with behind-window blending,
+  preserving native blurred transparency in light and dark appearances.
 - Clicking the status item is excluded from outside-click handling so one click
   closes an open, unpinned panel without dismissing and reopening it.
 - Clicking AppKit auxiliary panels such as spelling and correction suggestions

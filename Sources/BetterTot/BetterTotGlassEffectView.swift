@@ -16,6 +16,10 @@ final class BetterTotGlassEffectView: NSGlassEffectView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
+    override var intrinsicContentSize: NSSize {
+        contentView?.intrinsicContentSize ?? super.intrinsicContentSize
+    }
+
     override func layout() {
         super.layout()
         contentView?.frame = bounds

@@ -77,7 +77,7 @@ final class PadDotButton: NSButton {
     }
 }
 
-final class PanelContentView: NSView {
+final class PanelContentView: NSVisualEffectView {
     let closeButton: NSButton
     let padButtons: [PadDotButton]
     let pinButton: NSButton
@@ -136,11 +136,14 @@ final class PanelContentView: NSView {
         )
 
         super.init(frame: .zero)
+        material = .popover
+        blendingMode = .behindWindow
+        state = .active
         wantsLayer = true
         layer?.cornerRadius = 14
         layer?.cornerCurve = .continuous
         layer?.masksToBounds = true
-        updateBackground()
+        updateBorder()
 
         closeButton.target = self
         closeButton.action = #selector(closePressed)
@@ -275,7 +278,7 @@ final class PanelContentView: NSView {
 
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
-        updateBackground()
+        updateBorder()
     }
 
     func updateSelection(index: Int) {
@@ -313,7 +316,11 @@ final class PanelContentView: NSView {
         ) { _, _, _, _ in
             words += 1
         }
-        countsLabel.stringValue = "\(lines) lines · \(words) words · \(text.count) characters"
+        countsLabel.stringValue = "\(lines) lines · \(words) words · \(text.count) chars"
+    }
+
+    func setStatisticsVisible(_ visible: Bool) {
+        countsLabel.isHidden = !visible
     }
 
     func updateSaveState(_ state: PanelSaveState) {
@@ -422,8 +429,8 @@ final class PanelContentView: NSView {
         return separator
     }
 
-    private func updateBackground() {
-        layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+    private func updateBorder() {
+        layer?.backgroundColor = nil
         layer?.borderColor = NSColor.separatorColor.cgColor
         layer?.borderWidth = 1
     }

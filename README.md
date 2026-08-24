@@ -65,22 +65,33 @@ bundle and do not want to update the installed application.
 
 ## Features
 
-- [x] Seven color-coded scratchpads available from the menu bar
-- [x] Custom pad names and colors with immediate panel updates
-- [x] Global, configurable keyboard shortcut
-- [x] Pinning by dragging, with position restored between launches
-- [x] Per-pad undo history, selection, and scroll position
-- [x] Footer controls for bulleted, numbered, and checkbox lists
-- [x] Native inline checkboxes backed by portable Markdown task-list text
-- [x] Live Markdown styling for headings, emphasis, code, and web links
-- [x] Optional Apple Writing Tools and Siri support on compatible Macs running macOS 15.1 or later
-- [x] Crash recovery through an append-only journal
-- [x] Atomic local saves with rolling iCloud Drive backups
-- [x] Fixed, app-owned backup location that survives updates and reinstalls
-- [x] Plain-text import and export
-- [x] Native settings for behavior, pads, editing, storage, and updates
-- [x] Daily release checks in bundled builds plus a manual check action
-- [x] Versioned ZIP and macOS installer artifacts for tagged builds
+- Seven color-coded scratchpads available from the menu bar
+- Custom pad names and colors with immediate panel updates
+- Global, configurable keyboard shortcut
+- Pinning by dragging, with position restored between launches
+- Per-pad undo history, selection, and scroll position
+- Footer controls for bulleted, numbered, and checkbox lists
+- Optional live line, word, and character statistics
+- Native inline checkboxes backed by portable Markdown task-list text
+- Live Markdown styling for headings, emphasis, code, and web links
+- Optional Apple Writing Tools and Siri support on compatible Macs running macOS 15.1 or later
+- Crash recovery through an append-only journal
+- Atomic local saves with rolling iCloud Drive backups
+- Fixed, app-owned backup location that survives updates and reinstalls
+- Plain-text import and export
+- Native settings for behavior, pads, editing, storage, and updates
+- Daily release checks in bundled builds plus a manual check action
+- Versioned ZIP and macOS installer artifacts for tagged builds
+
+## Planned Features
+
+- Additional Markdown syntax highlighting
+- Shortcuts app actions
+- URL scheme
+- Command-line helper
+- Optional automatic updater
+- Live iCloud synchronization beyond rolling backups
+- iOS companion app
 
 ## Keyboard Shortcuts
 

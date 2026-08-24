@@ -8,12 +8,14 @@ on:
     paths:
       - "site/**"
       - "Assets/AppIcon.svg"
+      - "Assets/MenuBarIcon.png"
       - "Assets/BetterTot-demo.gif"
       - "Assets/BetterTot-demo-still.png"
       - "Assets/BetterTot-feature-capture.png"
       - "Assets/BetterTot-feature-pads.png"
       - "Assets/BetterTot-feature-markdown.png"
       - "Assets/BetterTot-feature-backups.png"
+      - "Assets/BetterTot-desktop-nature.jpg"
       - ".github/workflows/pages.yml"
 
 permissions:
@@ -43,12 +45,14 @@ jobs:
           cp site/fonts/* _site/fonts/
           cp \
             Assets/AppIcon.svg \
+            Assets/MenuBarIcon.png \
             Assets/BetterTot-demo.gif \
             Assets/BetterTot-demo-still.png \
             Assets/BetterTot-feature-capture.png \
             Assets/BetterTot-feature-pads.png \
             Assets/BetterTot-feature-markdown.png \
             Assets/BetterTot-feature-backups.png \
+            Assets/BetterTot-desktop-nature.jpg \
             _site/assets/
 
       - name: Upload Pages artifact

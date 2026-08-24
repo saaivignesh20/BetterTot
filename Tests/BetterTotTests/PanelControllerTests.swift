@@ -509,13 +509,13 @@ final class PanelControllerTests: XCTestCase {
         XCTAssertEqual(bullets.toolTip, "Bulleted list")
         XCTAssertEqual(numbers.toolTip, "Numbered list")
         XCTAssertEqual(checkboxes.toolTip, "Checkbox list")
-        XCTAssertEqual(counts.stringValue, "0 lines · 0 words · 0 characters")
+        XCTAssertEqual(counts.stringValue, "0 lines · 0 words · 0 chars")
         XCTAssertEqual(saveStatus.accessibilityValue() as? String, "Saved")
         XCTAssertTrue(spinner.isHidden)
 
         controller.applyToCurrentPad("one two\nthree", replacing: true)
 
-        XCTAssertEqual(counts.stringValue, "2 lines · 3 words · 13 characters")
+        XCTAssertEqual(counts.stringValue, "2 lines · 3 words · 13 chars")
         XCTAssertEqual(saveStatus.accessibilityValue() as? String, "Saving…")
         XCTAssertFalse(spinner.isHidden)
 
@@ -524,9 +524,13 @@ final class PanelControllerTests: XCTestCase {
         XCTAssertTrue(spinner.isHidden)
     }
 
-    func testPanelUsesFlatSurfaceWithoutWindowShadow() {
-        XCTAssertFalse(panel.contentView is NSVisualEffectView)
-        XCTAssertTrue(panel.contentView?.layer?.masksToBounds == true)
+    func testPanelUsesBlurredPopoverSurfaceWithoutWindowShadow() throws {
+        let surface = try XCTUnwrap(panel.contentView as? NSVisualEffectView)
+        XCTAssertEqual(surface.material, .popover)
+        XCTAssertEqual(surface.blendingMode, .behindWindow)
+        XCTAssertEqual(surface.state, .active)
+        XCTAssertNil(surface.layer?.backgroundColor)
+        XCTAssertTrue(surface.layer?.masksToBounds == true)
         XCTAssertFalse(panel.hasShadow)
     }
 
@@ -814,6 +818,7 @@ final class PanelControllerTests: XCTestCase {
         defaults.set(false, forKey: SettingsKeys.spellChecking)
         defaults.set(true, forKey: SettingsKeys.smartQuotes)
         defaults.set(true, forKey: SettingsKeys.smartDashes)
+        defaults.set(false, forKey: SettingsKeys.showStatistics)
         defaults.set(19.0, forKey: SettingsKeys.fontSize)
 
         let injected = PanelController(
@@ -827,6 +832,16 @@ final class PanelControllerTests: XCTestCase {
         XCTAssertTrue(injected.textView.isAutomaticQuoteSubstitutionEnabled)
         XCTAssertTrue(injected.textView.isAutomaticDashSubstitutionEnabled)
         XCTAssertEqual(injected.textView.font?.pointSize, 19)
+        let injectedPanel = try XCTUnwrap(injected.textView.window as? ScratchpadPanel)
+        let counts = try XCTUnwrap(
+            descendants(of: injectedPanel.contentView, as: NSTextField.self).first {
+                $0.identifier?.rawValue == "panel-counts"
+            }
+        )
+        XCTAssertTrue(counts.isHidden)
+        defaults.set(true, forKey: SettingsKeys.showStatistics)
+        injected.applySettings()
+        XCTAssertFalse(counts.isHidden)
         if #available(macOS 15.1, *) {
             XCTAssertEqual(injected.textView.writingToolsBehavior, .none)
             defaults.set(true, forKey: SettingsKeys.writingTools)

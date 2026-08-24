@@ -244,6 +244,7 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate,
 
     func applySettings() {
         let font = SettingsKeys.editorFont(in: defaults)
+        content.setStatisticsVisible(defaults.bool(forKey: SettingsKeys.showStatistics))
         textView.font = font
         if let checkboxTextView = textView as? CheckboxTextView {
             checkboxTextView.updateCheckboxPresentation(

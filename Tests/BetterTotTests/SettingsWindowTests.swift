@@ -30,6 +30,7 @@ final class SettingsWindowTests: XCTestCase {
         XCTAssertFalse(defaults.bool(forKey: SettingsKeys.smartQuotes))
         XCTAssertFalse(defaults.bool(forKey: SettingsKeys.smartDashes))
         XCTAssertFalse(defaults.bool(forKey: SettingsKeys.writingTools))
+        XCTAssertTrue(defaults.bool(forKey: SettingsKeys.showStatistics))
         XCTAssertEqual(defaults.string(forKey: SettingsKeys.fontName), "AmericanTypewriter")
         XCTAssertEqual(defaults.double(forKey: SettingsKeys.fontSize), 14)
         XCTAssertEqual(SettingsKeys.editorFont(in: defaults).fontName, "AmericanTypewriter")
@@ -83,9 +84,15 @@ final class SettingsWindowTests: XCTestCase {
             })
             XCTAssertEqual(button.contentTintColor, .labelColor, identifier)
             XCTAssertTrue(button.isBordered, identifier)
+            XCTAssertFalse(button.showsBorderOnlyWhileMouseInside, identifier)
             #if compiler(>=6.2)
                 if #available(macOS 26.0, *) {
                     XCTAssertEqual(button.bezelStyle, .glass, identifier)
+                    var ancestor = button.superview
+                    while ancestor != nil, !(ancestor is BetterTotGlassEffectView) {
+                        ancestor = ancestor?.superview
+                    }
+                    XCTAssertNotNil(ancestor, identifier)
                 } else {
                     XCTAssertEqual(button.bezelStyle, .rounded, identifier)
                 }
@@ -93,6 +100,12 @@ final class SettingsWindowTests: XCTestCase {
                 XCTAssertEqual(button.bezelStyle, .rounded, identifier)
             #endif
         }
+
+        #if compiler(>=6.2)
+            if #available(macOS 26.0, *) {
+                XCTAssertNotNil(allSubviews(of: view).first { $0 is NSGlassEffectContainerView })
+            }
+        #endif
     }
 
     func testStoragePageExposesOnlyICloudBackupControls() throws {
@@ -106,6 +119,7 @@ final class SettingsWindowTests: XCTestCase {
         XCTAssertTrue(identifiers.contains("backup-now"))
         XCTAssertTrue(identifiers.contains("restore-backup"))
         XCTAssertTrue(identifiers.contains("open-icloud-backups"))
+        XCTAssertFalse(identifiers.contains("backup-location"))
         XCTAssertFalse(identifiers.contains("recheck-icloud-backups"))
         XCTAssertFalse(identifiers.contains("backup-mirror-enabled"))
         XCTAssertFalse(identifiers.contains("choose-backup-mirror"))
@@ -113,6 +127,21 @@ final class SettingsWindowTests: XCTestCase {
         XCTAssertFalse(text.contains("Local Recovery"))
         XCTAssertFalse(text.contains("Backup Mirror"))
         XCTAssertFalse(text.contains("Local Storage"))
+        XCTAssertFalse(text.contains("iCloud Drive Folder"))
+        XCTAssertFalse(text.contains("Location"))
+
+        let labels = subviews.compactMap { $0 as? NSTextField }
+        let statusFontSize = try XCTUnwrap(labels.first {
+            $0.identifier?.rawValue == "backup-status"
+        }?.font?.pointSize)
+        XCTAssertEqual(
+            labels.first { $0.identifier?.rawValue == "backup-latest-date" }?.font?.pointSize,
+            statusFontSize
+        )
+        XCTAssertEqual(
+            labels.first { $0.identifier?.rawValue == "backup-latest-size" }?.font?.pointSize,
+            statusFontSize
+        )
     }
 
     func testBlockedBackupRepositoryStillAllowsRestoreOfExistingSnapshots() {
@@ -285,6 +314,7 @@ final class SettingsWindowTests: XCTestCase {
         defaults.set(false, forKey: SettingsKeys.spellChecking)
         defaults.set(true, forKey: SettingsKeys.smartQuotes)
         defaults.set(true, forKey: SettingsKeys.smartDashes)
+        defaults.set(false, forKey: SettingsKeys.showStatistics)
         SettingsKeys.save(try XCTUnwrap(NSFont(name: "Menlo", size: 17)), to: defaults)
 
         let shortcut = Shortcut(
@@ -318,10 +348,14 @@ final class SettingsWindowTests: XCTestCase {
         let writingTools = try XCTUnwrap(switches.first {
             $0.identifier?.rawValue == SettingsKeys.writingTools
         })
+        let showStatistics = try XCTUnwrap(switches.first {
+            $0.identifier?.rawValue == SettingsKeys.showStatistics
+        })
         XCTAssertEqual(spell.state, .off)
         XCTAssertEqual(quotes.state, .on)
         XCTAssertEqual(dashes.state, .on)
         XCTAssertEqual(writingTools.state, .off)
+        XCTAssertEqual(showStatistics.state, .off)
         XCTAssertEqual(buttons.first { $0.accessibilityLabel() == "Global shortcut" }?.title, "⌥⌘F13")
 
         quotes.state = .off
@@ -331,6 +365,10 @@ final class SettingsWindowTests: XCTestCase {
         writingTools.state = .on
         XCTAssertTrue(writingTools.sendAction(writingTools.action, to: writingTools.target))
         XCTAssertTrue(defaults.bool(forKey: SettingsKeys.writingTools))
+
+        showStatistics.state = .on
+        XCTAssertTrue(showStatistics.sendAction(showStatistics.action, to: showStatistics.target))
+        XCTAssertTrue(defaults.bool(forKey: SettingsKeys.showStatistics))
 
         let labels = allSubviews(of: try XCTUnwrap(controller.window?.contentView))
             .compactMap { $0 as? NSTextField }
@@ -546,6 +584,8 @@ final class SettingsWindowTests: XCTestCase {
         let nameField = view.nameField
         XCTAssertTrue(nameField.isEditable)
         XCTAssertTrue(nameField.isBezeled)
+        XCTAssertTrue(nameField.drawsBackground)
+        XCTAssertEqual(nameField.backgroundColor, .textBackgroundColor)
         XCTAssertEqual(nameField.bezelStyle, .roundedBezel)
         XCTAssertEqual(nameField.controlSize, .large)
         XCTAssertEqual(nameField.focusRingType, .default)

@@ -3,9 +3,8 @@ import AppKit
 final class SettingsContentView: NSVisualEffectView {
     static var pageAccentColor: NSColor { .controlAccentColor }
     typealias Page = SettingsPage
-    private static let liquidGlassButtonsEnabled = true
-
     let launchAtLogin = NSSwitch()
+    let showStatistics = NSSwitch()
     let spellChecking = NSSwitch()
     let smartQuotes = NSSwitch()
     let smartDashes = NSSwitch()
@@ -20,7 +19,6 @@ final class SettingsContentView: NSVisualEffectView {
     let backupStatus = NSTextField(labelWithString: "Checking iCloud backup...")
     let latestBackupDate = NSTextField(labelWithString: "Never")
     let latestBackupSize = NSTextField(labelWithString: "—")
-    let backupLocation = NSTextField(labelWithString: "")
     let backupNowButton = SettingsContentView.actionButton(
         title: "Back Up Now",
         symbol: "arrow.clockwise.icloud",
@@ -58,6 +56,16 @@ final class SettingsContentView: NSVisualEffectView {
     var onOpenICloudBackups: (() -> Void)?
 
     private let pageHost = NSView()
+    private let pageContainer: NSView = {
+        #if compiler(>=6.2)
+            if #available(macOS 26.0, *) {
+                let container = NSGlassEffectContainerView()
+                container.spacing = 8
+                return container
+            }
+        #endif
+        return NSView()
+    }()
     private let updateProgress = NSProgressIndicator()
     private var navigationButtons: [Page: SettingsSidebarButton] = [:]
     private var pages: [Page: NSView] = [:]
@@ -80,7 +88,6 @@ final class SettingsContentView: NSVisualEffectView {
     }
 
     func setBackupSummary(_ summary: BackupRepositorySummary, busy: Bool = false) {
-        backupLocation.stringValue = summary.directory.path(percentEncoded: false)
         latestBackupDate.stringValue = summary.latestBackupDate.map {
             BackupDisplayFormatting.date($0)
         } ?? "Never"
@@ -119,6 +126,16 @@ final class SettingsContentView: NSVisualEffectView {
         }
     }
 
+    func setViewUpdateButtonVisible(_ visible: Bool) {
+        viewUpdateButton.isHidden = !visible
+        #if compiler(>=6.2)
+            if #available(macOS 26.0, *),
+               let host = viewUpdateButton.superview as? BetterTotGlassEffectView {
+                host.isHidden = !visible
+            }
+        #endif
+    }
+
     private func build() {
         material = .underWindowBackground
         state = .active
@@ -126,19 +143,34 @@ final class SettingsContentView: NSVisualEffectView {
         let sidebar = buildSidebar()
 
         sidebar.translatesAutoresizingMaskIntoConstraints = false
+        pageContainer.translatesAutoresizingMaskIntoConstraints = false
         pageHost.translatesAutoresizingMaskIntoConstraints = false
         addSubview(sidebar)
-        addSubview(pageHost)
+        addSubview(pageContainer)
+        #if compiler(>=6.2)
+            if #available(macOS 26.0, *),
+               let glassContainer = pageContainer as? NSGlassEffectContainerView {
+                glassContainer.contentView = pageHost
+            } else {
+                pageContainer.addSubview(pageHost)
+            }
+        #else
+            pageContainer.addSubview(pageHost)
+        #endif
 
         NSLayoutConstraint.activate([
             sidebar.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor, constant: 10),
             sidebar.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
             sidebar.bottomAnchor.constraint(equalTo: safeAreaLayoutGuide.bottomAnchor, constant: -10),
             sidebar.widthAnchor.constraint(equalToConstant: 140),
-            pageHost.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor),
-            pageHost.leadingAnchor.constraint(equalTo: sidebar.trailingAnchor, constant: 8),
-            pageHost.trailingAnchor.constraint(equalTo: trailingAnchor),
-            pageHost.bottomAnchor.constraint(equalTo: safeAreaLayoutGuide.bottomAnchor),
+            pageContainer.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor),
+            pageContainer.leadingAnchor.constraint(equalTo: sidebar.trailingAnchor, constant: 8),
+            pageContainer.trailingAnchor.constraint(equalTo: trailingAnchor),
+            pageContainer.bottomAnchor.constraint(equalTo: safeAreaLayoutGuide.bottomAnchor),
+            pageHost.topAnchor.constraint(equalTo: pageContainer.topAnchor),
+            pageHost.leadingAnchor.constraint(equalTo: pageContainer.leadingAnchor),
+            pageHost.trailingAnchor.constraint(equalTo: pageContainer.trailingAnchor),
+            pageHost.bottomAnchor.constraint(equalTo: pageContainer.bottomAnchor),
         ])
 
         pages = [
@@ -254,6 +286,11 @@ final class SettingsContentView: NSVisualEffectView {
     private func buildGeneralPage() -> NSView {
         launchAtLogin.identifier = NSUserInterfaceItemIdentifier("launch-at-login")
         launchAtLogin.setAccessibilityLabel("Launch at login")
+        configureSwitch(
+            showStatistics,
+            identifier: SettingsKeys.showStatistics,
+            label: "Show text statistics"
+        )
 
         shortcutButton.identifier = NSUserInterfaceItemIdentifier("global-shortcut")
         Self.applyCommandButtonStyle(to: shortcutButton)
@@ -271,6 +308,13 @@ final class SettingsContentView: NSVisualEffectView {
                         tint: .systemGreen,
                         control: launchAtLogin
                     ),
+                    settingRow(
+                        title: "Text Statistics",
+                        detail: "Show line, word, and character counts in the footer.",
+                        symbol: "number",
+                        tint: .systemTeal,
+                        control: showStatistics
+                    ),
                 ]),
                 section(title: "Keyboard", rows: [
                     settingRow(
@@ -278,7 +322,7 @@ final class SettingsContentView: NSVisualEffectView {
                         detail: "Show or hide the scratchpad.",
                         symbol: "keyboard",
                         tint: .systemBlue,
-                        control: shortcutButton
+                        control: Self.glassButtonHost(shortcutButton)
                     ),
                 ]),
             ]
@@ -298,7 +342,7 @@ final class SettingsContentView: NSVisualEffectView {
         fontLabel.textColor = .secondaryLabelColor
         fontLabel.alignment = .right
         fontLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        let fontControls = NSStackView(views: [fontLabel, fontButton])
+        let fontControls = NSStackView(views: [fontLabel, Self.glassButtonHost(fontButton)])
         fontControls.orientation = .horizontal
         fontControls.alignment = .centerY
         fontControls.spacing = 10
@@ -363,21 +407,29 @@ final class SettingsContentView: NSVisualEffectView {
     private func buildStoragePage() -> NSView {
         backupStatus.identifier = NSUserInterfaceItemIdentifier("backup-status")
         backupStatus.textColor = .secondaryLabelColor
+        backupStatus.font = .systemFont(ofSize: 11, weight: .regular)
         backupStatus.maximumNumberOfLines = 2
         backupStatus.lineBreakMode = .byWordWrapping
         latestBackupDate.identifier = NSUserInterfaceItemIdentifier("backup-latest-date")
         latestBackupSize.identifier = NSUserInterfaceItemIdentifier("backup-latest-size")
-        backupLocation.identifier = NSUserInterfaceItemIdentifier("backup-location")
-        backupLocation.textColor = .secondaryLabelColor
-        backupLocation.lineBreakMode = .byTruncatingMiddle
-
-        let latest = backupFact(title: "Latest Backup", value: latestBackupDate)
-        let size = backupFact(title: "Size", value: latestBackupSize)
-        let facts = NSStackView(views: [latest, verticalSeparator(), size])
-        facts.orientation = .horizontal
-        facts.alignment = .centerY
-        facts.spacing = 20
-        latest.widthAnchor.constraint(equalTo: size.widthAnchor).isActive = true
+        latestBackupDate.font = .systemFont(ofSize: 11, weight: .medium)
+        latestBackupSize.font = .systemFont(ofSize: 11, weight: .medium)
+        let latest = NSStackView(views: [Self.detailLabel("Latest Backup"), latestBackupDate])
+        latest.orientation = .horizontal
+        latest.alignment = .firstBaseline
+        latest.spacing = 4
+        let size = NSStackView(views: [Self.detailLabel("Size"), latestBackupSize])
+        size.orientation = .horizontal
+        size.alignment = .firstBaseline
+        size.spacing = 4
+        let metadata = NSStackView(views: [latest, size])
+        metadata.orientation = .horizontal
+        metadata.alignment = .firstBaseline
+        metadata.spacing = 16
+        let statusDetails = NSStackView(views: [backupStatus, metadata])
+        statusDetails.orientation = .vertical
+        statusDetails.alignment = .leading
+        statusDetails.spacing = 2
 
         backupNowButton.target = self
         backupNowButton.action = #selector(backUpNowPressed)
@@ -386,8 +438,9 @@ final class SettingsContentView: NSVisualEffectView {
         openICloudBackupsButton.target = self
         openICloudBackupsButton.action = #selector(openICloudBackupsPressed)
         let actions = NSStackView(views: [
-            backupNowButton,
-            restoreBackupButton,
+            Self.glassButtonHost(backupNowButton),
+            Self.glassButtonHost(restoreBackupButton),
+            Self.glassButtonHost(openICloudBackupsButton),
         ])
         actions.orientation = .horizontal
         actions.alignment = .centerY
@@ -399,22 +452,12 @@ final class SettingsContentView: NSVisualEffectView {
                 section(title: "iCloud Backup", rows: [
                     settingRow(
                         title: "Backup Status",
-                        detailView: backupStatus,
+                        detailView: statusDetails,
                         symbol: "icloud",
                         tint: .systemBlue,
                         control: NSView()
                     ),
-                    leadingBlock(facts, fillWidth: true),
                     leadingBlock(actions),
-                ]),
-                section(title: "Location", rows: [
-                    settingRow(
-                        title: "iCloud Drive Folder",
-                        detailView: backupLocation,
-                        symbol: "folder",
-                        tint: .systemTeal,
-                        control: openICloudBackupsButton
-                    ),
                 ]),
             ]
         )
@@ -437,9 +480,11 @@ final class SettingsContentView: NSVisualEffectView {
 
         checkUpdatesButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 146).isActive = true
         viewUpdateButton.isHidden = true
+        let viewUpdateControl = Self.glassButtonHost(viewUpdateButton)
+        viewUpdateControl.isHidden = true
         let actionRow = NSStackView(views: [
-            checkUpdatesButton,
-            viewUpdateButton,
+            Self.glassButtonHost(checkUpdatesButton),
+            viewUpdateControl,
             updateProgress,
         ])
         actionRow.orientation = .horizontal
@@ -582,17 +627,6 @@ final class SettingsContentView: NSVisualEffectView {
         return row
     }
 
-    private func backupFact(title: String, value: NSTextField) -> NSView {
-        let titleLabel = Self.detailLabel(title)
-        value.font = .systemFont(ofSize: 16, weight: .medium)
-        value.lineBreakMode = .byTruncatingTail
-        let stack = NSStackView(views: [titleLabel, value])
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.spacing = 3
-        return stack
-    }
-
     private func leadingBlock(_ content: NSView, fillWidth: Bool = false) -> NSView {
         let wrapper = NSView()
         content.translatesAutoresizingMaskIntoConstraints = false
@@ -625,14 +659,6 @@ final class SettingsContentView: NSVisualEffectView {
         return wrapper
     }
 
-    private func verticalSeparator() -> NSView {
-        let separator = NSBox()
-        separator.boxType = .separator
-        separator.translatesAutoresizingMaskIntoConstraints = false
-        separator.heightAnchor.constraint(equalToConstant: 42).isActive = true
-        return separator
-    }
-
     private func configureSwitch(_ control: NSSwitch, identifier: String, label: String) {
         control.identifier = NSUserInterfaceItemIdentifier(identifier)
         control.setAccessibilityLabel(label)
@@ -656,8 +682,9 @@ final class SettingsContentView: NSVisualEffectView {
     private static func applyCommandButtonStyle(to button: NSButton) {
         button.contentTintColor = .labelColor
         button.isBordered = true
+        button.showsBorderOnlyWhileMouseInside = false
         #if compiler(>=6.2)
-            if Self.liquidGlassButtonsEnabled, #available(macOS 26.0, *) {
+            if #available(macOS 26.0, *) {
                 button.bezelStyle = .glass
             } else {
                 button.bezelStyle = .rounded
@@ -666,6 +693,23 @@ final class SettingsContentView: NSVisualEffectView {
             button.bezelStyle = .rounded
         #endif
         button.controlSize = .regular
+    }
+
+    private static func glassButtonHost(_ button: NSButton) -> NSView {
+        #if compiler(>=6.2)
+            if #available(macOS 26.0, *) {
+                let host = BetterTotGlassEffectView(content: button, cornerRadius: 8)
+                let buttonSize = button.intrinsicContentSize
+                NSLayoutConstraint.activate([
+                    host.widthAnchor.constraint(
+                        greaterThanOrEqualToConstant: buttonSize.width + 16
+                    ),
+                    host.heightAnchor.constraint(greaterThanOrEqualToConstant: 30),
+                ])
+                return host
+            }
+        #endif
+        return button
     }
 
     private static func pageHeaderIcon(for page: Page) -> NSView {

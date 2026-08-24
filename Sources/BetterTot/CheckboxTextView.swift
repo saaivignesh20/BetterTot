@@ -216,7 +216,7 @@ final class CheckboxAttachmentCell: NSTextAttachmentCell {
     override func draw(withFrame cellFrame: NSRect, in controlView: NSView?) {
         let boxRect = NSRect(
             x: cellFrame.minX,
-            y: cellFrame.midY - boxSize / 2,
+            y: cellFrame.midY - boxSize / 2 + 1,
             width: boxSize,
             height: boxSize
         )

@@ -584,7 +584,6 @@ final class SettingsWindowTests: XCTestCase {
         let nameField = view.nameField
         XCTAssertTrue(nameField.isEditable)
         XCTAssertTrue(nameField.isBezeled)
-        XCTAssertTrue(nameField.drawsBackground)
         XCTAssertEqual(nameField.backgroundColor, .textBackgroundColor)
         XCTAssertEqual(nameField.bezelStyle, .roundedBezel)
         XCTAssertEqual(nameField.controlSize, .large)

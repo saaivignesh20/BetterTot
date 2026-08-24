@@ -48,10 +48,10 @@ final class PadCustomizationView: NSView, NSTextFieldDelegate {
         nameField.isEditable = true
         nameField.isSelectable = true
         nameField.isBezeled = true
-        nameField.drawsBackground = true
-        nameField.backgroundColor = .textBackgroundColor
         nameField.bezelStyle = .roundedBezel
         nameField.controlSize = .large
+        nameField.drawsBackground = true
+        nameField.backgroundColor = .textBackgroundColor
         nameField.focusRingType = .default
         nameField.font = .systemFont(ofSize: NSFont.systemFontSize(for: .large))
         nameField.maximumNumberOfLines = 1

@@ -191,7 +191,7 @@ Panel behavior:
   Settings. The compact display labels the final count as `chars`.
 - General settings can hide the statistics label without disabling list,
   save-state, or Settings controls.
-- The panel uses AppKit's active HUD material with behind-window blending,
+- The panel uses AppKit's active popover material with behind-window blending,
   preserving native blurred transparency in light and dark appearances.
 - Clicking the status item is excluded from outside-click handling so one click
   closes an open, unpinned panel without dismissing and reopening it.

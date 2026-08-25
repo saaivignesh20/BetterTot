@@ -17,9 +17,9 @@
   --night-soft: #a9a9b0;
   --yellow: #ffda3e;
   --yellow-hover: #ffe56f;
-  --button: #77dfc8;
-  --button-hover: #a1ebda;
-  --button-shadow: #3d9181;
+  --button: #ffda3e;
+  --button-hover: #ffe56f;
+  --button-shadow: #a98200;
   --display: "American Typewriter", "Iowan Old Style", Georgia, serif;
   --body: "DM Sans", "Helvetica Neue", sans-serif;
 }
@@ -277,14 +277,18 @@ h1 {
 .capture-section .feature-kicker { color: var(--yellow); }
 .capture-section .feature-copy { text-shadow: 0 2px 16px rgba(0, 0, 0, 0.64); }
 .capture-section .feature-copy > p:last-child { color: rgba(255, 255, 255, 0.9); }
-.capture-gif-shell {
+.capture-panel-shell {
+  aspect-ratio: 720 / 622;
+  backdrop-filter: blur(22px) saturate(125%);
+  background: rgba(18, 19, 22, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 14px;
+  color: #f2f2f3;
   filter: drop-shadow(0 24px 38px rgba(0, 0, 0, 0.34));
   margin-left: auto;
   max-width: 440px;
   overflow: hidden;
 }
-.capture-gif { display: block; height: auto; width: 100%; }
 .capture-section .capture-menubar {
   backdrop-filter: blur(24px) saturate(175%);
   background: rgba(35, 37, 43, 0.55);
@@ -346,6 +350,9 @@ h1 {
   .menubar-bettertot img { border-radius: 5px; height: 25px; width: 25px; }
   .product-demo .hero-popover { max-width: 440px; width: 100%; }
   .capture-section .feature-art { align-self: start; margin-top: -58px; }
+  .capture-section .capture-panel-shell {
+    transform: translateX(clamp(0px, calc((100vw - 900px) * 0.22), 72px));
+  }
 }
 
 .section-inner {

@@ -65,7 +65,7 @@ final class PadDotButton: NSButton {
 
     private func updatePresentation() {
         let symbol = isSelectedPad ? "circle.fill" : "circle"
-        let configuration = NSImage.SymbolConfiguration(pointSize: 17, weight: .medium)
+        let configuration = NSImage.SymbolConfiguration(pointSize: 16, weight: .medium)
         image = NSImage(
             systemSymbolName: symbol,
             accessibilityDescription: dotDescription
@@ -136,7 +136,7 @@ final class PanelContentView: NSVisualEffectView {
         )
 
         super.init(frame: .zero)
-        material = .hudWindow
+        material = .popover
         blendingMode = .behindWindow
         state = .active
         wantsLayer = true

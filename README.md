@@ -105,6 +105,9 @@ bundle and do not want to update the installed application.
 | `Command-P` | Pin or unpin |
 | `Command-W` | Close the panel |
 | `Command-Return` | Toggle the checkbox on the current line |
+| `Command-B` | Toggle bold Markdown styling |
+| `Command-I` | Toggle italic Markdown styling |
+| `Command-U` | Toggle underline styling |
 | `Escape` | Dismiss an unpinned panel |
 
 Standard macOS editing shortcuts remain available. The pad-switching shortcuts

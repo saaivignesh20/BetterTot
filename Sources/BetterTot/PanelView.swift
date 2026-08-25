@@ -55,6 +55,11 @@ final class PadDotButton: NSButton {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        contentTintColor = dotColor
+    }
+
     func update(with pad: PadMetadata) {
         guard pad.position == padIndex else { return }
         dotColor = PanelContentView.padColor(for: pad)
@@ -89,6 +94,7 @@ final class PanelContentView: NSVisualEffectView {
     let saveIndicatorHost = NSView()
     let saveProgressIndicator = NSProgressIndicator()
     let saveIssueImageView = NSImageView()
+    private var chromeViews: [NSView] = []
 
     var onClose: (() -> Void)?
     var onSelectPad: ((Int) -> Void)?
@@ -143,7 +149,6 @@ final class PanelContentView: NSVisualEffectView {
         layer?.cornerRadius = 14
         layer?.cornerCurve = .continuous
         layer?.masksToBounds = true
-        updateBorder()
 
         closeButton.target = self
         closeButton.action = #selector(closePressed)
@@ -223,7 +228,7 @@ final class PanelContentView: NSVisualEffectView {
         header.spacing = 6
         header.edgeInsets = NSEdgeInsets(top: 2, left: 8, bottom: 2, right: 8)
         header.identifier = NSUserInterfaceItemIdentifier("panel-header")
-        Self.applyChromeShade(to: header)
+        header.wantsLayer = true
         header.setAccessibilityLabel("Panel controls")
 
         let footerSpacer = Self.flexibleSpacer()
@@ -241,7 +246,7 @@ final class PanelContentView: NSVisualEffectView {
         footer.spacing = 6
         footer.edgeInsets = NSEdgeInsets(top: 6, left: 12, bottom: 6, right: 12)
         footer.identifier = NSUserInterfaceItemIdentifier("panel-footer")
-        Self.applyChromeShade(to: footer)
+        footer.wantsLayer = true
         let topSeparator = Self.separator()
         let bottomSeparator = Self.separator()
         let root = NSStackView(views: [
@@ -266,6 +271,8 @@ final class PanelContentView: NSVisualEffectView {
             footer.heightAnchor.constraint(equalToConstant: 34),
             leftSpacer.widthAnchor.constraint(equalTo: rightSpacer.widthAnchor),
         ])
+        chromeViews = [header, footer]
+        updateAppearance()
 
         updateSelection(index: selectedIndex)
         updatePinned(false)
@@ -278,7 +285,7 @@ final class PanelContentView: NSVisualEffectView {
 
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
-        updateBorder()
+        updateAppearance()
     }
 
     func updateSelection(index: Int) {
@@ -429,15 +436,29 @@ final class PanelContentView: NSVisualEffectView {
         return separator
     }
 
-    private static func applyChromeShade(to view: NSView) {
-        view.wantsLayer = true
-        view.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.16).cgColor
-    }
-
-    private func updateBorder() {
-        layer?.backgroundColor = nil
-        layer?.borderColor = NSColor.separatorColor.cgColor
-        layer?.borderWidth = 1
+    private func updateAppearance() {
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            let dark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            layer?.backgroundColor = dark
+                ? nil
+                : NSColor(
+                    srgbRed: 0.93,
+                    green: 0.96,
+                    blue: 0.99,
+                    alpha: 0.52
+                ).cgColor
+            let chromeColor = dark
+                ? NSColor.black.withAlphaComponent(0.16)
+                : NSColor(
+                    srgbRed: 0.79,
+                    green: 0.84,
+                    blue: 0.90,
+                    alpha: 0.58
+                )
+            chromeViews.forEach { $0.layer?.backgroundColor = chromeColor.cgColor }
+            layer?.borderColor = NSColor.separatorColor.cgColor
+            layer?.borderWidth = 1
+        }
     }
 
     static func padColor(for pad: PadMetadata) -> NSColor {

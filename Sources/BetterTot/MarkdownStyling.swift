@@ -1,5 +1,23 @@
 import AppKit
 
+enum MarkdownInlineStyle {
+    case bold
+    case italic
+    case underline
+
+    var markerPairs: [(opening: String, closing: String)] {
+        switch self {
+        case .bold: [("**", "**"), ("__", "__")]
+        case .italic: [("*", "*"), ("_", "_")]
+        case .underline: [("<u>", "</u>")]
+        }
+    }
+
+    var markers: (opening: String, closing: String) {
+        markerPairs[0]
+    }
+}
+
 enum MarkdownStyling {
     static let hiddenSyntaxAttribute = NSAttributedString.Key(
         "BetterTotHiddenMarkdownSyntax"
@@ -18,6 +36,10 @@ enum MarkdownStyling {
     )
     private static let alternateItalic = try! NSRegularExpression(
         pattern: #"(?<!_)_(?!_)(?=\S)(.+?)(?<=\S)_(?!_)"#
+    )
+    private static let underline = try! NSRegularExpression(
+        pattern: #"<u>(?=\S)(.+?)(?<=\S)</u>"#,
+        options: [.caseInsensitive]
     )
     private static let code = try! NSRegularExpression(pattern: #"`([^`\r\n]+)`"#)
     private static let link = try! NSRegularExpression(
@@ -67,10 +89,24 @@ enum MarkdownStyling {
             to: text,
             font: font(baseFont, trait: .italicFontMask)
         )
+        applyUnderline(to: text)
         applyLinks(to: text)
         applyHeadings(to: text, baseFont: baseFont)
         applyCode(to: text, baseFont: baseFont)
         text.endEditing()
+    }
+
+    private static func applyUnderline(to text: NSMutableAttributedString) {
+        let fullRange = NSRange(location: 0, length: text.length)
+        for match in underline.matches(in: text.string, range: fullRange) {
+            text.addAttribute(
+                .underlineStyle,
+                value: NSUnderlineStyle.single.rawValue,
+                range: match.range(at: 1)
+            )
+            hide(NSRange(location: match.range.location, length: 3), in: text)
+            hide(NSRange(location: NSMaxRange(match.range) - 4, length: 4), in: text)
+        }
     }
 
     private static func applyEmphasis(

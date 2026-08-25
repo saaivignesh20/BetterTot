@@ -42,6 +42,7 @@ final class ScratchpadPanel: NSPanel {
     var onPadCommand: ((PadCommand) -> Void)?
     var canSwitchPads: (() -> Bool)?
     var onToggleCheckbox: (() -> Bool)?
+    var onToggleInlineStyle: ((MarkdownInlineStyle) -> Bool)?
     var onOpenSettings: (() -> Void)?
     var onClose: (() -> Void)?
 
@@ -63,6 +64,19 @@ final class ScratchpadPanel: NSPanel {
             if modifiers == .control {
                 onPadCommand?(.next)
                 return true
+            }
+        }
+        if modifiers == .command,
+           let key = event.charactersIgnoringModifiers?.lowercased() {
+            let style: MarkdownInlineStyle?
+            switch key {
+            case "b": style = .bold
+            case "i": style = .italic
+            case "u": style = .underline
+            default: style = nil
+            }
+            if let style {
+                return onToggleInlineStyle?(style) == true
             }
         }
         if super.performKeyEquivalent(with: event) { return true }
@@ -215,6 +229,10 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate,
             return !self.textView.hasMarkedText() && !self.writingToolsInteractionIsActive
         }
         panel.onToggleCheckbox = { [weak self] in self?.toggleCurrentCheckbox() ?? false }
+        panel.onToggleInlineStyle = { [weak self] style in
+            guard let self, !writingToolsInteractionIsActive else { return false }
+            return checkboxEditor.toggleInlineStyle(style)
+        }
         panel.onOpenSettings = { [weak self] in self?.openSettings() }
         panel.onClose = { [weak self] in self?.dismiss(reason: .explicitClose) }
         applySettings()

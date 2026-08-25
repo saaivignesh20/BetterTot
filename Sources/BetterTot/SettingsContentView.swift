@@ -451,7 +451,7 @@ final class SettingsContentView: NSVisualEffectView {
                         tint: .systemBlue,
                         control: NSView()
                     ),
-                    leadingBlock(actions),
+                    leadingBlock(actions, topInset: 18),
                 ]),
             ]
         )
@@ -621,12 +621,16 @@ final class SettingsContentView: NSVisualEffectView {
         return row
     }
 
-    private func leadingBlock(_ content: NSView, fillWidth: Bool = false) -> NSView {
+    private func leadingBlock(
+        _ content: NSView,
+        fillWidth: Bool = false,
+        topInset: CGFloat = 10
+    ) -> NSView {
         let wrapper = NSView()
         content.translatesAutoresizingMaskIntoConstraints = false
         wrapper.addSubview(content)
         var constraints = [
-            content.topAnchor.constraint(equalTo: wrapper.topAnchor, constant: 10),
+            content.topAnchor.constraint(equalTo: wrapper.topAnchor, constant: topInset),
             content.leadingAnchor.constraint(equalTo: wrapper.leadingAnchor),
             content.bottomAnchor.constraint(equalTo: wrapper.bottomAnchor, constant: -10),
             content.trailingAnchor.constraint(lessThanOrEqualTo: wrapper.trailingAnchor),

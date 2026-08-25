@@ -586,6 +586,77 @@ final class CheckboxTextView: NSTextView {
         replaceCharacters(in: selectedRange(), withSourceText: pasted)
     }
 
+    @discardableResult
+    func toggleInlineStyle(_ style: MarkdownInlineStyle) -> Bool {
+        var selection = selectedRange()
+        guard !hasMarkedText(),
+              selection.location != NSNotFound,
+              NSMaxRange(selection) <= attributedString().length else {
+            return false
+        }
+
+        let markers = style.markers
+        if selection.length == 0 {
+            replaceCharacters(
+                in: selection,
+                withSourceText: markers.opening + markers.closing
+            )
+            setSelectedRange(NSRange(
+                location: selection.location + (markers.opening as NSString).length,
+                length: 0
+            ))
+            return true
+        }
+
+        let selectedText = attributedString().attributedSubstring(from: selection).string
+        if let lastCharacter = selectedText.last, lastCharacter.isNewline {
+            selection.length -= (String(lastCharacter) as NSString).length
+        }
+        guard selection.length > 0 else { return false }
+
+        let selectedAttributed = attributedString().attributedSubstring(from: selection)
+        let selectedSource = Self.serialize(selectedAttributed).source
+        guard !selectedAttributed.containsCheckboxAttachment,
+              !selectedSource.contains(where: \.isNewline) else {
+            return false
+        }
+
+        let expandedRange = sourceSafeRange(forVisibleSelection: selection)
+        let expandedSource = Self.serialize(
+            attributedString().attributedSubstring(from: expandedRange)
+        ).source
+        if let wrappedMarkers = style.markerPairs.first(where: { pair in
+            expandedSource.hasPrefix(pair.opening)
+                && expandedSource.hasSuffix(pair.closing)
+                && (expandedSource as NSString).length
+                    >= (pair.opening as NSString).length + (pair.closing as NSString).length
+        }) {
+            let openingLength = (wrappedMarkers.opening as NSString).length
+            let closingLength = (wrappedMarkers.closing as NSString).length
+            let source = expandedSource as NSString
+            let content = source.substring(with: NSRange(
+                location: openingLength,
+                length: source.length - openingLength - closingLength
+            ))
+            replaceCharacters(in: expandedRange, withSourceText: content)
+            setSelectedRange(NSRange(
+                location: expandedRange.location,
+                length: (content as NSString).length
+            ))
+        } else {
+            let openingLength = (markers.opening as NSString).length
+            replaceCharacters(
+                in: selection,
+                withSourceText: markers.opening + selectedSource + markers.closing
+            )
+            setSelectedRange(NSRange(
+                location: selection.location + openingLength,
+                length: (selectedSource as NSString).length
+            ))
+        }
+        return true
+    }
+
     override func insertText(_ insertString: Any, replacementRange: NSRange) {
         let range = replacementRange.location == NSNotFound ? selectedRange() : replacementRange
         guard let inserted = Self.stringValue(of: insertString),

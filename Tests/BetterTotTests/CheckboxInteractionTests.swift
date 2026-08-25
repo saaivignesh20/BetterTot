@@ -256,6 +256,121 @@ final class CheckboxInteractionTests: XCTestCase {
         XCTAssertEqual(NSPasteboard.general.string(forType: .string), "**bold**")
     }
 
+    func testCommandFormattingShortcutsToggleMarkdownBackedStyles() throws {
+        let cases: [(keyCode: UInt16, key: String, source: String)] = [
+            (11, "b", "**Format me**"),
+            (34, "i", "*Format me*"),
+            (32, "u", "<u>Format me</u>"),
+        ]
+
+        for item in cases {
+            controller.applyToCurrentPad("Format me", replacing: true)
+            checkboxTextView.setSelectedRange(NSRange(location: 0, length: 9))
+
+            XCTAssertTrue(panel.performKeyEquivalent(with: commandKeyEvent(
+                keyCode: item.keyCode,
+                characters: item.key
+            )))
+            XCTAssertEqual(checkboxTextView.sourceText, item.source)
+
+            let rendered = checkboxTextView.attributedString()
+            let contentRange = (rendered.string as NSString).range(of: "Format me")
+            switch item.key {
+            case "b":
+                let font = try XCTUnwrap(rendered.attribute(
+                    .font,
+                    at: contentRange.location,
+                    effectiveRange: nil
+                ) as? NSFont)
+                XCTAssertTrue(font.fontDescriptor.symbolicTraits.contains(.bold))
+            case "i":
+                let font = try XCTUnwrap(rendered.attribute(
+                    .font,
+                    at: contentRange.location,
+                    effectiveRange: nil
+                ) as? NSFont)
+                XCTAssertTrue(font.fontDescriptor.symbolicTraits.contains(.italic))
+            case "u":
+                XCTAssertEqual(
+                    rendered.attribute(
+                        .underlineStyle,
+                        at: contentRange.location,
+                        effectiveRange: nil
+                    ) as? Int,
+                    NSUnderlineStyle.single.rawValue
+                )
+            default:
+                XCTFail("Unexpected formatting shortcut")
+            }
+
+            checkboxTextView.setSelectedRange(contentRange)
+            XCTAssertTrue(panel.performKeyEquivalent(with: commandKeyEvent(
+                keyCode: item.keyCode,
+                characters: item.key
+            )))
+            XCTAssertEqual(checkboxTextView.sourceText, "Format me")
+        }
+    }
+
+    func testCommandBoldAtCaretInsertsMarkdownPair() {
+        controller.applyToCurrentPad("Start ", replacing: true)
+        checkboxTextView.setSelectedRange(NSRange(location: 6, length: 0))
+
+        XCTAssertTrue(panel.performKeyEquivalent(with: commandKeyEvent(
+            keyCode: 11,
+            characters: "b"
+        )))
+        XCTAssertEqual(checkboxTextView.sourceText, "Start ****")
+        XCTAssertEqual(checkboxTextView.selectedRange(), NSRange(location: 8, length: 0))
+    }
+
+    func testFormattingShortcutAcceptsWholeLineSelectionWithTrailingNewline() {
+        controller.applyToCurrentPad("Whole row\nNext", replacing: true)
+        checkboxTextView.setSelectedRange(NSRange(location: 0, length: 10))
+
+        XCTAssertTrue(panel.performKeyEquivalent(with: commandKeyEvent(
+            keyCode: 11,
+            characters: "b"
+        )))
+        XCTAssertEqual(checkboxTextView.sourceText, "**Whole row**\nNext")
+    }
+
+    func testFormattingShortcutsRejectSelectionsThatWouldBreakMarkdown() {
+        for source in ["First\nSecond", "- [ ] Task"] {
+            controller.applyToCurrentPad(source, replacing: true)
+            checkboxTextView.setSelectedRange(NSRange(
+                location: 0,
+                length: checkboxTextView.attributedString().length
+            ))
+
+            XCTAssertFalse(panel.performKeyEquivalent(with: commandKeyEvent(
+                keyCode: 11,
+                characters: "b"
+            )))
+            XCTAssertEqual(checkboxTextView.sourceText, source)
+        }
+    }
+
+    func testFormattingShortcutsRemoveAlternateMarkdownDelimiters() {
+        let cases: [(source: String, content: String, keyCode: UInt16, key: String)] = [
+            ("__Bold__", "Bold", 11, "b"),
+            ("_Italic_", "Italic", 34, "i"),
+        ]
+
+        for item in cases {
+            controller.applyToCurrentPad(item.source, replacing: true)
+            let contentRange = (checkboxTextView.attributedString().string as NSString)
+                .range(of: item.content)
+            checkboxTextView.setSelectedRange(contentRange)
+
+            XCTAssertTrue(panel.performKeyEquivalent(with: commandKeyEvent(
+                keyCode: item.keyCode,
+                characters: item.key
+            )))
+            XCTAssertEqual(checkboxTextView.sourceText, item.content)
+        }
+    }
+
     func testCompletingMarkdownDelimiterRefreshesLiveStyling() throws {
         let textView = try XCTUnwrap(controller.textView as? CheckboxTextView)
         controller.applyToCurrentPad("**live*", replacing: true)
@@ -415,6 +530,21 @@ final class CheckboxInteractionTests: XCTestCase {
             charactersIgnoringModifiers: "\r",
             isARepeat: false,
             keyCode: 36
+        )!
+    }
+
+    private func commandKeyEvent(keyCode: UInt16, characters: String) -> NSEvent {
+        NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: .command,
+            timestamp: 0,
+            windowNumber: panel.windowNumber,
+            context: nil,
+            characters: characters,
+            charactersIgnoringModifiers: characters,
+            isARepeat: false,
+            keyCode: keyCode
         )!
     }
 

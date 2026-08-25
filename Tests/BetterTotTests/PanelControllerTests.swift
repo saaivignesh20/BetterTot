@@ -371,7 +371,7 @@ final class PanelControllerTests: XCTestCase {
             keyCode: 48, characters: "\t", modifiers: [.control, .option]))
         XCTAssertEqual(controller.currentPadPosition, 0)
         XCTAssertFalse(panel.performKeyEquivalent(with: keyEvent(
-            keyCode: 11, characters: "b", modifiers: [.command])))
+            keyCode: 11, characters: "b", modifiers: [.command, .option])))
     }
 
     func testPadDotsUseColorsAndAccessibleNumericIdentities() throws {
@@ -558,12 +558,66 @@ final class PanelControllerTests: XCTestCase {
         XCTAssertEqual(surface.material, .popover)
         XCTAssertEqual(surface.blendingMode, .behindWindow)
         XCTAssertEqual(surface.state, .active)
+        surface.appearance = NSAppearance(named: .darkAqua)
+        surface.viewDidChangeEffectiveAppearance()
         XCTAssertNil(surface.layer?.backgroundColor)
         XCTAssertTrue(surface.layer?.masksToBounds == true)
         XCTAssertFalse(panel.hasShadow)
         XCTAssertEqual(header.frame.height, 36)
         XCTAssertNotNil(header.layer?.backgroundColor)
         XCTAssertNotNil(footer.layer?.backgroundColor)
+    }
+
+    func testLightModeUsesCoolGlassAndReadablePadAccents() throws {
+        let surface = try XCTUnwrap(panel.contentView as? NSVisualEffectView)
+        let stacks = descendants(of: panel.contentView, as: NSStackView.self)
+        let header = try XCTUnwrap(stacks.first {
+            $0.identifier?.rawValue == "panel-header"
+        })
+        let footer = try XCTUnwrap(stacks.first {
+            $0.identifier?.rawValue == "panel-footer"
+        })
+
+        surface.appearance = NSAppearance(named: .aqua)
+        surface.viewDidChangeEffectiveAppearance()
+
+        let surfaceColor = try XCTUnwrap(sRGBColor(from: surface.layer?.backgroundColor))
+        let headerColor = try XCTUnwrap(sRGBColor(from: header.layer?.backgroundColor))
+        let footerColor = try XCTUnwrap(sRGBColor(from: footer.layer?.backgroundColor))
+        XCTAssertGreaterThan(surfaceColor.blueComponent, surfaceColor.redComponent)
+        XCTAssertGreaterThan(headerColor.blueComponent, headerColor.redComponent)
+        XCTAssertEqual(headerColor, footerColor)
+
+        let aqua = try XCTUnwrap(NSAppearance(named: .aqua))
+        for identifier in PadColorIdentifier.allCases {
+            let color = try XCTUnwrap(resolvedColor(identifier.color, in: aqua))
+            XCTAssertGreaterThanOrEqual(
+                contrastRatio(color, .white),
+                4.5,
+                "\(identifier.rawValue) must remain readable in light mode"
+            )
+        }
+
+        let yellow = try XCTUnwrap(resolvedColor(PadColorIdentifier.yellow.color, in: aqua))
+        let orange = try XCTUnwrap(resolvedColor(PadColorIdentifier.orange.color, in: aqua))
+        var yellowHue: CGFloat = 0
+        var orangeHue: CGFloat = 0
+        var saturation: CGFloat = 0
+        var brightness: CGFloat = 0
+        var alpha: CGFloat = 0
+        yellow.getHue(
+            &yellowHue,
+            saturation: &saturation,
+            brightness: &brightness,
+            alpha: &alpha
+        )
+        orange.getHue(
+            &orangeHue,
+            saturation: &saturation,
+            brightness: &brightness,
+            alpha: &alpha
+        )
+        XCTAssertGreaterThan(abs(yellowHue - orangeHue), 0.08)
     }
 
     func testFooterListButtonsToggleSelectedLinesAndReturnFocusToEditor() throws {
@@ -1065,5 +1119,36 @@ final class PanelControllerTests: XCTestCase {
         guard let view else { return [] }
         let current = (view as? T).map { [$0] } ?? []
         return current + view.subviews.flatMap { descendants(of: $0, as: type) }
+    }
+
+    private func sRGBColor(from cgColor: CGColor?) -> NSColor? {
+        guard let cgColor else { return nil }
+        return NSColor(cgColor: cgColor)?.usingColorSpace(.sRGB)
+    }
+
+    private func resolvedColor(_ color: NSColor, in appearance: NSAppearance) -> NSColor? {
+        var resolved: NSColor?
+        appearance.performAsCurrentDrawingAppearance {
+            resolved = color.usingColorSpace(.sRGB)
+        }
+        return resolved
+    }
+
+    private func contrastRatio(_ first: NSColor, _ second: NSColor) -> CGFloat {
+        let lighter = max(relativeLuminance(first), relativeLuminance(second))
+        let darker = min(relativeLuminance(first), relativeLuminance(second))
+        return (lighter + 0.05) / (darker + 0.05)
+    }
+
+    private func relativeLuminance(_ color: NSColor) -> CGFloat {
+        let resolved = color.usingColorSpace(.sRGB) ?? color
+        func linear(_ component: CGFloat) -> CGFloat {
+            component <= 0.04045
+                ? component / 12.92
+                : pow((component + 0.055) / 1.055, 2.4)
+        }
+        return 0.2126 * linear(resolved.redComponent)
+            + 0.7152 * linear(resolved.greenComponent)
+            + 0.0722 * linear(resolved.blueComponent)
     }
 }

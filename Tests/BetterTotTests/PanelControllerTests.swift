@@ -532,7 +532,8 @@ final class PanelControllerTests: XCTestCase {
         XCTAssertTrue(trailingButtons[0] === bullets)
         XCTAssertTrue(trailingButtons[1] === numbers)
         XCTAssertTrue(trailingButtons[2] === checkboxes)
-        XCTAssertTrue(trailingButtons[3] === try panelButton(identifier: "panel-settings"))
+        let settings = try panelButton(identifier: "panel-settings")
+        XCTAssertTrue(trailingButtons[3] === settings)
 
         controller.applyToCurrentPad("one two\nthree", replacing: true)
 

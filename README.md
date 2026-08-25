@@ -16,7 +16,7 @@
 </p>
 
 <p align="center">
-  <img src="./Assets/BetterTot-demo.gif" alt="BetterTot list controls, native checkboxes, and live text statistics" width="560">
+  <img src="./Assets/BetterTot-screenshot.png" alt="BetterTot scratchpad with checklists, pad colors, and compact controls" width="520">
 </p>
 
 BetterTot keeps seven lightweight text pads one shortcut away. It is a native

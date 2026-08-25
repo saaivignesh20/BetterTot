@@ -550,7 +550,7 @@ h2 {
   border-radius: 3px;
   display: inline-block;
   height: 15px;
-  margin-right: 13px;
+  margin-right: 8px;
   vertical-align: -4px;
   width: 15px;
 }
@@ -577,9 +577,7 @@ h2 {
 .pad-content { min-height: 0; }
 .pad-content h3,
 .markdown-body h3 { font-size: 22px; line-height: 28px; margin: 0 0 21px; }
-.checklist-line { padding-left: 28px; text-indent: -28px; }
-.markdown-body .checklist-line { padding-left: 23px; text-indent: -23px; }
-.markdown-body .check { margin-right: 8px; }
+.checklist-line { padding-left: 23px; text-indent: -23px; }
 .bullet { display: inline-block; width: 17px; }
 .bullet::before { content: "•"; }
 .pad-content code {

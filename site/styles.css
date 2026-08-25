@@ -561,11 +561,11 @@ h2 {
   width: 4px;
 }
 
-.footer-tools { align-items: center; display: flex; gap: 6px; }
+.footer-tools { align-items: center; display: flex; gap: 6px; margin-left: auto; }
 .footer-tool { align-items: center; color: #a9a9b0; display: inline-flex; height: 22px; justify-content: center; width: 22px; }
 .footer-tool svg { height: 20px; width: 20px; stroke-width: 2.35; }
-.footer-stats { flex: 0 1 auto; margin-left: 6px; text-align: left; white-space: nowrap; }
-.footer-settings { margin-left: auto; }
+.footer-stats { flex: 0 1 auto; text-align: left; white-space: nowrap; }
+.footer-settings { margin-left: 0; }
 
 .pad-content { min-height: 0; }
 .pad-content h3,
@@ -797,25 +797,72 @@ h2 {
 }
 
 .install-inner {
-  align-items: end;
+  align-items: start;
   display: grid;
-  gap: 80px;
+  gap: 72px;
   grid-template-columns: minmax(240px, 0.8fr) minmax(0, 1.2fr);
 }
 
 .install-inner .feature-kicker { color: #856900; }
 
-.install-inner h2 { margin-bottom: 0; }
+.install-inner h2 { margin-bottom: 12px; }
 
-.install-inner > p {
-  margin-bottom: 0;
+.install-intro > p:last-of-type {
   color: var(--muted);
   font-size: 14px;
-  max-width: 58ch;
+  margin-bottom: 20px;
+  max-width: 42ch;
 }
 
 .install-inner a,
 .install-inner strong { color: var(--ink); font-weight: 700; }
+
+.install-download { width: fit-content; }
+
+.install-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.install-steps li {
+  align-items: start;
+  border-bottom: 1px solid #cbc9c1;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 26px minmax(0, 1fr);
+  padding: 10px 0;
+}
+
+.install-steps li:first-child { padding-top: 0; }
+.install-steps li:last-child { border-bottom: 0; padding-bottom: 0; }
+
+.step-number {
+  align-items: center;
+  background: var(--ink);
+  border-radius: 50%;
+  color: var(--white);
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 700;
+  height: 24px;
+  justify-content: center;
+  width: 24px;
+}
+
+.install-steps strong { display: block; font-size: 14px; }
+
+.install-steps p {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 2px 0 0;
+}
+
+.install-steps code {
+  color: var(--ink);
+  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  font-size: 12px;
+}
 
 footer {
   background: var(--night);

@@ -468,6 +468,7 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate,
         }
         panel.makeKeyAndOrderFront(nil)
         panel.makeFirstResponder(textView)
+        updateStatusItemAppearance(visible: true)
         if !isPinned { installMouseMonitors() }
     }
 
@@ -487,6 +488,18 @@ final class PanelController: NSObject, NSTextViewDelegate, NSWindowDelegate,
         commitCurrentPadNow()
         removeMouseMonitors()
         panel.orderOut(nil)
+        updateStatusItemAppearance(visible: false)
+    }
+
+    private func updateStatusItemAppearance(visible: Bool) {
+        guard let button = statusItem.button else { return }
+        (button.cell as? NSButtonCell)?.showsStateBy = .changeBackgroundCellMask
+        button.state = visible ? .on : .off
+        button.wantsLayer = true
+        button.layer?.cornerRadius = 6
+        button.layer?.backgroundColor = visible
+            ? NSColor.labelColor.withAlphaComponent(0.16).cgColor
+            : nil
     }
 
     private func togglePin() {

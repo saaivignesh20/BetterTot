@@ -221,27 +221,27 @@ final class PanelContentView: NSVisualEffectView {
         header.orientation = .horizontal
         header.alignment = .centerY
         header.spacing = 6
-        header.edgeInsets = NSEdgeInsets(top: 6, left: 8, bottom: 6, right: 8)
+        header.edgeInsets = NSEdgeInsets(top: 4, left: 8, bottom: 4, right: 8)
+        header.identifier = NSUserInterfaceItemIdentifier("panel-header")
+        Self.applyChromeShade(to: header)
         header.setAccessibilityLabel("Panel controls")
 
         let footerSpacer = Self.flexibleSpacer()
-        let statisticsSpacer = NSView()
-        statisticsSpacer.translatesAutoresizingMaskIntoConstraints = false
-        statisticsSpacer.widthAnchor.constraint(equalToConstant: 6).isActive = true
         let footer = NSStackView(views: [
+            countsLabel,
+            saveIndicatorHost,
+            footerSpacer,
             bulletedListButton,
             numberedListButton,
             checkboxListButton,
-            statisticsSpacer,
-            countsLabel,
-            footerSpacer,
-            saveIndicatorHost,
             settingsButton,
         ])
         footer.orientation = .horizontal
         footer.alignment = .centerY
         footer.spacing = 6
         footer.edgeInsets = NSEdgeInsets(top: 6, left: 12, bottom: 6, right: 12)
+        footer.identifier = NSUserInterfaceItemIdentifier("panel-footer")
+        Self.applyChromeShade(to: footer)
         let topSeparator = Self.separator()
         let bottomSeparator = Self.separator()
         let root = NSStackView(views: [
@@ -262,7 +262,7 @@ final class PanelContentView: NSVisualEffectView {
             root.leadingAnchor.constraint(equalTo: leadingAnchor),
             root.trailingAnchor.constraint(equalTo: trailingAnchor),
             root.bottomAnchor.constraint(equalTo: bottomAnchor),
-            header.heightAnchor.constraint(equalToConstant: 46),
+            header.heightAnchor.constraint(equalToConstant: 40),
             footer.heightAnchor.constraint(equalToConstant: 34),
             leftSpacer.widthAnchor.constraint(equalTo: rightSpacer.widthAnchor),
         ])
@@ -427,6 +427,11 @@ final class PanelContentView: NSVisualEffectView {
         let separator = NSBox()
         separator.boxType = .separator
         return separator
+    }
+
+    private static func applyChromeShade(to view: NSView) {
+        view.wantsLayer = true
+        view.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.16).cgColor
     }
 
     private func updateBorder() {

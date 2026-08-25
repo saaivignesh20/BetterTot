@@ -165,6 +165,7 @@ final class PanelControllerTests: XCTestCase {
 
         XCTAssertTrue(handled)
         XCTAssertFalse(panel.isVisible)
+        XCTAssertEqual(statusItem.button?.state, .off)
         controller.show()
         XCTAssertEqual(controller.textView.string, "survives escape")
 
@@ -235,20 +236,32 @@ final class PanelControllerTests: XCTestCase {
         controller.dismiss(reason: .outsideClick)
 
         XCTAssertFalse(panel.isVisible)
+        XCTAssertEqual(statusItem.button?.state, .off)
     }
 
     func testToggleDismissesUnpinnedPanelButKeepsPinnedPanelVisible() {
+        XCTAssertEqual(statusItem.button?.state, .off)
+
         controller.toggle(reason: .statusItemToggle)
         XCTAssertTrue(panel.isVisible)
+        XCTAssertEqual(statusItem.button?.state, .on)
+        XCTAssertNotNil(statusItem.button?.layer?.backgroundColor)
+        XCTAssertTrue(
+            (statusItem.button?.cell as? NSButtonCell)?
+                .showsStateBy.contains(.changeBackgroundCellMask) == true
+        )
 
         controller.toggle(reason: .statusItemToggle)
         XCTAssertFalse(panel.isVisible)
+        XCTAssertEqual(statusItem.button?.state, .off)
+        XCTAssertNil(statusItem.button?.layer?.backgroundColor)
 
         controller.show()
         panel.onTogglePin?()
         controller.toggle(reason: .globalShortcutToggle)
         XCTAssertTrue(panel.isVisible)
         XCTAssertTrue(panel.firstResponder === controller.textView)
+        XCTAssertEqual(statusItem.button?.state, .on)
     }
 
     func testPanelCommandsNavigateCopyAndClearWithUndo() {
@@ -440,6 +453,7 @@ final class PanelControllerTests: XCTestCase {
         controller.show()
         XCTAssertTrue(button.sendAction(button.action, to: button.target))
         XCTAssertFalse(panel.isVisible)
+        XCTAssertEqual(statusItem.button?.state, .off)
 
         controller.show()
         panel.onTogglePin?()
@@ -512,6 +526,13 @@ final class PanelControllerTests: XCTestCase {
         XCTAssertEqual(counts.stringValue, "0 lines · 0 words · 0 chars")
         XCTAssertEqual(saveStatus.accessibilityValue() as? String, "Saved")
         XCTAssertTrue(spinner.isHidden)
+        let footer = try XCTUnwrap(counts.superview as? NSStackView)
+        XCTAssertTrue(footer.arrangedSubviews.first === counts)
+        let trailingButtons = Array(footer.arrangedSubviews.suffix(4))
+        XCTAssertTrue(trailingButtons[0] === bullets)
+        XCTAssertTrue(trailingButtons[1] === numbers)
+        XCTAssertTrue(trailingButtons[2] === checkboxes)
+        XCTAssertTrue(trailingButtons[3] === try panelButton(identifier: "panel-settings"))
 
         controller.applyToCurrentPad("one two\nthree", replacing: true)
 
@@ -526,12 +547,22 @@ final class PanelControllerTests: XCTestCase {
 
     func testPanelUsesBlurredPopoverSurfaceWithoutWindowShadow() throws {
         let surface = try XCTUnwrap(panel.contentView as? NSVisualEffectView)
+        let stacks = descendants(of: panel.contentView, as: NSStackView.self)
+        let header = try XCTUnwrap(stacks.first {
+            $0.identifier?.rawValue == "panel-header"
+        })
+        let footer = try XCTUnwrap(stacks.first {
+            $0.identifier?.rawValue == "panel-footer"
+        })
         XCTAssertEqual(surface.material, .popover)
         XCTAssertEqual(surface.blendingMode, .behindWindow)
         XCTAssertEqual(surface.state, .active)
         XCTAssertNil(surface.layer?.backgroundColor)
         XCTAssertTrue(surface.layer?.masksToBounds == true)
         XCTAssertFalse(panel.hasShadow)
+        XCTAssertEqual(header.frame.height, 40)
+        XCTAssertNotNil(header.layer?.backgroundColor)
+        XCTAssertNotNil(footer.layer?.backgroundColor)
     }
 
     func testFooterListButtonsToggleSelectedLinesAndReturnFocusToEditor() throws {

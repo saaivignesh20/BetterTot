@@ -85,19 +85,11 @@ final class SettingsWindowTests: XCTestCase {
             XCTAssertEqual(button.contentTintColor, .labelColor, identifier)
             XCTAssertTrue(button.isBordered, identifier)
             XCTAssertFalse(button.showsBorderOnlyWhileMouseInside, identifier)
+            XCTAssertEqual(button.bezelStyle, .rounded, identifier)
             #if compiler(>=6.2)
                 if #available(macOS 26.0, *) {
-                    XCTAssertEqual(button.bezelStyle, .glass, identifier)
-                    var ancestor = button.superview
-                    while ancestor != nil, !(ancestor is BetterTotGlassEffectView) {
-                        ancestor = ancestor?.superview
-                    }
-                    XCTAssertNotNil(ancestor, identifier)
-                } else {
-                    XCTAssertEqual(button.bezelStyle, .rounded, identifier)
+                    XCTAssertFalse(button.superview is BetterTotGlassEffectView, identifier)
                 }
-            #else
-                XCTAssertEqual(button.bezelStyle, .rounded, identifier)
             #endif
         }
 

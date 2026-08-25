@@ -128,12 +128,6 @@ final class SettingsContentView: NSVisualEffectView {
 
     func setViewUpdateButtonVisible(_ visible: Bool) {
         viewUpdateButton.isHidden = !visible
-        #if compiler(>=6.2)
-            if #available(macOS 26.0, *),
-               let host = viewUpdateButton.superview as? BetterTotGlassEffectView {
-                host.isHidden = !visible
-            }
-        #endif
     }
 
     private func build() {
@@ -322,7 +316,7 @@ final class SettingsContentView: NSVisualEffectView {
                         detail: "Show or hide the scratchpad.",
                         symbol: "keyboard",
                         tint: .systemBlue,
-                        control: Self.glassButtonHost(shortcutButton)
+                        control: shortcutButton
                     ),
                 ]),
             ]
@@ -342,7 +336,7 @@ final class SettingsContentView: NSVisualEffectView {
         fontLabel.textColor = .secondaryLabelColor
         fontLabel.alignment = .right
         fontLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        let fontControls = NSStackView(views: [fontLabel, Self.glassButtonHost(fontButton)])
+        let fontControls = NSStackView(views: [fontLabel, fontButton])
         fontControls.orientation = .horizontal
         fontControls.alignment = .centerY
         fontControls.spacing = 10
@@ -438,9 +432,9 @@ final class SettingsContentView: NSVisualEffectView {
         openICloudBackupsButton.target = self
         openICloudBackupsButton.action = #selector(openICloudBackupsPressed)
         let actions = NSStackView(views: [
-            Self.glassButtonHost(backupNowButton),
-            Self.glassButtonHost(restoreBackupButton),
-            Self.glassButtonHost(openICloudBackupsButton),
+            backupNowButton,
+            restoreBackupButton,
+            openICloudBackupsButton,
         ])
         actions.orientation = .horizontal
         actions.alignment = .centerY
@@ -480,10 +474,10 @@ final class SettingsContentView: NSVisualEffectView {
 
         checkUpdatesButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 146).isActive = true
         viewUpdateButton.isHidden = true
-        let viewUpdateControl = Self.glassButtonHost(viewUpdateButton)
+        let viewUpdateControl = viewUpdateButton
         viewUpdateControl.isHidden = true
         let actionRow = NSStackView(views: [
-            Self.glassButtonHost(checkUpdatesButton),
+            checkUpdatesButton,
             viewUpdateControl,
             updateProgress,
         ])
@@ -683,33 +677,8 @@ final class SettingsContentView: NSVisualEffectView {
         button.contentTintColor = .labelColor
         button.isBordered = true
         button.showsBorderOnlyWhileMouseInside = false
-        #if compiler(>=6.2)
-            if #available(macOS 26.0, *) {
-                button.bezelStyle = .glass
-            } else {
-                button.bezelStyle = .rounded
-            }
-        #else
-            button.bezelStyle = .rounded
-        #endif
+        button.bezelStyle = .rounded
         button.controlSize = .regular
-    }
-
-    private static func glassButtonHost(_ button: NSButton) -> NSView {
-        #if compiler(>=6.2)
-            if #available(macOS 26.0, *) {
-                let host = BetterTotGlassEffectView(content: button, cornerRadius: 8)
-                let buttonSize = button.intrinsicContentSize
-                NSLayoutConstraint.activate([
-                    host.widthAnchor.constraint(
-                        greaterThanOrEqualToConstant: buttonSize.width + 16
-                    ),
-                    host.heightAnchor.constraint(greaterThanOrEqualToConstant: 30),
-                ])
-                return host
-            }
-        #endif
-        return button
     }
 
     private static func pageHeaderIcon(for page: Page) -> NSView {

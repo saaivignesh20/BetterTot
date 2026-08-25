@@ -46,8 +46,8 @@ final class PadDotButton: NSButton {
         contentTintColor = dotColor
         translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            widthAnchor.constraint(equalToConstant: 32),
-            heightAnchor.constraint(equalToConstant: 32),
+            widthAnchor.constraint(equalToConstant: 28),
+            heightAnchor.constraint(equalToConstant: 28),
         ])
         updatePresentation()
     }
@@ -65,7 +65,7 @@ final class PadDotButton: NSButton {
 
     private func updatePresentation() {
         let symbol = isSelectedPad ? "circle.fill" : "circle"
-        let configuration = NSImage.SymbolConfiguration(pointSize: 19, weight: .medium)
+        let configuration = NSImage.SymbolConfiguration(pointSize: 17, weight: .medium)
         image = NSImage(
             systemSymbolName: symbol,
             accessibilityDescription: dotDescription
@@ -136,7 +136,7 @@ final class PanelContentView: NSVisualEffectView {
         )
 
         super.init(frame: .zero)
-        material = .popover
+        material = .hudWindow
         blendingMode = .behindWindow
         state = .active
         wantsLayer = true
@@ -395,8 +395,8 @@ final class PanelContentView: NSVisualEffectView {
         button.setAccessibilityLabel(label)
         button.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            button.widthAnchor.constraint(equalToConstant: 32),
-            button.heightAnchor.constraint(equalToConstant: 32),
+            button.widthAnchor.constraint(equalToConstant: 28),
+            button.heightAnchor.constraint(equalToConstant: 28),
         ])
         return button
     }
@@ -404,7 +404,7 @@ final class PanelContentView: NSVisualEffectView {
     private static func symbolImage(
         _ symbol: String,
         label: String,
-        pointSize: CGFloat = 19
+        pointSize: CGFloat = 17
     ) -> NSImage {
         let configuration = NSImage.SymbolConfiguration(
             pointSize: pointSize,

@@ -485,9 +485,9 @@ h2 {
   color: #bfc0c4;
   flex: 0 0 auto;
   font-size: 0;
-  height: 22px;
+  height: 20px;
   position: relative;
-  width: 22px;
+  width: 20px;
 }
 
 .close-dot::before,
@@ -498,22 +498,22 @@ h2 {
   height: 2px;
   left: 3px;
   position: absolute;
-  top: 8px;
-  width: 12px;
+  top: 7px;
+  width: 10px;
 }
 
 .close-dot::before { transform: rotate(45deg); }
 .close-dot::after { transform: rotate(-45deg); }
 
-.color-dots { display: flex; flex: 1; gap: 16px; justify-content: center; }
+.color-dots { display: flex; flex: 1; gap: 14px; justify-content: center; }
 
 .dot {
   background: transparent;
   border: 2px solid currentColor;
   border-radius: 50%;
   display: inline-block;
-  height: 18px;
-  width: 18px;
+  height: 16px;
+  width: 16px;
 }
 
 .dot.active { background: currentColor; }
@@ -526,7 +526,7 @@ h2 {
 .dot-green { color: #45d66a; }
 
 .toolbar-icon { color: #92939a; font-size: 20px; line-height: 1; }
-.toolbar-icon svg { height: 19px; width: 19px; }
+.toolbar-icon svg { height: 17px; width: 17px; }
 
 .tot-body,
 .pad-content,

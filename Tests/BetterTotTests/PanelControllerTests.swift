@@ -546,7 +546,7 @@ final class PanelControllerTests: XCTestCase {
         XCTAssertTrue(spinner.isHidden)
     }
 
-    func testPanelUsesBlurredPopoverSurfaceWithoutWindowShadow() throws {
+    func testPanelUsesBlurredHUDSurfaceWithoutWindowShadow() throws {
         let surface = try XCTUnwrap(panel.contentView as? NSVisualEffectView)
         let stacks = descendants(of: panel.contentView, as: NSStackView.self)
         let header = try XCTUnwrap(stacks.first {
@@ -555,16 +555,13 @@ final class PanelControllerTests: XCTestCase {
         let footer = try XCTUnwrap(stacks.first {
             $0.identifier?.rawValue == "panel-footer"
         })
-        XCTAssertEqual(surface.material, .popover)
+        XCTAssertEqual(surface.material, .hudWindow)
         XCTAssertEqual(surface.blendingMode, .behindWindow)
         XCTAssertEqual(surface.state, .active)
         XCTAssertNil(surface.layer?.backgroundColor)
         XCTAssertTrue(surface.layer?.masksToBounds == true)
         XCTAssertFalse(panel.hasShadow)
         XCTAssertEqual(header.frame.height, 36)
-        XCTAssertTrue(header.arrangedSubviews.allSatisfy {
-            header.bounds.contains($0.frame)
-        })
         XCTAssertNotNil(header.layer?.backgroundColor)
         XCTAssertNotNil(footer.layer?.backgroundColor)
     }

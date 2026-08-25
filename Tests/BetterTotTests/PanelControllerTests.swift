@@ -435,7 +435,7 @@ final class PanelControllerTests: XCTestCase {
         XCTAssertEqual(controller.padMetadata[0], updated)
         XCTAssertEqual(padButtons[0].toolTip, "Scratchpad 1, Research")
         XCTAssertEqual(padButtons[0].accessibilityLabel(), "Scratchpad 1, Research")
-        XCTAssertEqual(padButtons[0].contentTintColor, .systemBlue)
+        XCTAssertEqual(padButtons[0].contentTintColor, PadColorIdentifier.blue.color)
         XCTAssertEqual(controller.textView.accessibilityLabel(), "Scratchpad 1, Research")
         XCTAssertEqual(controller.currentSourceText, "Keep the editor intact")
         XCTAssertEqual(controller.textView.selectedRange(), NSRange(location: 5, length: 3))

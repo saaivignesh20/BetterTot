@@ -177,7 +177,6 @@ h1 {
   align-items: flex-start;
   display: flex;
   flex-direction: column;
-  gap: 7px;
 }
 
 .button {
@@ -215,12 +214,20 @@ h1 {
 .release-note {
   color: var(--night-soft);
   font-size: 13px;
-  margin: 10px 0 0;
+  margin: 4px 0 0;
 }
 
-.download-count {
+.hero-meta {
   color: var(--night-soft);
+  display: flex;
+  flex-wrap: wrap;
   font-size: 13px;
+  gap: 6px;
+  margin: 13px 0 0;
+}
+
+.download-count,
+.hero-version {
   white-space: nowrap;
 }
 

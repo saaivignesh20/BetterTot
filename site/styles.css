@@ -246,7 +246,7 @@ h1 {
   aspect-ratio: 720 / 622;
   border-radius: 14px;
   display: grid;
-  grid-template-rows: 46px 1fr 34px;
+  grid-template-rows: 36px 1fr 34px;
   margin: 0;
   max-width: none;
   overflow: hidden;
@@ -450,7 +450,7 @@ h2 {
 .tot-popover {
   aspect-ratio: 720 / 622;
   display: grid;
-  grid-template-rows: 46px 1fr 34px;
+  grid-template-rows: 36px 1fr 34px;
   height: 100%;
   margin: 0;
 }
@@ -465,7 +465,7 @@ h2 {
   padding: 0 14px;
 }
 
-.tot-toolbar { height: 46px; }
+.tot-toolbar { height: 36px; }
 
 .tot-footer {
   border-bottom: 0;

@@ -221,7 +221,7 @@ final class PanelContentView: NSVisualEffectView {
         header.orientation = .horizontal
         header.alignment = .centerY
         header.spacing = 6
-        header.edgeInsets = NSEdgeInsets(top: 4, left: 8, bottom: 4, right: 8)
+        header.edgeInsets = NSEdgeInsets(top: 2, left: 8, bottom: 2, right: 8)
         header.identifier = NSUserInterfaceItemIdentifier("panel-header")
         Self.applyChromeShade(to: header)
         header.setAccessibilityLabel("Panel controls")
@@ -262,7 +262,7 @@ final class PanelContentView: NSVisualEffectView {
             root.leadingAnchor.constraint(equalTo: leadingAnchor),
             root.trailingAnchor.constraint(equalTo: trailingAnchor),
             root.bottomAnchor.constraint(equalTo: bottomAnchor),
-            header.heightAnchor.constraint(equalToConstant: 40),
+            header.heightAnchor.constraint(equalToConstant: 36),
             footer.heightAnchor.constraint(equalToConstant: 34),
             leftSpacer.widthAnchor.constraint(equalTo: rightSpacer.widthAnchor),
         ])

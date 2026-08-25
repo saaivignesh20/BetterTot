@@ -561,7 +561,10 @@ final class PanelControllerTests: XCTestCase {
         XCTAssertNil(surface.layer?.backgroundColor)
         XCTAssertTrue(surface.layer?.masksToBounds == true)
         XCTAssertFalse(panel.hasShadow)
-        XCTAssertEqual(header.frame.height, 40)
+        XCTAssertEqual(header.frame.height, 36)
+        XCTAssertTrue(header.arrangedSubviews.allSatisfy {
+            header.bounds.contains($0.frame)
+        })
         XCTAssertNotNil(header.layer?.backgroundColor)
         XCTAssertNotNil(footer.layer?.backgroundColor)
     }
